@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, ChevronRight, Home } from "lucide-react";
+import { ArrowLeft, ChevronRight, Home } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
@@ -84,17 +84,6 @@ export function PageNav() {
       >
         <ArrowLeft className="h-3.5 w-3.5" />
         Back
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        onClick={() => router.forward()}
-        aria-label="Go forward"
-        title="Forward"
-      >
-        Forward
-        <ArrowRight className="h-3.5 w-3.5" />
       </Button>
 
       <nav
