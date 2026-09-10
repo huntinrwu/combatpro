@@ -137,10 +137,14 @@ export default async function JudgeScoringPage({
         <div className="text-xs uppercase tracking-wide text-muted-foreground">
           Scoring as {judgeName}
         </div>
-        <h1 className="font-heading text-2xl font-semibold tracking-tight">
-          <span className="text-red-600">{red?.full_name ?? "Red"}</span>
-          <span className="mx-2 text-muted-foreground">vs</span>
-          <span className="text-blue-600">{blue?.full_name ?? "Blue"}</span>
+        <h1 className="font-heading text-xl font-semibold tracking-tight sm:text-2xl">
+          <span className="block text-red-600 sm:inline">
+            {red?.full_name ?? "Red"}
+          </span>
+          <span className="mx-2 hidden text-muted-foreground sm:inline">vs</span>
+          <span className="block text-blue-600 sm:inline">
+            {blue?.full_name ?? "Blue"}
+          </span>
         </h1>
         <div className="mt-1 text-sm text-muted-foreground">
           Round {activeRound} of {totalRounds}
@@ -239,7 +243,7 @@ export default async function JudgeScoringPage({
                     <td className="py-1.5 text-right">
                       <Link
                         href={`/scoring/${boutId}?judge=${activeJudgeId}&round=${c.round_number}`}
-                        className="text-xs text-muted-foreground hover:text-foreground"
+                        className="inline-block min-h-[36px] rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                       >
                         edit
                       </Link>
@@ -301,7 +305,11 @@ function CornerBlock({
       <label className="mb-1 block text-xs font-medium text-muted-foreground">
         Score
       </label>
-      <NativeSelect name={scoreName} defaultValue={String(defaultScore)}>
+      <NativeSelect
+        name={scoreName}
+        defaultValue={String(defaultScore)}
+        className="h-11 text-base"
+      >
         {SCORE_OPTIONS.map((s) => (
           <option key={s} value={s}>
             {s}
@@ -312,7 +320,11 @@ function CornerBlock({
       <label className="mt-3 mb-1 block text-xs font-medium text-muted-foreground">
         Knockdowns
       </label>
-      <NativeSelect name={kdName} defaultValue={String(defaultKds)}>
+      <NativeSelect
+        name={kdName}
+        defaultValue={String(defaultKds)}
+        className="h-11 text-base"
+      >
         {[0, 1, 2, 3].map((n) => (
           <option key={n} value={n}>
             {n}
