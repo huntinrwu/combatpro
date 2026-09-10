@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { PageNav } from "@/components/page-nav";
 import { requireUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,9 @@ export default async function ModuleLayout({
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-6 py-8">{children}</div>
+    <div className="mx-auto w-full max-w-6xl px-6 py-8">
+      <PageNav />
+      {children}
+    </div>
   );
 }

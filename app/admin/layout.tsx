@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { UsersRound, Dumbbell } from "lucide-react";
 
+import { PageNav } from "@/components/page-nav";
 import { requireAdmin } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-8">
+      <PageNav />
       <header className="mb-6">
         <h1 className="font-heading text-2xl font-semibold tracking-tight">Admin</h1>
         <p className="mt-1 text-sm text-muted-foreground">
