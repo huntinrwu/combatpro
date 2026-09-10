@@ -1,3 +1,19 @@
+export type Person = {
+  id: string;
+  person_no: number;
+  full_name: string;
+  date_of_birth: string | null;
+  email: string | null;
+  phone: string | null;
+  avatar_url: string | null;
+  hometown: string | null;
+  nationality: string | null;
+  auth_user_id: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Commission = {
   id: string;
   name: string;
@@ -57,6 +73,7 @@ export type Fighter = {
   contact_phone: string | null;
   licenses: string | null;
   notes: string | null;
+  person_id: string | null;
   created_at: string;
 };
 
@@ -80,6 +97,7 @@ export type Official = {
   contact_phone: string | null;
   certifications: string[];
   notes: string | null;
+  person_id: string | null;
   created_at: string;
 };
 
@@ -134,6 +152,7 @@ export type Promotion = {
   reviewed_by: string | null;
   reviewed_at: string | null;
   notes: string | null;
+  contact_person_id: string | null;
   created_at: string;
   updated_at: string;
 };

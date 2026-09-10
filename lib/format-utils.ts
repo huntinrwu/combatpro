@@ -34,3 +34,9 @@ export function fmtDateLong(iso: string): string {
     day: "numeric",
   });
 }
+
+// "CP-10000" — public human-readable identifier for a person.
+export function fmtPersonNo(no: number | null | undefined): string {
+  if (no == null) return "—";
+  return `CP-${no}`;
+}

@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NativeSelect } from "@/components/ui/native-select";
+import { PersonNoBadge } from "@/components/person-no-badge";
 import { Textarea } from "@/components/ui/textarea";
 import type {
   Bout,
@@ -80,6 +81,14 @@ export default async function FighterDetailPage({
   ]);
 
   if (!fighter) notFound();
+
+  const { data: person } = fighter.person_id
+    ? await supabase
+        .from("persons")
+        .select("person_no")
+        .eq("id", fighter.person_id)
+        .maybeSingle<{ person_no: number }>()
+    : { data: null as { person_no: number } | null };
 
   const gymList = (gyms ?? []) as Pick<Gym, "id" | "name">[];
   const assignedGym = fighter.gym_id
@@ -149,6 +158,7 @@ export default async function FighterDetailPage({
           <h1 className="font-heading text-3xl font-semibold tracking-tight">
             {fighter.full_name}
           </h1>
+          {person?.person_no != null && <PersonNoBadge no={person.person_no} />}
           <Badge variant="secondary" className="capitalize">
             {fighter.primary_sport}
           </Badge>

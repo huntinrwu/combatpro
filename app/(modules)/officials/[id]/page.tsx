@@ -10,6 +10,7 @@ import { getSessionUser } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PersonNoBadge } from "@/components/person-no-badge";
 import type {
   EventOfficial,
   EventRow,
@@ -67,6 +68,14 @@ export default async function OfficialDetailPage({
 
   if (!official) notFound();
 
+  const { data: person } = official.person_id
+    ? await supabase
+        .from("persons")
+        .select("person_no")
+        .eq("id", official.person_id)
+        .maybeSingle<{ person_no: number }>()
+    : { data: null as { person_no: number } | null };
+
   const assignRows = (assignments ?? []) as EventOfficial[];
   const eventIds = Array.from(new Set(assignRows.map((a) => a.event_id)));
   const eventMap = new Map<
@@ -102,6 +111,7 @@ export default async function OfficialDetailPage({
             <h1 className="font-heading text-3xl font-semibold tracking-tight">
               {official.full_name}
             </h1>
+            {person?.person_no != null && <PersonNoBadge no={person.person_no} />}
             <div className="flex flex-wrap gap-1">
               {official.roles.map((r) => (
                 <Badge key={r} variant="secondary" className="capitalize">
