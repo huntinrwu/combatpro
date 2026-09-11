@@ -70,26 +70,41 @@ export default async function Home() {
       ])
     : null;
 
-  // Official widget — match by contact_email
+  // Official widget — prefer person_id (post-merge canonical link); fall back
+  // to contact_email match for legacy rows that haven't been linked yet.
   const isOfficial = user.isStaff || roles.has("official");
   const officialProfilePromise = isOfficial
-    ? supabase
-        .from("officials")
-        .select("*")
-        .ilike("contact_email", email)
-        .limit(1)
-        .maybeSingle<Official>()
+    ? (user.personId
+        ? supabase
+            .from("officials")
+            .select("*")
+            .eq("person_id", user.personId)
+            .limit(1)
+            .maybeSingle<Official>()
+        : supabase
+            .from("officials")
+            .select("*")
+            .ilike("contact_email", email)
+            .limit(1)
+            .maybeSingle<Official>())
     : null;
 
-  // Fighter widget — match by contact_email
+  // Fighter widget — same person_id-first strategy.
   const isFighter = user.isStaff || roles.has("fighter");
   const fighterProfilePromise = isFighter
-    ? supabase
-        .from("fighters")
-        .select("*")
-        .ilike("contact_email", email)
-        .limit(1)
-        .maybeSingle<Fighter>()
+    ? (user.personId
+        ? supabase
+            .from("fighters")
+            .select("*")
+            .eq("person_id", user.personId)
+            .limit(1)
+            .maybeSingle<Fighter>()
+        : supabase
+            .from("fighters")
+            .select("*")
+            .ilike("contact_email", email)
+            .limit(1)
+            .maybeSingle<Fighter>())
     : null;
 
   // Regulator widget (SB / commission)

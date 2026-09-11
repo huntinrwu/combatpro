@@ -26,6 +26,8 @@ export type SessionUser = {
   // Set when an admin is previewing the app as an employee — same edit surface
   // as staff, but no user-management (isAdmin becomes false).
   viewAsEmployee: boolean;
+  personId: string | null;
+  personNo: number | null;
 };
 
 const VIEW_AS_COOKIE = "cp:view-as";
@@ -45,7 +47,7 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   const [{ data: profile }, { data: grants }] = await Promise.all([
     admin
       .from("profiles")
-      .select("id, email, full_name, is_staff, is_admin")
+      .select("id, email, full_name, is_staff, is_admin, person_id")
       .eq("id", user.id)
       .maybeSingle<{
         id: string;
@@ -53,6 +55,7 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
         full_name: string | null;
         is_staff: boolean;
         is_admin: boolean;
+        person_id: string | null;
       }>(),
     admin
       .from("user_role_grants")
@@ -61,6 +64,16 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   ]);
 
   if (!profile) return null;
+
+  let personNo: number | null = null;
+  if (profile.person_id) {
+    const { data: person } = await admin
+      .from("persons")
+      .select("person_no")
+      .eq("id", profile.person_id)
+      .maybeSingle<{ person_no: number }>();
+    personNo = person?.person_no ?? null;
+  }
 
   const approvedRoles: PlatformRole[] = [];
   const pendingRoles: PlatformRole[] = [];
@@ -94,6 +107,8 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
     pendingRoles,
     viewAsRole,
     viewAsEmployee,
+    personId: profile.person_id,
+    personNo,
   };
 });
 
