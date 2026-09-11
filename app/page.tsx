@@ -200,9 +200,18 @@ export default async function Home() {
   }
 
   let fighterNextBout: FighterNextBout = null;
+  let fighterGym: Pick<Gym, "id" | "name" | "city" | "state"> | null = null;
   let gymRoster: Fighter[] = [];
   if (fighterProfile?.data) {
     const fid = fighterProfile.data.id;
+    if (fighterProfile.data.gym_id) {
+      const { data: g } = await supabase
+        .from("gyms")
+        .select("id, name, city, state")
+        .eq("id", fighterProfile.data.gym_id)
+        .maybeSingle<Pick<Gym, "id" | "name" | "city" | "state">>();
+      fighterGym = g ?? null;
+    }
     const { data: bouts } = await supabase
       .from("bouts")
       .select("id, event_id, red_corner_fighter_id, blue_corner_fighter_id")
@@ -320,6 +329,7 @@ export default async function Home() {
               <FighterWidget
                 profile={fighterProfile?.data ?? null}
                 nextBout={fighterNextBout}
+                gym={fighterGym}
               />
             )}
             {(isSb || isCommission) && regulatorData && (

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Pencil, Swords, TrendingUp } from "lucide-react";
+import { Dumbbell, Pencil, Swords, TrendingUp } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fmtDateShort as fmtEventDate } from "@/lib/format-utils";
 import { initials } from "@/lib/text-utils";
-import type { Fighter } from "@/lib/db/types";
+import type { Fighter, Gym } from "@/lib/db/types";
 
 export type FighterNextBout = {
   boutId: string;
@@ -22,9 +22,11 @@ export type FighterNextBout = {
 export function FighterWidget({
   profile,
   nextBout,
+  gym,
 }: {
   profile: Fighter | null;
   nextBout: FighterNextBout;
+  gym: Pick<Gym, "id" | "name" | "city" | "state"> | null;
 }) {
   return (
     <Card>
@@ -80,6 +82,25 @@ export function FighterWidget({
                 </Badge>
               </div>
             </Link>
+            {gym && (
+              <Link
+                href={`/gyms/${gym.id}`}
+                className="flex items-center gap-2 rounded-lg border border-border/70 p-3 text-sm hover:bg-muted/40"
+              >
+                <Dumbbell className="h-4 w-4 text-muted-foreground" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    Your gym
+                  </div>
+                  <div className="truncate font-medium">{gym.name}</div>
+                  {(gym.city || gym.state) && (
+                    <div className="text-xs text-muted-foreground">
+                      {[gym.city, gym.state].filter(Boolean).join(", ")}
+                    </div>
+                  )}
+                </div>
+              </Link>
+            )}
             {nextBout ? (
               <div className="rounded-lg border border-border/70 p-3">
                 <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
