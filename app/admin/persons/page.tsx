@@ -1,4 +1,4 @@
-import { GitMerge, UserCircle } from "lucide-react";
+import { GitMerge, UserCircle, Archive } from "lucide-react";
 
 import { mergePersonsByNumber } from "./actions";
 import { ToastedForm } from "@/components/forms/toasted-form";
@@ -14,7 +14,12 @@ export const dynamic = "force-dynamic";
 
 type PersonRow = Pick<
   Person,
-  "id" | "person_no" | "full_name" | "email" | "auth_user_id"
+  | "id"
+  | "person_no"
+  | "full_name"
+  | "email"
+  | "auth_user_id"
+  | "merged_into_person_id"
 >;
 
 type Counts = {
@@ -27,20 +32,26 @@ type Counts = {
 export default async function PersonsAdminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; show_merged?: string }>;
 }) {
-  const { q: qParam } = await searchParams;
+  const { q: qParam, show_merged } = await searchParams;
   const q = (qParam ?? "").trim();
+  const includeMerged = show_merged === "1";
   const admin = createAdminClient();
 
   let query = admin
     .from("persons")
-    .select("id, person_no, full_name, email, auth_user_id")
+    .select(
+      "id, person_no, full_name, email, auth_user_id, merged_into_person_id",
+    )
     .order("person_no", { ascending: true })
     .limit(200);
 
+  if (!includeMerged) {
+    query = query.is("merged_into_person_id", null);
+  }
+
   if (q.length > 0) {
-    // Match on full_name (case-insensitive), email, or person_no
     const asNumber = Number.parseInt(q.replace(/[^0-9]/g, ""), 10);
     const patterns = [`full_name.ilike.%${q}%`, `email.ilike.%${q}%`];
     if (!Number.isNaN(asNumber)) patterns.push(`person_no.eq.${asNumber}`);
@@ -50,6 +61,22 @@ export default async function PersonsAdminPage({
   const { data: persons } = await query;
   const rows = (persons ?? []) as PersonRow[];
   const personIds = rows.map((r) => r.id);
+  const mergedTargetIds = Array.from(
+    new Set(rows.map((r) => r.merged_into_person_id).filter((x): x is string => Boolean(x))),
+  );
+
+  // Look up the CP-number of any target we merged into so we can render the
+  // "→ CP-10042" hint on tombstoned rows.
+  const targetLookup = new Map<string, number>();
+  if (mergedTargetIds.length) {
+    const { data: targets } = await admin
+      .from("persons")
+      .select("id, person_no")
+      .in("id", mergedTargetIds);
+    for (const t of (targets ?? []) as { id: string; person_no: number }[]) {
+      targetLookup.set(t.id, t.person_no);
+    }
+  }
 
   const [{ data: fighters }, { data: officials }, { data: promotions }] =
     personIds.length
@@ -97,19 +124,27 @@ export default async function PersonsAdminPage({
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
             Every human on the platform has one entry here. Person numbers start
-            at CP-10000. Merge two rows when a fighter, official, and account
-            turn out to be the same person.
+            at CP-10000 and are permanent — merged rows become tombstones so the
+            original number is never reused.
           </p>
         </div>
       </div>
 
-      <form className="mb-4" method="get">
+      <form className="mb-4 flex flex-wrap items-center gap-2" method="get">
         <Input
           type="search"
           name="q"
           placeholder="Search by name, email, or CP-number"
           defaultValue={q}
+          className="flex-1 min-w-[220px]"
         />
+        {includeMerged && <input type="hidden" name="show_merged" value="1" />}
+        <a
+          href={includeMerged ? `?${q ? `q=${encodeURIComponent(q)}` : ""}` : `?show_merged=1${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+          className="rounded-md border border-border/60 px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+        >
+          {includeMerged ? "Hide merged" : "Show merged"}
+        </a>
       </form>
 
       <Card className="mb-6">
@@ -121,9 +156,11 @@ export default async function PersonsAdminPage({
         </CardHeader>
         <CardContent>
           <p className="mb-3 text-xs text-muted-foreground">
-            Enter the CP-number of both records. The <strong>source</strong> is
-            deleted; the <strong>target</strong> keeps its number and inherits
-            all fighter/official/promotion/account links from the source.
+            Enter the CP-number of both records. The <strong>target</strong>{" "}
+            keeps its number and inherits every fighter/official/promotion/account
+            link from the source. The <strong>source</strong> row is tombstoned
+            (kept for lookup, marked as merged) — its CP-number is preserved and
+            never reused.
           </p>
           <ToastedForm
             action={mergePersonsByNumber}
@@ -133,7 +170,7 @@ export default async function PersonsAdminPage({
           >
             <div className="flex-1 min-w-[160px]">
               <label htmlFor="source_no" className="mb-1 block text-xs font-medium text-muted-foreground">
-                Source (deleted)
+                Source (tombstoned)
               </label>
               <Input
                 id="source_no"
@@ -164,7 +201,7 @@ export default async function PersonsAdminPage({
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            {q ? `Results for "${q}"` : "All persons"}
+            {q ? `Results for "${q}"` : includeMerged ? "All persons (incl. merged)" : "All persons"}
             <span className="ml-2 text-xs font-normal text-muted-foreground">
               {rows.length} shown
             </span>
@@ -187,19 +224,36 @@ export default async function PersonsAdminPage({
                 <tbody className="divide-y divide-border">
                   {rows.map((p) => {
                     const c = counts.get(p.id);
+                    const isMerged = Boolean(p.merged_into_person_id);
+                    const mergedIntoNo = p.merged_into_person_id
+                      ? targetLookup.get(p.merged_into_person_id)
+                      : null;
                     return (
-                      <tr key={p.id}>
+                      <tr key={p.id} className={isMerged ? "opacity-60" : ""}>
                         <td className="py-2 pr-3">
                           <span className="font-mono text-xs">
                             {fmtPersonNo(p.person_no)}
                           </span>
                         </td>
-                        <td className="py-2 pr-3 font-medium">{p.full_name}</td>
+                        <td className="py-2 pr-3 font-medium">
+                          {p.full_name}
+                          {isMerged && mergedIntoNo != null && (
+                            <span className="ml-2 text-xs font-normal text-muted-foreground">
+                              → {fmtPersonNo(mergedIntoNo)}
+                            </span>
+                          )}
+                        </td>
                         <td className="py-2 pr-3 text-xs text-muted-foreground">
                           {p.email ?? "—"}
                         </td>
                         <td className="py-2 pr-3">
                           <div className="flex flex-wrap gap-1">
+                            {isMerged && (
+                              <Badge variant="outline" className="gap-1 text-[10px]">
+                                <Archive className="h-3 w-3" />
+                                Merged
+                              </Badge>
+                            )}
                             {c?.hasAccount && (
                               <Badge variant="secondary" className="gap-1 text-[10px]">
                                 <UserCircle className="h-3 w-3" />

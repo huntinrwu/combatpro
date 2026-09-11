@@ -10,6 +10,8 @@ export type Person = {
   nationality: string | null;
   auth_user_id: string | null;
   notes: string | null;
+  merged_into_person_id: string | null;
+  merged_at: string | null;
   created_at: string;
   updated_at: string;
 };
