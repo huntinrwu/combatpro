@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { CalendarClock, Gavel } from "lucide-react";
+import { CalendarClock, Gavel, Pencil } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fmtDateShort as fmtEventDate } from "@/lib/format-utils";
 import type { Official } from "@/lib/db/types";
@@ -27,6 +28,17 @@ export function OfficialWidget({
         <CardTitle className="flex items-center gap-2 text-base">
           <Gavel className="h-4 w-4" />
           Your officiating
+          <Button
+            size="xs"
+            variant="ghost"
+            className="ml-auto"
+            render={
+              <Link href="/me" aria-label="Edit officiating profile">
+                <Pencil className="h-3 w-3" />
+                Manage
+              </Link>
+            }
+          />
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">

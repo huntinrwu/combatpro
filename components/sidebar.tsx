@@ -11,6 +11,7 @@ import {
   LogOut,
   Menu,
   ShieldCheck,
+  UserCircle,
   X,
 } from "lucide-react";
 
@@ -420,6 +421,13 @@ function UserMenu({ user, collapsed }: { user: SidebarUser; collapsed: boolean }
             </span>
           )}
         </div>
+        <Link
+          href="/me"
+          className="mt-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+        >
+          <UserCircle className="h-3.5 w-3.5" />
+          My profile
+        </Link>
         {user.isAdmin && (
           <Link
             href="/admin/access-requests"

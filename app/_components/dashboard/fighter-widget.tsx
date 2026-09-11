@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { Swords, TrendingUp } from "lucide-react";
+import { Pencil, Swords, TrendingUp } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fmtDateShort as fmtEventDate } from "@/lib/format-utils";
 import { initials } from "@/lib/text-utils";
@@ -31,6 +32,17 @@ export function FighterWidget({
         <CardTitle className="flex items-center gap-2 text-base">
           <Swords className="h-4 w-4" />
           Your fighter profile
+          <Button
+            size="xs"
+            variant="ghost"
+            className="ml-auto"
+            render={
+              <Link href="/me" aria-label="Edit fighter profile">
+                <Pencil className="h-3 w-3" />
+                Manage
+              </Link>
+            }
+          />
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
