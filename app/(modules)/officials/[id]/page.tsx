@@ -1,23 +1,34 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarClock, CalendarDays, ClipboardList, History, Pencil } from "lucide-react";
+import { CalendarClock, CalendarDays, ClipboardList, History, Pencil, ShieldCheck, Trash2 } from "lucide-react";
 
 import { AvailabilityCard } from "./_components/availability-card";
 import { PriorEventsCard } from "./_components/prior-events-card";
+import {
+  linkOfficialToSanctioningBody,
+  unlinkOfficialFromSanctioningBody,
+} from "../actions";
 import { db } from "@/lib/db/client";
-import { fmtDateShortWithDay as fmtEventDate } from "@/lib/format-utils";
+import { fmtDateShort, fmtDateShortWithDay as fmtEventDate } from "@/lib/format-utils";
 import { getSessionUser } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FormField } from "@/components/form-field";
+import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import { PersonNoBadge } from "@/components/person-no-badge";
+import { ToastedForm } from "@/components/forms/toasted-form";
 import type {
   EventOfficial,
   EventRow,
   Official,
   OfficialAvailability,
   OfficialPriorEvent,
+  OfficialSanctioningBody,
+  SanctioningBody,
 } from "@/lib/db/types";
+import { OFFICIAL_SB_STATUSES } from "@/lib/db/types";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +86,21 @@ export default async function OfficialDetailPage({
         .eq("id", official.person_id)
         .maybeSingle<{ person_no: number }>()
     : { data: null as { person_no: number } | null };
+
+  const [{ data: sbLinks }, { data: allSbs }] = await Promise.all([
+    supabase
+      .from("official_sanctioning_bodies")
+      .select("*")
+      .eq("official_id", id),
+    supabase
+      .from("sanctioning_bodies")
+      .select("id, name, abbreviation")
+      .order("abbreviation", { ascending: true }),
+  ]);
+  const links = (sbLinks ?? []) as OfficialSanctioningBody[];
+  const sbList = (allSbs ?? []) as Pick<SanctioningBody, "id" | "name" | "abbreviation">[];
+  const sbMap = new Map(sbList.map((sb) => [sb.id, sb]));
+  const linkedSbIds = new Set(links.map((l) => l.sanctioning_body_id));
 
   const assignRows = (assignments ?? []) as EventOfficial[];
   const eventIds = Array.from(new Set(assignRows.map((a) => a.event_id)));
@@ -231,6 +257,166 @@ export default async function OfficialDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ShieldCheck className="h-4 w-4" />
+            Sanctioning bodies
+            <span className="ml-1 text-xs font-normal text-muted-foreground">
+              {links.length} linked
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {links.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Not linked to any sanctioning body yet.
+            </p>
+          ) : (
+            <ul className="divide-y divide-border/60 rounded-lg border border-border/60">
+              {links.map((link) => {
+                const sb = sbMap.get(link.sanctioning_body_id);
+                const statusTone =
+                  link.status === "active"
+                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                    : link.status === "suspended"
+                      ? "bg-red-500/10 text-red-700 dark:text-red-300"
+                      : "bg-muted text-muted-foreground";
+                return (
+                  <li key={link.id} className="flex flex-wrap items-center gap-3 p-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {sb ? (
+                          <Link
+                            href={`/sb/${sb.id}`}
+                            className="font-medium hover:underline"
+                          >
+                            {sb.abbreviation} — {sb.name}
+                          </Link>
+                        ) : (
+                          <span className="text-muted-foreground">Unknown SB</span>
+                        )}
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide ${statusTone}`}
+                        >
+                          {link.status}
+                        </span>
+                        {link.level && (
+                          <Badge variant="outline" className="text-[10px]">
+                            {link.level}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                        {link.certified_since && (
+                          <span>Certified {fmtDateShort(link.certified_since)}</span>
+                        )}
+                        {link.expires_on && (
+                          <span>Expires {fmtDateShort(link.expires_on)}</span>
+                        )}
+                        {link.notes && (
+                          <span className="italic">&ldquo;{link.notes}&rdquo;</span>
+                        )}
+                      </div>
+                    </div>
+                    {session?.isStaff && (
+                      <ToastedForm
+                        action={unlinkOfficialFromSanctioningBody}
+                        successMessage="Removed"
+                      >
+                        <input type="hidden" name="id" value={link.id} />
+                        <input type="hidden" name="official_id" value={official.id} />
+                        <input
+                          type="hidden"
+                          name="sanctioning_body_id"
+                          value={link.sanctioning_body_id}
+                        />
+                        <Button
+                          type="submit"
+                          size="xs"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive"
+                          aria-label="Remove link"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          Remove
+                        </Button>
+                      </ToastedForm>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {session?.isStaff && sbList.length > 0 && (
+            <div className="mt-4 border-t border-border/60 pt-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Add / update link
+              </p>
+              <ToastedForm
+                action={linkOfficialToSanctioningBody}
+                successMessage="Link saved"
+                resetOnSuccess
+                className="grid gap-3 sm:grid-cols-2"
+              >
+                <input type="hidden" name="official_id" value={official.id} />
+                <FormField
+                  label="Sanctioning body"
+                  htmlFor="sbl_sb"
+                  required
+                  className="sm:col-span-2"
+                >
+                  <NativeSelect id="sbl_sb" name="sanctioning_body_id" required>
+                    <option value="">—</option>
+                    {sbList.map((sb) => (
+                      <option
+                        key={sb.id}
+                        value={sb.id}
+                        disabled={linkedSbIds.has(sb.id)}
+                      >
+                        {sb.abbreviation} — {sb.name}
+                        {linkedSbIds.has(sb.id) ? " (linked)" : ""}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </FormField>
+                <FormField label="Status" htmlFor="sbl_status">
+                  <NativeSelect id="sbl_status" name="status" defaultValue="active">
+                    {OFFICIAL_SB_STATUSES.map((s) => (
+                      <option key={s} value={s} className="capitalize">
+                        {s}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </FormField>
+                <FormField label="Level" htmlFor="sbl_level">
+                  <Input
+                    id="sbl_level"
+                    name="level"
+                    placeholder="e.g. Senior, Level 2"
+                  />
+                </FormField>
+                <FormField label="Certified since" htmlFor="sbl_since">
+                  <Input id="sbl_since" name="certified_since" type="date" />
+                </FormField>
+                <FormField label="Expires on" htmlFor="sbl_exp">
+                  <Input id="sbl_exp" name="expires_on" type="date" />
+                </FormField>
+                <FormField label="Notes" htmlFor="sbl_notes" className="sm:col-span-2">
+                  <Input id="sbl_notes" name="notes" />
+                </FormField>
+                <div className="sm:col-span-2 flex justify-end">
+                  <Button type="submit" size="sm">
+                    Save link
+                  </Button>
+                </div>
+              </ToastedForm>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card className="mt-6">
         <CardHeader>

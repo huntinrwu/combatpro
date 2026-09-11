@@ -65,3 +65,55 @@ export async function updateOfficial(formData: FormData) {
   revalidatePath("/officials");
   redirect(`/officials/${id}`);
 }
+
+// ── Sanctioning-body links ────────────────────────────────────────────────
+
+const VALID_SB_STATUSES = new Set(["active", "inactive", "suspended"]);
+
+export async function linkOfficialToSanctioningBody(formData: FormData) {
+  await requireStaff();
+  const official_id = formData.get("official_id")?.toString();
+  const sanctioning_body_id = formData.get("sanctioning_body_id")?.toString();
+  if (!official_id || !sanctioning_body_id) {
+    throw new Error("Official and sanctioning body are required.");
+  }
+
+  const rawStatus = formData.get("status")?.toString() ?? "active";
+  const status = VALID_SB_STATUSES.has(rawStatus) ? rawStatus : "active";
+
+  const payload = {
+    official_id,
+    sanctioning_body_id,
+    status,
+    level: orNull(formData.get("level")),
+    certified_since: orNull(formData.get("certified_since")),
+    expires_on: orNull(formData.get("expires_on")),
+    notes: orNull(formData.get("notes")),
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await db()
+    .from("official_sanctioning_bodies")
+    .upsert(payload, { onConflict: "official_id,sanctioning_body_id" });
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/officials/${official_id}`);
+  revalidatePath(`/sb/${sanctioning_body_id}`);
+}
+
+export async function unlinkOfficialFromSanctioningBody(formData: FormData) {
+  await requireStaff();
+  const id = formData.get("id")?.toString();
+  const official_id = formData.get("official_id")?.toString();
+  const sanctioning_body_id = formData.get("sanctioning_body_id")?.toString();
+  if (!id) throw new Error("Missing link id.");
+
+  const { error } = await db()
+    .from("official_sanctioning_bodies")
+    .delete()
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+
+  if (official_id) revalidatePath(`/officials/${official_id}`);
+  if (sanctioning_body_id) revalidatePath(`/sb/${sanctioning_body_id}`);
+}

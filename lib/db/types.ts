@@ -79,6 +79,27 @@ export type Fighter = {
   created_at: string;
 };
 
+export type OfficialSbStatus = "active" | "inactive" | "suspended";
+
+export type OfficialSanctioningBody = {
+  id: string;
+  official_id: string;
+  sanctioning_body_id: string;
+  status: OfficialSbStatus;
+  level: string | null;
+  certified_since: string | null;
+  expires_on: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const OFFICIAL_SB_STATUSES: OfficialSbStatus[] = [
+  "active",
+  "inactive",
+  "suspended",
+];
+
 export type OfficialRole = "referee" | "judge" | "doctor" | "timekeeper" | "inspector";
 
 // Superset used on the event roster. Officials assigned to an event can hold

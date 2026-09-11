@@ -34,6 +34,8 @@ import {
   type EventRow,
   type Fighter,
   type FighterMedicalRecord,
+  type Official,
+  type OfficialSanctioningBody,
   type Ruleset,
   type SanctioningBody,
 } from "@/lib/db/types";
@@ -57,7 +59,7 @@ export default async function SbDashboardPage({
 
   if (!body) notFound();
 
-  const [{ data: rawEvents }, { data: rawRules }] = await Promise.all([
+  const [{ data: rawEvents }, { data: rawRules }, { data: rawOfficialLinks }] = await Promise.all([
     supabase
       .from("events")
       .select("*")
@@ -68,8 +70,25 @@ export default async function SbDashboardPage({
       .select("*")
       .eq("sanctioning_body_id", bodyId)
       .order("sport"),
+    supabase
+      .from("official_sanctioning_bodies")
+      .select("*")
+      .eq("sanctioning_body_id", bodyId),
   ]);
   const bodyRules = (rawRules ?? []) as Ruleset[];
+  const officialLinks = (rawOfficialLinks ?? []) as OfficialSanctioningBody[];
+  const linkedOfficialIds = officialLinks.map((l) => l.official_id);
+  const { data: rawLinkedOfficials } = linkedOfficialIds.length
+    ? await supabase
+        .from("officials")
+        .select("id, full_name, roles, is_active, home_state")
+        .in("id", linkedOfficialIds)
+    : { data: [] as Pick<Official, "id" | "full_name" | "roles" | "is_active" | "home_state">[] };
+  const officialLookup = new Map(
+    ((rawLinkedOfficials ?? []) as Pick<Official, "id" | "full_name" | "roles" | "is_active" | "home_state">[]).map(
+      (o) => [o.id, o],
+    ),
+  );
 
   const events = (rawEvents ?? []) as EventRow[];
   const eventIds = events.map((e) => e.id);
@@ -457,6 +476,68 @@ export default async function SbDashboardPage({
                       </Link>
                     </li>
                   ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Users className="h-4 w-4" />
+                Officials ({officialLinks.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {officialLinks.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No officials linked yet. Add one from an official&rsquo;s detail
+                  page.
+                </p>
+              ) : (
+                <ul className="divide-y divide-border/60">
+                  {officialLinks
+                    .map((l) => ({ link: l, official: officialLookup.get(l.official_id) }))
+                    .sort((a, b) => {
+                      const an = a.official?.full_name ?? "";
+                      const bn = b.official?.full_name ?? "";
+                      return an.localeCompare(bn);
+                    })
+                    .map(({ link, official: o }) => {
+                      const statusTone =
+                        link.status === "active"
+                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                          : link.status === "suspended"
+                            ? "bg-red-500/10 text-red-700 dark:text-red-300"
+                            : "bg-muted text-muted-foreground";
+                      return (
+                        <li key={link.id} className="py-2">
+                          <Link
+                            href={o ? `/officials/${o.id}` : "/officials"}
+                            className="flex items-center gap-2 rounded-md px-1 py-0.5 hover:bg-muted/40"
+                          >
+                            <span className="min-w-0 flex-1 truncate text-sm">
+                              {o?.full_name ?? "Unknown official"}
+                              {o?.home_state && (
+                                <span className="ml-1 text-xs text-muted-foreground">
+                                  · {o.home_state}
+                                </span>
+                              )}
+                            </span>
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide ${statusTone}`}
+                            >
+                              {link.status}
+                            </span>
+                            {link.level && (
+                              <Badge variant="outline" className="text-[10px]">
+                                {link.level}
+                              </Badge>
+                            )}
+                          </Link>
+                        </li>
+                      );
+                    })}
                 </ul>
               )}
             </CardContent>
