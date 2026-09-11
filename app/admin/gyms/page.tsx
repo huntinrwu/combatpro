@@ -4,6 +4,7 @@ import { approveGym, rejectGym } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createAdminClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth/session";
 import { fmtDateShort } from "@/lib/format-utils";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +21,7 @@ type PendingGym = {
 type Profile = { id: string; email: string; full_name: string | null };
 
 export default async function GymApprovalsPage() {
+  await requireAdmin();
   const admin = createAdminClient();
   const { data: gyms } = await admin
     .from("gyms")

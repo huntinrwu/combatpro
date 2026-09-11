@@ -1,4 +1,5 @@
-import { GitMerge, UserCircle, Archive } from "lucide-react";
+import Link from "next/link";
+import { GitMerge, UserCircle, Archive, Pencil } from "lucide-react";
 
 import { mergePersonsByNumber } from "./actions";
 import { ToastedForm } from "@/components/forms/toasted-form";
@@ -219,6 +220,7 @@ export default async function PersonsAdminPage({
                     <th className="py-2 pr-3">Name</th>
                     <th className="py-2 pr-3">Email</th>
                     <th className="py-2 pr-3">Roles</th>
+                    <th className="py-2 pr-3"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -276,6 +278,15 @@ export default async function PersonsAdminPage({
                               </Badge>
                             )}
                           </div>
+                        </td>
+                        <td className="py-2 pr-3 text-right">
+                          <Link
+                            href={`/admin/persons/${p.id}`}
+                            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                          >
+                            <Pencil className="h-3 w-3" />
+                            Edit
+                          </Link>
                         </td>
                       </tr>
                     );

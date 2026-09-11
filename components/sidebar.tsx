@@ -236,24 +236,22 @@ export function Sidebar({
             )}
             {iconOnly && <div className="mx-3 mb-1 border-t border-border/40" />}
             <ul className="space-y-0.5 px-2">
-              {user.isAdmin && (
-                <li>
-                  <Link
-                    href="/admin/access-requests"
-                    title={iconOnly ? "Admin" : undefined}
-                    className={cn(
-                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-                      iconOnly && "justify-center",
-                      pathname.startsWith("/admin")
-                        ? "bg-muted text-foreground"
-                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-                    )}
-                  >
-                    <ShieldCheck className="h-4 w-4 shrink-0" />
-                    {!iconOnly && <span className="truncate">Admin</span>}
-                  </Link>
-                </li>
-              )}
+              <li>
+                <Link
+                  href={user.isAdmin ? "/admin/access-requests" : "/admin/persons"}
+                  title={iconOnly ? "Admin" : undefined}
+                  className={cn(
+                    "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                    iconOnly && "justify-center",
+                    pathname.startsWith("/admin")
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                  )}
+                >
+                  <ShieldCheck className="h-4 w-4 shrink-0" />
+                  {!iconOnly && <span className="truncate">Admin</span>}
+                </Link>
+              </li>
               <li>
                 <ViewAsPicker
                   collapsed={iconOnly}
@@ -428,9 +426,9 @@ function UserMenu({ user, collapsed }: { user: SidebarUser; collapsed: boolean }
           <UserCircle className="h-3.5 w-3.5" />
           My profile
         </Link>
-        {user.isAdmin && (
+        {user.isStaff && (
           <Link
-            href="/admin/access-requests"
+            href={user.isAdmin ? "/admin/access-requests" : "/admin/persons"}
             className="mt-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted/60 hover:text-foreground"
           >
             <ShieldCheck className="h-3.5 w-3.5" />

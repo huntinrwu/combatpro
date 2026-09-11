@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createAdminClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth/session";
 import { ROLE_LABELS, type PlatformRole } from "@/lib/auth/roles";
 import { fmtDateShort } from "@/lib/format-utils";
 
@@ -23,6 +24,7 @@ type Profile = { id: string; email: string; full_name: string | null };
 type GymRef = { id: string; name: string; approval_status: string };
 
 export default async function AccessRequestsPage() {
+  await requireAdmin();
   const admin = createAdminClient();
   const { data: grants } = await admin
     .from("user_role_grants")
