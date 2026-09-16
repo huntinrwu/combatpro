@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { db } from "@/lib/db/client";
+import { db, dbErr } from "@/lib/db/client";
 import { orNull as str } from "@/lib/form-utils";
 import { requireStaff } from "@/lib/auth/session";
 
@@ -47,7 +47,7 @@ export async function submitSanctioningBody(formData: FormData) {
       submitted_at: new Date().toISOString(),
     });
 
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath("/registry");
   redirect("/registry?submitted=1");
@@ -81,7 +81,7 @@ export async function createCommission(formData: FormData) {
     .insert(commissionPayload(formData))
     .select("id")
     .single();
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
   revalidatePath("/registry");
   redirect(`/registry/commissions/${data.id}`);
 }
@@ -94,7 +94,7 @@ export async function updateCommission(formData: FormData) {
     .from("commissions")
     .update(commissionPayload(formData))
     .eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
   revalidatePath("/registry");
   revalidatePath(`/registry/commissions/${id}`);
   redirect(`/registry/commissions/${id}`);
@@ -131,7 +131,7 @@ export async function updateSanctioningBody(formData: FormData) {
     .from("sanctioning_bodies")
     .update(bodyPayload(formData))
     .eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
   revalidatePath("/registry");
   revalidatePath(`/sb/${id}`);
   redirect(`/sb/${id}`);
@@ -148,7 +148,7 @@ export async function setSanctioningBodyStatus(formData: FormData) {
     .from("sanctioning_bodies")
     .update({ status })
     .eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
   revalidatePath("/registry");
   revalidatePath(`/sb/${id}`);
 }

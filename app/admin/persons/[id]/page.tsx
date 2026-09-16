@@ -9,6 +9,7 @@ import {
 } from "./actions";
 import { FormField } from "@/components/form-field";
 import { PersonNoBadge } from "@/components/person-no-badge";
+import { PersonBasicFields } from "@/components/forms/person-basic-fields";
 import { ToastedForm } from "@/components/forms/toasted-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -176,68 +177,7 @@ function PersonEditCard({ person }: { person: Person }) {
           className="grid gap-3 sm:grid-cols-2"
         >
           <input type="hidden" name="person_id" value={person.id} />
-          <FormField label="Full name" htmlFor="pa_name" required className="sm:col-span-2">
-            <Input
-              id="pa_name"
-              name="full_name"
-              required
-              defaultValue={person.full_name}
-            />
-          </FormField>
-          <FormField label="Email" htmlFor="pa_email">
-            <Input
-              id="pa_email"
-              name="email"
-              type="email"
-              defaultValue={person.email ?? ""}
-            />
-          </FormField>
-          <FormField label="Phone" htmlFor="pa_phone">
-            <Input
-              id="pa_phone"
-              name="phone"
-              type="tel"
-              defaultValue={person.phone ?? ""}
-            />
-          </FormField>
-          <FormField label="Hometown" htmlFor="pa_home">
-            <Input
-              id="pa_home"
-              name="hometown"
-              defaultValue={person.hometown ?? ""}
-            />
-          </FormField>
-          <FormField label="Nationality" htmlFor="pa_nat">
-            <Input
-              id="pa_nat"
-              name="nationality"
-              defaultValue={person.nationality ?? ""}
-            />
-          </FormField>
-          <FormField label="Date of birth" htmlFor="pa_dob">
-            <Input
-              id="pa_dob"
-              name="date_of_birth"
-              type="date"
-              defaultValue={person.date_of_birth ?? ""}
-            />
-          </FormField>
-          <FormField label="Avatar URL" htmlFor="pa_avatar">
-            <Input
-              id="pa_avatar"
-              name="avatar_url"
-              type="url"
-              defaultValue={person.avatar_url ?? ""}
-            />
-          </FormField>
-          <FormField label="Notes" htmlFor="pa_notes" className="sm:col-span-2">
-            <Textarea
-              id="pa_notes"
-              name="notes"
-              rows={3}
-              defaultValue={person.notes ?? ""}
-            />
-          </FormField>
+          <PersonBasicFields person={person} prefix="pa_" showNotes />
           <div className="sm:col-span-2 flex justify-end">
             <Button type="submit" size="sm">
               Save person

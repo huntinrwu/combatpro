@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { db } from "@/lib/db/client";
+import { db, dbErr } from "@/lib/db/client";
 import { orNull as str, toNum } from "@/lib/form-utils";
 import { getSessionUser, requireStaff } from "@/lib/auth/session";
 
@@ -26,7 +26,7 @@ export async function logFighterWeight(formData: FormData) {
     notes: str(formData.get("notes")),
     logged_by: user.id,
   });
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath(`/fighters/${fighter_id}`);
 }
@@ -38,7 +38,7 @@ export async function deleteFighterWeightLog(formData: FormData) {
   if (!id || !fighter_id) throw new Error("Missing id.");
 
   const { error } = await db().from("fighter_weight_log").delete().eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath(`/fighters/${fighter_id}`);
 }

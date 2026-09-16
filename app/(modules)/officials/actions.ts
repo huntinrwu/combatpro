@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { db } from "@/lib/db/client";
+import { db, dbErr } from "@/lib/db/client";
 import { orNull } from "@/lib/form-utils";
 import { requireStaff } from "@/lib/auth/session";
 import { OFFICIAL_ROLES, type OfficialRole } from "@/lib/db/types";
@@ -40,14 +40,15 @@ function officialPayload(formData: FormData) {
 }
 
 export async function createOfficial(formData: FormData) {
+  await requireStaff();
   const { data, error } = await db()
     .from("officials")
     .insert(officialPayload(formData))
     .select("id")
     .single();
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
   revalidatePath("/officials");
-  redirect(`/officials/${data.id}`);
+  redirect(`/officials/${data!.id}`);
 }
 
 export async function updateOfficial(formData: FormData) {
@@ -59,7 +60,7 @@ export async function updateOfficial(formData: FormData) {
     .from("officials")
     .update(officialPayload(formData))
     .eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath(`/officials/${id}`);
   revalidatePath("/officials");
@@ -95,7 +96,7 @@ export async function linkOfficialToSanctioningBody(formData: FormData) {
   const { error } = await db()
     .from("official_sanctioning_bodies")
     .upsert(payload, { onConflict: "official_id,sanctioning_body_id" });
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath(`/officials/${official_id}`);
   revalidatePath(`/sb/${sanctioning_body_id}`);
@@ -106,14 +107,19 @@ export async function unlinkOfficialFromSanctioningBody(formData: FormData) {
   const id = formData.get("id")?.toString();
   const official_id = formData.get("official_id")?.toString();
   const sanctioning_body_id = formData.get("sanctioning_body_id")?.toString();
-  if (!id) throw new Error("Missing link id.");
+  if (!id || !official_id || !sanctioning_body_id) {
+    throw new Error("Missing link id, official, or sanctioning body.");
+  }
 
+  // Constrain by the pair so a rogue id can only delete the intended row.
   const { error } = await db()
     .from("official_sanctioning_bodies")
     .delete()
-    .eq("id", id);
-  if (error) throw new Error(error.message);
+    .eq("id", id)
+    .eq("official_id", official_id)
+    .eq("sanctioning_body_id", sanctioning_body_id);
+  if (error) dbErr(error);
 
-  if (official_id) revalidatePath(`/officials/${official_id}`);
-  if (sanctioning_body_id) revalidatePath(`/sb/${sanctioning_body_id}`);
+  revalidatePath(`/officials/${official_id}`);
+  revalidatePath(`/sb/${sanctioning_body_id}`);
 }

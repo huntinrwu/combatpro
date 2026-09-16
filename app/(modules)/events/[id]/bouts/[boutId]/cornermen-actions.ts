@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
-import { db } from "@/lib/db/client";
+import { db, dbErr } from "@/lib/db/client";
+import { requireStaff } from "@/lib/auth/session";
 import { CORNERMAN_ROLES, type CornermanRole } from "@/lib/db/types";
 
 function str(raw: FormDataEntryValue | null): string | null {
@@ -12,6 +13,7 @@ function str(raw: FormDataEntryValue | null): string | null {
 }
 
 export async function addCornerman(formData: FormData) {
+  await requireStaff();
   const bout_id = str(formData.get("bout_id"));
   const event_id = str(formData.get("event_id"));
   const corner = str(formData.get("corner"));
@@ -34,17 +36,23 @@ export async function addCornerman(formData: FormData) {
     notes: str(formData.get("notes")),
   });
 
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
   revalidatePath(`/events/${event_id}/bouts/${bout_id}`);
 }
 
 export async function deleteCornerman(formData: FormData) {
+  await requireStaff();
   const id = str(formData.get("id"));
   const bout_id = str(formData.get("bout_id"));
   const event_id = str(formData.get("event_id"));
   if (!id || !bout_id || !event_id) throw new Error("Missing fields.");
 
-  const { error } = await db().from("bout_cornermen").delete().eq("id", id);
-  if (error) throw new Error(error.message);
+  // Scope by bout so a rogue id can't delete a cornerman from another bout.
+  const { error } = await db()
+    .from("bout_cornermen")
+    .delete()
+    .eq("id", id)
+    .eq("bout_id", bout_id);
+  if (error) dbErr(error);
   revalidatePath(`/events/${event_id}/bouts/${bout_id}`);
 }

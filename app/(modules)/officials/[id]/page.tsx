@@ -54,17 +54,19 @@ export default async function OfficialDetailPage({
   const supabase = db();
   const session = await getSessionUser();
 
+  // Fetch everything scoped by the official id in one round-trip. The person
+  // lookup depends on official.person_id so it comes after — but the SB
+  // queries no longer wait on it.
   const [
     { data: official },
     { data: assignments },
     { data: availability },
     { data: priorEvents },
+    { data: sbLinks },
+    { data: allSbs },
   ] = await Promise.all([
     supabase.from("officials").select("*").eq("id", id).maybeSingle<Official>(),
-    supabase
-      .from("event_officials")
-      .select("*")
-      .eq("official_id", id),
+    supabase.from("event_officials").select("*").eq("official_id", id),
     supabase
       .from("official_availability")
       .select("*")
@@ -75,6 +77,11 @@ export default async function OfficialDetailPage({
       .select("*")
       .eq("official_id", id)
       .order("event_date", { ascending: false }),
+    supabase.from("official_sanctioning_bodies").select("*").eq("official_id", id),
+    supabase
+      .from("sanctioning_bodies")
+      .select("id, name, abbreviation")
+      .order("abbreviation", { ascending: true }),
   ]);
 
   if (!official) notFound();
@@ -87,16 +94,6 @@ export default async function OfficialDetailPage({
         .maybeSingle<{ person_no: number }>()
     : { data: null as { person_no: number } | null };
 
-  const [{ data: sbLinks }, { data: allSbs }] = await Promise.all([
-    supabase
-      .from("official_sanctioning_bodies")
-      .select("*")
-      .eq("official_id", id),
-    supabase
-      .from("sanctioning_bodies")
-      .select("id, name, abbreviation")
-      .order("abbreviation", { ascending: true }),
-  ]);
   const links = (sbLinks ?? []) as OfficialSanctioningBody[];
   const sbList = (allSbs ?? []) as Pick<SanctioningBody, "id" | "name" | "abbreviation">[];
   const sbMap = new Map(sbList.map((sb) => [sb.id, sb]));

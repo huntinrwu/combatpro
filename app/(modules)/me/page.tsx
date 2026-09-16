@@ -4,6 +4,7 @@ import { Gavel, Swords, UserCircle } from "lucide-react";
 import { updateMyFighter, updateMyOfficial, updateMyPerson } from "./actions";
 import { FormField } from "@/components/form-field";
 import { PersonNoBadge } from "@/components/person-no-badge";
+import { PersonBasicFields } from "@/components/forms/person-basic-fields";
 import { ToastedForm } from "@/components/forms/toasted-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -128,60 +129,7 @@ function PersonCard({ person }: { person: Person | null }) {
           successMessage="Personal info saved"
           className="grid gap-3 sm:grid-cols-2"
         >
-          <FormField label="Full name" htmlFor="p_name" required className="sm:col-span-2">
-            <Input
-              id="p_name"
-              name="full_name"
-              required
-              defaultValue={person.full_name}
-            />
-          </FormField>
-          <FormField label="Email" htmlFor="p_email">
-            <Input
-              id="p_email"
-              name="email"
-              type="email"
-              defaultValue={person.email ?? ""}
-            />
-          </FormField>
-          <FormField label="Phone" htmlFor="p_phone">
-            <Input
-              id="p_phone"
-              name="phone"
-              type="tel"
-              defaultValue={person.phone ?? ""}
-            />
-          </FormField>
-          <FormField label="Hometown" htmlFor="p_hometown">
-            <Input
-              id="p_hometown"
-              name="hometown"
-              defaultValue={person.hometown ?? ""}
-            />
-          </FormField>
-          <FormField label="Nationality" htmlFor="p_nationality">
-            <Input
-              id="p_nationality"
-              name="nationality"
-              defaultValue={person.nationality ?? ""}
-            />
-          </FormField>
-          <FormField label="Date of birth" htmlFor="p_dob">
-            <Input
-              id="p_dob"
-              name="date_of_birth"
-              type="date"
-              defaultValue={person.date_of_birth ?? ""}
-            />
-          </FormField>
-          <FormField label="Avatar URL" htmlFor="p_avatar">
-            <Input
-              id="p_avatar"
-              name="avatar_url"
-              type="url"
-              defaultValue={person.avatar_url ?? ""}
-            />
-          </FormField>
+          <PersonBasicFields person={person} prefix="p_" />
           <div className="sm:col-span-2 flex justify-end">
             <Button type="submit" size="sm">
               Save personal info

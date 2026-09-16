@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 
-import { db } from "@/lib/db/client";
+import { db, dbErr } from "@/lib/db/client";
 import { orNull, toInt as toIntOrNull } from "@/lib/form-utils";
+import { requireStaff } from "@/lib/auth/session";
 import {
   computeRecordDeltas,
   fighterColumnFor,
@@ -183,11 +184,12 @@ async function applyRecordDeltas(
       .from("fighters")
       .update(update)
       .eq("id", fighter_id);
-    if (updErr) throw new Error(updErr.message);
+    if (updErr) dbErr(updErr);
   }
 }
 
 export async function declareBoutResult(formData: FormData) {
+  await requireStaff();
   const bout_id = formData.get("bout_id")?.toString();
   const event_id = formData.get("event_id")?.toString();
   const result = formData.get("result")?.toString() as BoutOutcome | undefined;
@@ -219,7 +221,8 @@ export async function declareBoutResult(formData: FormData) {
         | "records_applied"
       >
     >();
-  if (readErr || !current) throw new Error(readErr?.message ?? "bout not found");
+  if (readErr) dbErr(readErr);
+  if (!current) throw new Error("bout not found");
 
   if (current.records_applied && current.result) {
     const oldDeltas = computeRecordDeltas(
@@ -242,7 +245,7 @@ export async function declareBoutResult(formData: FormData) {
       records_applied: true,
     })
     .eq("id", bout_id);
-  if (updErr) throw new Error(updErr.message);
+  if (updErr) dbErr(updErr);
 
   const newDeltas = computeRecordDeltas(
     result,
@@ -265,6 +268,7 @@ export async function declareBoutResult(formData: FormData) {
 }
 
 export async function clearBoutResult(formData: FormData) {
+  await requireStaff();
   const bout_id = formData.get("bout_id")?.toString();
   const event_id = formData.get("event_id")?.toString();
 
@@ -289,7 +293,8 @@ export async function clearBoutResult(formData: FormData) {
         | "records_applied"
       >
     >();
-  if (readErr || !current) throw new Error(readErr?.message ?? "bout not found");
+  if (readErr) dbErr(readErr);
+  if (!current) throw new Error("bout not found");
 
   if (current.records_applied && current.result) {
     const oldDeltas = computeRecordDeltas(
@@ -310,7 +315,7 @@ export async function clearBoutResult(formData: FormData) {
       records_applied: false,
     })
     .eq("id", bout_id);
-  if (updErr) throw new Error(updErr.message);
+  if (updErr) dbErr(updErr);
 
   // Reverting a bout also revokes the verified fight_record rows it produced.
   await supabase.from("fight_records").delete().eq("bout_id", bout_id);

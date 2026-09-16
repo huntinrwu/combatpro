@@ -1,25 +1,16 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-// Public paths that never require auth. Everything else is gated to signed-in
-// users. The public fan page /e/[slug] stays open, as does the API surface
-// (individual handlers do their own checks) and Next asset routes.
-const PUBLIC_PATH_PREFIXES = [
-  "/login",
-  "/signup",
-  "/pending",
-  "/logout",
-  "/e/",
-  "/api",
-  "/_next",
-  "/logo",
-  "/favicon",
-  "/icon",
-];
+// Paths that never require auth. Exact matches for the account flows so
+// /loginish or /signupmalicious can't sneak past. The public fan page /e/[slug]
+// stays open; API handlers do their own checks; Next assets are exempt.
+const PUBLIC_PATHS_EXACT = new Set(["/login", "/signup", "/pending", "/logout"]);
+const PUBLIC_PATH_PREFIXES = ["/e/", "/api/", "/_next/", "/logo", "/favicon", "/icon"];
 
 function isPublicPath(pathname: string): boolean {
   if (pathname === "/") return false;
-  return PUBLIC_PATH_PREFIXES.some((p) => pathname === p || pathname.startsWith(p));
+  if (PUBLIC_PATHS_EXACT.has(pathname)) return true;
+  return PUBLIC_PATH_PREFIXES.some((p) => pathname.startsWith(p));
 }
 
 export async function updateSession(request: NextRequest) {

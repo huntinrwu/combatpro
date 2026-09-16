@@ -1,6 +1,7 @@
 import { renderToBuffer } from "@react-pdf/renderer";
 
 import { db } from "@/lib/db/client";
+import { requireStaff } from "@/lib/auth/session";
 import {
   PayoutSheetPdf,
   type PayoutRow,
@@ -26,6 +27,7 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  await requireStaff();
   const { id } = await params;
   const supabase = db();
 

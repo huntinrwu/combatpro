@@ -2,14 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 
-import { db } from "@/lib/db/client";
+import { db, dbErr } from "@/lib/db/client";
 import { orNull } from "@/lib/form-utils";
+import { requireStaff } from "@/lib/auth/session";
 
 function paths(): string[] {
   return ["/vendors", "/payments", "/payments/cashflow"];
 }
 
 export async function addVendor(formData: FormData) {
+  await requireStaff();
   const name = formData.get("name")?.toString().trim();
   if (!name) throw new Error("Vendor name is required.");
 
@@ -25,12 +27,13 @@ export async function addVendor(formData: FormData) {
   };
 
   const { error } = await db().from("vendors").insert(payload);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   for (const p of paths()) revalidatePath(p);
 }
 
 export async function updateVendor(formData: FormData) {
+  await requireStaff();
   const id = formData.get("id")?.toString();
   const name = formData.get("name")?.toString().trim();
   if (!id) throw new Error("Vendor id is required.");
@@ -48,17 +51,18 @@ export async function updateVendor(formData: FormData) {
   };
 
   const { error } = await db().from("vendors").update(payload).eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   for (const p of paths()) revalidatePath(p);
 }
 
 export async function deleteVendor(formData: FormData) {
+  await requireStaff();
   const id = formData.get("id")?.toString();
   if (!id) throw new Error("Vendor id is required.");
 
   const { error } = await db().from("vendors").delete().eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   for (const p of paths()) revalidatePath(p);
 }

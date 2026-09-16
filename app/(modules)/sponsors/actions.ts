@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { db } from "@/lib/db/client";
+import { db, dbErr } from "@/lib/db/client";
 import { orNull as str, toNum } from "@/lib/form-utils";
 import { requireStaff } from "@/lib/auth/session";
 import {
@@ -57,7 +57,7 @@ export async function createSponsor(formData: FormData) {
   };
 
   const { error } = await db().from("sponsors").insert(payload);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath("/sponsors");
   redirect("/sponsors");
@@ -81,7 +81,7 @@ export async function updateSponsor(formData: FormData) {
   };
 
   const { error } = await db().from("sponsors").update(payload).eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath("/sponsors");
 }
@@ -92,7 +92,7 @@ export async function deleteSponsor(formData: FormData) {
   if (!id) throw new Error("Sponsor id required.");
 
   const { error } = await db().from("sponsors").delete().eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath("/sponsors");
 }
@@ -194,7 +194,7 @@ export async function addEventSponsor(formData: FormData) {
     if (ledger_entry_id) {
       await supabase.from("event_ledger").delete().eq("id", ledger_entry_id);
     }
-    throw new Error(error.message);
+    dbErr(error);
   }
 
   slotRevalidate(event_id);
@@ -271,7 +271,7 @@ export async function updateEventSponsor(formData: FormData) {
       notes,
     })
     .eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   slotRevalidate(event_id);
 }
@@ -289,7 +289,7 @@ export async function removeEventSponsor(formData: FormData) {
     .maybeSingle<{ ledger_entry_id: string | null }>();
 
   const { error } = await supabase.from("event_sponsors").delete().eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   if (existing?.ledger_entry_id) {
     await supabase.from("event_ledger").delete().eq("id", existing.ledger_entry_id);
@@ -317,7 +317,7 @@ export async function addEventSponsorableItem(formData: FormData) {
     if (error.code === "23505") {
       throw new Error("That item already exists for this event.");
     }
-    throw new Error(error.message);
+    dbErr(error);
   }
 
   revalidatePath(`/events/${event_id}/sponsors`);
@@ -347,12 +347,12 @@ export async function updateEventSponsorableItem(formData: FormData) {
       .from("event_sponsorable_items")
       .update({ label, hint })
       .eq("id", existing.id);
-    if (error) throw new Error(error.message);
+    if (error) dbErr(error);
   } else {
     const { error } = await supabase
       .from("event_sponsorable_items")
       .insert({ event_id, key, label, hint });
-    if (error) throw new Error(error.message);
+    if (error) dbErr(error);
   }
 
   revalidatePath(`/events/${event_id}/sponsors`);
@@ -391,7 +391,7 @@ export async function removeEventSponsorableItem(formData: FormData) {
     .from("event_sponsorable_items")
     .delete()
     .eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath(`/events/${event_id}/sponsors`);
 }
@@ -410,7 +410,7 @@ export async function setEventSponsorTarget(formData: FormData) {
       .delete()
       .eq("event_id", event_id)
       .eq("item_type", item_type);
-    if (error) throw new Error(error.message);
+    if (error) dbErr(error);
   } else {
     const { error } = await supabase
       .from("event_sponsor_targets")
@@ -418,7 +418,7 @@ export async function setEventSponsorTarget(formData: FormData) {
         { event_id, item_type, target_value },
         { onConflict: "event_id,item_type" },
       );
-    if (error) throw new Error(error.message);
+    if (error) dbErr(error);
   }
 
   revalidatePath(`/events/${event_id}/sponsors`);
@@ -443,7 +443,7 @@ export async function toggleEventSponsorPaid(formData: FormData) {
     .from("event_sponsors")
     .update({ paid_at: nextPaidAt })
     .eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   if (existing.ledger_entry_id) {
     await supabase

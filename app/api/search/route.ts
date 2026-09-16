@@ -11,10 +11,10 @@ export async function GET(req: Request) {
   if (!user) return new Response("Unauthorized", { status: 401 });
 
   const url = new URL(req.url);
-  const q = url.searchParams.get("q")?.trim() ?? "";
+  const q = (url.searchParams.get("q") ?? "").trim().slice(0, 100);
   if (q.length < 2) return Response.json({ hits: [] });
 
-  const like = `%${q.replace(/[%_]/g, (m) => `\\${m}`)}%`;
+  const like = `%${q.replace(/[%_\\]/g, (m) => `\\${m}`)}%`;
   const supabase = db();
 
   const [{ data: fighters }, { data: events }] = await Promise.all([

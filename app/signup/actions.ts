@@ -55,7 +55,8 @@ export async function signupAction(_prev: SignupResult, fd: FormData): Promise<S
         .select("id")
         .single<{ id: string }>();
       if (gymErr || !newGym) {
-        return { ok: false, error: gymErr?.message ?? "Failed to submit gym." };
+        console.error("[signup:gym]", gymErr?.message);
+        return { ok: false, error: "Failed to submit gym. Please try again." };
       }
       gymIdForGrants = newGym.id;
     } else {
@@ -71,7 +72,8 @@ export async function signupAction(_prev: SignupResult, fd: FormData): Promise<S
     },
   });
   if (signupErr) {
-    return { ok: false, error: signupErr.message };
+    console.error("[signup:auth]", signupErr.message);
+    return { ok: false, error: "Could not create the account. Please try again." };
   }
   const userId = signupData.user?.id;
   if (!userId) {
@@ -97,7 +99,8 @@ export async function signupAction(_prev: SignupResult, fd: FormData): Promise<S
     .from("user_role_grants")
     .insert(grantRows);
   if (grantErr) {
-    return { ok: false, error: grantErr.message };
+    console.error("[signup:grants]", grantErr.message);
+    return { ok: false, error: "Could not attach roles. Please contact staff." };
   }
 
   redirect("/pending");

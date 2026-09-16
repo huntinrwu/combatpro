@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { db } from "@/lib/db/client";
+import { db, dbErr } from "@/lib/db/client";
 import { orNull } from "@/lib/form-utils";
 import { requireStaff } from "@/lib/auth/session";
 import { OFFICIAL_ROLES, type OfficialRole } from "@/lib/db/types";
@@ -35,7 +35,7 @@ export async function addPriorEvent(formData: FormData) {
     state: orNull(formData.get("state")),
     notes: orNull(formData.get("notes")),
   });
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath(`/officials/${official_id}`);
 }
@@ -47,7 +47,7 @@ export async function deletePriorEvent(formData: FormData) {
   if (!id || !official_id) throw new Error("id + official are required.");
 
   const { error } = await db().from("official_prior_events").delete().eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath(`/officials/${official_id}`);
 }

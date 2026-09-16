@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createAdminClient } from "@/lib/supabase/server";
+import { dbErr } from "@/lib/db/client";
 import { requireStaff } from "@/lib/auth/session";
 import { toInt, toNum } from "@/lib/form-utils";
 import { feetInToCm, inToCm } from "@/lib/units";
@@ -33,7 +34,7 @@ export async function adminUpdatePerson(fd: FormData) {
   };
 
   const { error } = await admin.from("persons").update(payload).eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   // Mirror name onto the linked profile so header/sidebar stays in sync.
   const { data: person } = await admin
@@ -108,7 +109,7 @@ export async function adminUpdateFighter(fd: FormData) {
     .update(payload)
     .eq("id", fighter_id)
     .eq("person_id", person_id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   const ww = toInt(fd.get("walking_weight_lbs"));
   if (ww != null && ww >= 60 && ww <= 500) {
@@ -163,7 +164,7 @@ export async function adminUpdateOfficial(fd: FormData) {
     .update(payload)
     .eq("id", official_id)
     .eq("person_id", person_id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath(`/admin/persons/${person_id}`);
   revalidatePath(`/officials/${official_id}`);

@@ -55,33 +55,44 @@ export default async function OfficialsListPage({
   } = await searchParams;
   const view = pickView(rawView, VIEWS);
 
-  const { data: officials, error } = await db()
+  const supabase = db();
+
+  // Push exact-match filters into Postgres. `roles` / `sports` are text[], so
+  // `.contains` maps to the `@>` operator (index-friendly). q stays
+  // client-side because the certifications array partial-match doesn't
+  // translate cleanly to a single SQL predicate.
+  let query = supabase
     .from("officials")
-    .select("*")
+    .select(
+      "id, full_name, roles, sports, home_state, is_active, active_since, notes, certifications",
+    )
     .order("full_name");
 
+  if (role) query = query.contains("roles", [role]);
+  if (sport) query = query.contains("sports", [sport]);
+  if (state) query = query.ilike("home_state", state);
+  if (status === "active") query = query.eq("is_active", true);
+  else if (status === "inactive") query = query.eq("is_active", false);
+
+  const [{ data: officials, error }, { data: stateRows }] = await Promise.all([
+    query,
+    supabase.from("officials").select("home_state").not("home_state", "is", null),
+  ]);
+
   const filtered = ((officials ?? []) as Official[]).filter((o) => {
-    if (role && !o.roles.includes(role as OfficialRole)) return false;
-    if (sport && !o.sports.includes(sport)) return false;
-    if (state && (o.home_state ?? "").toLowerCase() !== state.toLowerCase()) return false;
-    if (status === "active" && !o.is_active) return false;
-    if (status === "inactive" && o.is_active) return false;
-    if (q) {
-      const needle = q.toLowerCase();
-      if (
-        !o.full_name.toLowerCase().includes(needle) &&
-        !(o.notes ?? "").toLowerCase().includes(needle) &&
-        !(o.certifications ?? []).some((c) => c.toLowerCase().includes(needle))
-      )
-        return false;
-    }
-    return true;
+    if (!q) return true;
+    const needle = q.toLowerCase();
+    return (
+      o.full_name.toLowerCase().includes(needle) ||
+      (o.notes ?? "").toLowerCase().includes(needle) ||
+      (o.certifications ?? []).some((c) => c.toLowerCase().includes(needle))
+    );
   });
 
   const uniqueStates = Array.from(
     new Set(
-      ((officials ?? []) as Official[])
-        .map((o) => o.home_state)
+      ((stateRows ?? []) as { home_state: string | null }[])
+        .map((r) => r.home_state)
         .filter((s): s is string => Boolean(s)),
     ),
   ).sort();

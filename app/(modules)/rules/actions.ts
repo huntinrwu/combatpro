@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { db } from "@/lib/db/client";
+import { db, dbErr } from "@/lib/db/client";
 import { orNull as str } from "@/lib/form-utils";
 import { getSessionUser, requireStaff } from "@/lib/auth/session";
 import { extractRulesetFromPdf, type ExtractedRuleset } from "@/lib/ai/parse-ruleset";
@@ -195,7 +195,7 @@ export async function deleteRuleset(formData: FormData) {
   }
 
   const { error } = await supabase.from("rulesets").delete().eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath("/registry");
   revalidatePath("/rules");
@@ -215,7 +215,7 @@ export async function assignBoutRuleset(formData: FormData) {
     .update({ ruleset_id })
     .eq("id", bout_id);
 
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath(`/events/${event_id}/bouts/${bout_id}`);
 }

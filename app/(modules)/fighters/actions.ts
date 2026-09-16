@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { db } from "@/lib/db/client";
+import { db, dbErr } from "@/lib/db/client";
 import { toInt, toNum } from "@/lib/form-utils";
 import { getSessionUser, requireStaff } from "@/lib/auth/session";
 import { feetInToCm, inToCm } from "@/lib/units";
@@ -127,7 +127,7 @@ export async function createFighter(formData: FormData) {
     .insert(fighterPayload(formData))
     .select("id")
     .single();
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
   await maybeLogWalkingWeight(data.id, formData);
   await seedDeclaredFightRecords(data.id, formData);
   revalidatePath("/fighters");
@@ -143,7 +143,7 @@ export async function updateFighter(formData: FormData) {
     .from("fighters")
     .update(fighterPayload(formData))
     .eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
   await maybeLogWalkingWeight(id, formData);
 
   revalidatePath(`/fighters/${id}`);
@@ -229,7 +229,7 @@ export async function backfillDeclaredFightRecords(formData: FormData) {
   }
   if (rows.length > 0) {
     const { error } = await db().from("fight_records").insert(rows);
-    if (error) throw new Error(error.message);
+    if (error) dbErr(error);
   }
   revalidatePath(`/fighters/${fighter_id}`);
 }
@@ -247,7 +247,7 @@ export async function updateFighterLicenses(formData: FormData) {
     .update({ licenses })
     .eq("id", fighter_id);
 
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath(`/fighters/${fighter_id}`);
 }

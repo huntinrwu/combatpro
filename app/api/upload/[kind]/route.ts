@@ -5,11 +5,12 @@ import type { PlatformRole } from "@/lib/auth/roles";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// SVG is intentionally excluded — it can carry <script>/foreignObject that
+// executes when served from the same origin (stored XSS).
 const ALLOWED_MIME = new Set([
   "image/png",
   "image/jpeg",
   "image/webp",
-  "image/svg+xml",
   "image/gif",
 ]);
 
@@ -17,9 +18,32 @@ function extFor(mime: string): string {
   if (mime === "image/png") return "png";
   if (mime === "image/jpeg") return "jpg";
   if (mime === "image/webp") return "webp";
-  if (mime === "image/svg+xml") return "svg";
   if (mime === "image/gif") return "gif";
   return "bin";
+}
+
+// Magic-byte sniffing — client-supplied MIME is not trusted. Returns the
+// detected MIME or null if the bytes don't match one of the allowed formats.
+function sniffMime(bytes: Uint8Array): string | null {
+  if (bytes.length < 12) return null;
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (
+    bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 &&
+    bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a
+  ) return "image/png";
+  // JPEG: FF D8 FF
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
+  // GIF: "GIF87a" or "GIF89a"
+  if (
+    bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38 &&
+    (bytes[4] === 0x37 || bytes[4] === 0x39) && bytes[5] === 0x61
+  ) return "image/gif";
+  // WEBP: "RIFF"...."WEBP"
+  if (
+    bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+    bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50
+  ) return "image/webp";
+  return null;
 }
 
 type Kind = {
@@ -74,6 +98,18 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ kind: string }> },
 ) {
+  // CSRF: multipart/form-data can be submitted cross-origin from any page.
+  // Require Origin (or Referer) to match the request Host.
+  const origin = req.headers.get("origin") ?? req.headers.get("referer");
+  const host = req.headers.get("host");
+  if (!origin || !host) return new Response("Forbidden", { status: 403 });
+  try {
+    const originHost = new URL(origin).host;
+    if (originHost !== host) return new Response("Forbidden", { status: 403 });
+  } catch {
+    return new Response("Forbidden", { status: 403 });
+  }
+
   const { kind: kindSlug } = await params;
   const kind = KINDS[kindSlug];
   if (!kind) return new Response("Unknown upload kind", { status: 404 });
@@ -106,19 +142,27 @@ export async function POST(
     );
   }
 
-  const ext = extFor(file.type);
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const sniffed = sniffMime(bytes);
+  if (!sniffed || sniffed !== file.type) {
+    return new Response("File content does not match declared type", { status: 415 });
+  }
+
+  const ext = extFor(sniffed);
   const key = `${kind.folder}/${crypto.randomUUID()}.${ext}`;
 
   const supabase = createAdminClient();
-  const bytes = await file.arrayBuffer();
   const { error } = await supabase.storage
     .from("media")
     .upload(key, bytes, {
-      contentType: file.type,
+      contentType: sniffed,
       cacheControl: "31536000",
       upsert: false,
     });
-  if (error) return new Response(error.message, { status: 500 });
+  if (error) {
+    console.error("[upload]", error.message);
+    return new Response("Upload failed", { status: 500 });
+  }
 
   const {
     data: { publicUrl },

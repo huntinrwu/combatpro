@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { db } from "@/lib/db/client";
+import { db, dbErr } from "@/lib/db/client";
 import { orNull, toInt, toNum } from "@/lib/form-utils";
 import { requireEventCreator, requireUser } from "@/lib/auth/session";
 import { canEditEvent } from "@/lib/auth/roles";
@@ -46,7 +46,7 @@ export async function createEvent(formData: FormData) {
     .select("id")
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   // Slug depends on the DB-assigned id, so patch it after insert.
   const slug = makeEventSlug(name, event_date, data.id);
@@ -105,7 +105,7 @@ export async function updateEvent(formData: FormData) {
   };
 
   const { error } = await db().from("events").update(payload).eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath(`/events/${id}`);
   revalidatePath("/events");
@@ -150,7 +150,7 @@ export async function createBout(formData: FormData) {
 
   const { error } = await db().from("bouts").insert(payload);
 
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath(`/events/${event_id}`);
   redirect(`/events/${event_id}`);
@@ -165,7 +165,7 @@ export async function setCurrentBout(formData: FormData) {
     .from("events")
     .update({ current_bout_id: bout_id })
     .eq("id", event_id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath(`/events/${event_id}`);
   revalidatePath(`/events/${event_id}/bouts/${bout_id}`);
@@ -180,7 +180,7 @@ export async function clearCurrentBout(formData: FormData) {
     .from("events")
     .update({ current_bout_id: null })
     .eq("id", event_id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath(`/events/${event_id}`);
   revalidatePath(`/events/${event_id}/run-of-show`);
@@ -209,7 +209,7 @@ export async function advanceToNextBout(formData: FormData) {
     .from("events")
     .update({ current_bout_id: next?.id ?? null })
     .eq("id", event_id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath(`/events/${event_id}`);
   revalidatePath(`/events/${event_id}/run-of-show`);

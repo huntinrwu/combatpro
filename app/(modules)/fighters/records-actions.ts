@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { db } from "@/lib/db/client";
+import { db, dbErr } from "@/lib/db/client";
 import { orNull as str, toInt } from "@/lib/form-utils";
 import { getSessionUser, requireStaff } from "@/lib/auth/session";
 import {
@@ -101,7 +101,7 @@ export async function submitFightRecord(formData: FormData) {
   };
 
   const { error } = await db().from("fight_records").insert(payload);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   await reconcileConfidence(fighter_id, opponent_name, fight_date);
 
@@ -150,7 +150,7 @@ export async function updateFightRecord(formData: FormData) {
   };
 
   const { error } = await db().from("fight_records").update(payload).eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   // Re-reconcile in case opponent/date changed.
   await reconcileConfidence(fighter_id, opponent_name, fight_date);

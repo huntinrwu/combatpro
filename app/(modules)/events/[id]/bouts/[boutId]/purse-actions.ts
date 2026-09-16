@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 
-import { db } from "@/lib/db/client";
+import { db, dbErr } from "@/lib/db/client";
 import { orNull, toNum } from "@/lib/form-utils";
+import { requireStaff } from "@/lib/auth/session";
 import type { Corner } from "@/lib/db/types";
 
 function requireCorner(raw: FormDataEntryValue | null): Corner {
@@ -22,6 +23,7 @@ function pathsFor(event_id: string, bout_id: string) {
 }
 
 export async function upsertPurse(formData: FormData) {
+  await requireStaff();
   const bout_id = formData.get("bout_id")?.toString();
   const event_id = formData.get("event_id")?.toString();
   const corner = requireCorner(formData.get("corner"));
@@ -52,16 +54,17 @@ export async function upsertPurse(formData: FormData) {
       .from("bout_purses")
       .update(payload)
       .eq("id", existing.id);
-    if (error) throw new Error(error.message);
+    if (error) dbErr(error);
   } else {
     const { error } = await supabase.from("bout_purses").insert(payload);
-    if (error) throw new Error(error.message);
+    if (error) dbErr(error);
   }
 
   for (const p of pathsFor(event_id, bout_id)) revalidatePath(p);
 }
 
 export async function markPursePaid(formData: FormData) {
+  await requireStaff();
   const bout_id = formData.get("bout_id")?.toString();
   const event_id = formData.get("event_id")?.toString();
   const corner = requireCorner(formData.get("corner"));
@@ -78,12 +81,13 @@ export async function markPursePaid(formData: FormData) {
     })
     .eq("bout_id", bout_id)
     .eq("corner", corner);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   for (const p of pathsFor(event_id, bout_id)) revalidatePath(p);
 }
 
 export async function unmarkPursePaid(formData: FormData) {
+  await requireStaff();
   const bout_id = formData.get("bout_id")?.toString();
   const event_id = formData.get("event_id")?.toString();
   const corner = requireCorner(formData.get("corner"));
@@ -94,7 +98,7 @@ export async function unmarkPursePaid(formData: FormData) {
     .update({ paid_at: null, paid_by: null, payment_reference: null })
     .eq("bout_id", bout_id)
     .eq("corner", corner);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   for (const p of pathsFor(event_id, bout_id)) revalidatePath(p);
 }

@@ -1,6 +1,7 @@
 import { renderToBuffer } from "@react-pdf/renderer";
 
 import { db } from "@/lib/db/client";
+import { requireStaff } from "@/lib/auth/session";
 import { BoutAgreementPdf } from "@/lib/pdf/bout-agreement";
 import { FightReportPdf } from "@/lib/pdf/fight-report";
 import { fighterClearanceSummary } from "@/lib/db/types";
@@ -29,6 +30,7 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ boutId: string; kind: string }> },
 ) {
+  await requireStaff();
   const { boutId, kind } = await params;
 
   if (!KINDS.includes(kind as BoutDocumentKind)) {

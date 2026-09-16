@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createAdminClient } from "@/lib/supabase/server";
+import { dbErr } from "@/lib/db/client";
 import { requireAdmin } from "@/lib/auth/session";
 
 function parsePersonNo(input: string | undefined | null): number | null {
@@ -37,7 +38,7 @@ export async function mergePersonsByNumber(fd: FormData) {
     p_source: sourceRow.id,
     p_target: targetRow.id,
   });
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath("/admin/persons");
 }

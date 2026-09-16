@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { db } from "@/lib/db/client";
+import { db, dbErr } from "@/lib/db/client";
 import { requireStaff } from "@/lib/auth/session";
 
 function str(raw: FormDataEntryValue | null): string | null {
@@ -30,7 +30,7 @@ export async function createGym(formData: FormData) {
   };
 
   const { data, error } = await db().from("gyms").insert(payload).select("id").single();
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath("/gyms");
   redirect(`/gyms/${data.id}`);
@@ -59,7 +59,7 @@ export async function updateGym(formData: FormData) {
   };
 
   const { error } = await db().from("gyms").update(payload).eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath(`/gyms/${id}`);
   revalidatePath("/gyms");
@@ -78,7 +78,7 @@ export async function assignFighterGym(formData: FormData) {
     .update({ gym_id })
     .eq("id", fighter_id);
 
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath(`/fighters/${fighter_id}`);
   revalidatePath("/fighters");

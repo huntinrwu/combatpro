@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { db } from "@/lib/db/client";
+import { db, dbErr } from "@/lib/db/client";
 import { orNull as str, toInt } from "@/lib/form-utils";
 import { requireStaff, requireUser } from "@/lib/auth/session";
 import { PROMOTION_SCOPES, type PromotionScope, type PromotionStatus } from "@/lib/db/types";
@@ -51,7 +51,7 @@ export async function createPromotion(formData: FormData) {
     .insert({ ...basePayload(formData), status: "approved" as PromotionStatus })
     .select("id")
     .single();
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
   revalidatePath("/promotions");
   redirect(`/promotions/${data.id}`);
 }
@@ -70,7 +70,7 @@ export async function submitPromotion(formData: FormData) {
       submitted_by_email: user.email,
       submitted_at: new Date().toISOString(),
     });
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
   revalidatePath("/promotions");
   redirect("/promotions?submitted=1");
 }
@@ -83,7 +83,7 @@ export async function updatePromotion(formData: FormData) {
     .from("promotions")
     .update(basePayload(formData))
     .eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
   revalidatePath("/promotions");
   revalidatePath(`/promotions/${id}`);
   redirect(`/promotions/${id}`);
@@ -104,7 +104,7 @@ export async function setPromotionStatus(formData: FormData) {
       reviewed_at: new Date().toISOString(),
     })
     .eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
   revalidatePath("/promotions");
   revalidatePath(`/promotions/${id}`);
 }

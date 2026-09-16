@@ -1,5 +1,6 @@
 "use server";
 
+import { requireStaff } from "@/lib/auth/session";
 import { declareBoutResult } from "../../(modules)/events/[id]/bouts/[boutId]/actions";
 import { advanceToNextBout } from "../../(modules)/events/actions";
 
@@ -7,6 +8,7 @@ import { advanceToNextBout } from "../../(modules)/events/actions";
 // the outcome and updates fighter records; advanceToNextBout then finds the
 // next undeclared bout and points event.current_bout_id at it.
 export async function declareResultAndAdvance(formData: FormData) {
+  await requireStaff();
   await declareBoutResult(formData);
 
   const event_id = formData.get("event_id")?.toString();

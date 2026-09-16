@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 
-import { db } from "@/lib/db/client";
+import { db, dbErr } from "@/lib/db/client";
 import { orNull } from "@/lib/form-utils";
+import { requireStaff } from "@/lib/auth/session";
 import {
   MEDICAL_RECORD_KINDS,
   type MedicalRecordKind,
@@ -25,6 +26,7 @@ function addMonthsISO(iso: string, months: number): string {
 }
 
 export async function addMedicalRecord(formData: FormData) {
+  await requireStaff();
   const fighter_id = formData.get("fighter_id")?.toString();
   if (!fighter_id) throw new Error("Fighter is required.");
 
@@ -50,19 +52,25 @@ export async function addMedicalRecord(formData: FormData) {
   };
 
   const { error } = await db().from("fighter_medical_records").insert(payload);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath(`/fighters/${fighter_id}`);
   revalidatePath("/medical");
 }
 
 export async function deleteMedicalRecord(formData: FormData) {
+  await requireStaff();
   const id = formData.get("id")?.toString();
   const fighter_id = formData.get("fighter_id")?.toString();
   if (!id || !fighter_id) throw new Error("Record id + fighter are required.");
 
-  const { error } = await db().from("fighter_medical_records").delete().eq("id", id);
-  if (error) throw new Error(error.message);
+  // Scope by fighter so a rogue id can't touch another fighter's records.
+  const { error } = await db()
+    .from("fighter_medical_records")
+    .delete()
+    .eq("id", id)
+    .eq("fighter_id", fighter_id);
+  if (error) dbErr(error);
 
   revalidatePath(`/fighters/${fighter_id}`);
   revalidatePath("/medical");

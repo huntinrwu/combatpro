@@ -2,10 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 
-import { db } from "@/lib/db/client";
+import { db, dbErr } from "@/lib/db/client";
+import { requireStaff } from "@/lib/auth/session";
 import { EVENT_ROLES, type EventRole } from "@/lib/db/types";
 
 export async function assignEventOfficial(formData: FormData) {
+  await requireStaff();
   const event_id = formData.get("event_id")?.toString();
   const official_id = formData.get("official_id")?.toString();
   const roleRaw = formData.get("event_role")?.toString();
@@ -23,24 +25,27 @@ export async function assignEventOfficial(formData: FormData) {
     event_role,
   });
 
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath(`/events/${event_id}/officials`);
   revalidatePath(`/events/${event_id}`);
 }
 
 export async function unassignEventOfficial(formData: FormData) {
+  await requireStaff();
   const assignment_id = formData.get("assignment_id")?.toString();
   const event_id = formData.get("event_id")?.toString();
 
   if (!assignment_id || !event_id) throw new Error("Missing fields.");
 
+  // Scope by event so a rogue assignment id can only unassign within this event.
   const { error } = await db()
     .from("event_officials")
     .delete()
-    .eq("id", assignment_id);
+    .eq("id", assignment_id)
+    .eq("event_id", event_id);
 
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidatePath(`/events/${event_id}/officials`);
   revalidatePath(`/events/${event_id}`);

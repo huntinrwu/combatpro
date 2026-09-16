@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 
-import { db } from "@/lib/db/client";
+import { db, dbErr } from "@/lib/db/client";
 import { orNull, toNum } from "@/lib/form-utils";
+import { requireStaff } from "@/lib/auth/session";
 import { PAYMENT_METHODS, type LedgerEntryType, type PaymentMethod } from "@/lib/db/types";
 
 function requireType(raw: FormDataEntryValue | null): LedgerEntryType {
@@ -25,6 +26,7 @@ function paths(event_id: string): string[] {
 }
 
 export async function addLedgerEntry(formData: FormData) {
+  await requireStaff();
   const event_id = formData.get("event_id")?.toString();
   if (!event_id) throw new Error("event is required.");
 
@@ -48,18 +50,24 @@ export async function addLedgerEntry(formData: FormData) {
   };
 
   const { error } = await db().from("event_ledger").insert(payload);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   for (const p of paths(event_id)) revalidatePath(p);
 }
 
 export async function deleteLedgerEntry(formData: FormData) {
+  await requireStaff();
   const id = formData.get("id")?.toString();
   const event_id = formData.get("event_id")?.toString();
   if (!id || !event_id) throw new Error("entry id + event are required.");
 
-  const { error } = await db().from("event_ledger").delete().eq("id", id);
-  if (error) throw new Error(error.message);
+  // Constrain by event_id so a rogue id can only delete a row on the given event.
+  const { error } = await db()
+    .from("event_ledger")
+    .delete()
+    .eq("id", id)
+    .eq("event_id", event_id);
+  if (error) dbErr(error);
 
   for (const p of paths(event_id)) revalidatePath(p);
 }

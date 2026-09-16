@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
-import { db } from "@/lib/db/client";
+import { db, dbErr } from "@/lib/db/client";
+import { requireStaff } from "@/lib/auth/session";
 import type { EventStatus } from "@/lib/db/types";
 
 function str(raw: FormDataEntryValue | null): string | null {
@@ -25,6 +26,7 @@ function revalidate(event_id: string) {
 // without a result. Uses the sanctioning body name (if any) as default
 // filed_with so the audit trail has something meaningful.
 export async function fileAllFightReports(formData: FormData) {
+  await requireStaff();
   const event_id = str(formData.get("event_id"));
   if (!event_id) throw new Error("event is required.");
 
@@ -82,7 +84,7 @@ export async function fileAllFightReports(formData: FormData) {
     filed_with,
   }));
   const { error } = await supabase.from("bout_documents").insert(payload);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidate(event_id);
 }
@@ -90,6 +92,7 @@ export async function fileAllFightReports(formData: FormData) {
 // Flip the event's status. Guarded server-side too so a stale UI can't sneak
 // an event to complete with un-declared bouts.
 export async function setEventStatus(formData: FormData) {
+  await requireStaff();
   const event_id = str(formData.get("event_id"));
   const status = str(formData.get("status")) as EventStatus | null;
   if (!event_id || !status) throw new Error("event + status required.");
@@ -118,7 +121,7 @@ export async function setEventStatus(formData: FormData) {
     .from("events")
     .update({ status })
     .eq("id", event_id);
-  if (error) throw new Error(error.message);
+  if (error) dbErr(error);
 
   revalidate(event_id);
 }

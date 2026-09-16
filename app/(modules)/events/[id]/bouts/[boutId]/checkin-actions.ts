@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 
-import { db } from "@/lib/db/client";
+import { db, dbErr } from "@/lib/db/client";
 import { orNull, toNum as toNumericOrNull } from "@/lib/form-utils";
+import { requireStaff } from "@/lib/auth/session";
 import type { Corner } from "@/lib/db/types";
 
 function requireCorner(raw: FormDataEntryValue | null): Corner {
@@ -25,12 +26,12 @@ async function upsertCheck(bout_id: string, corner: Corner, patch: Record<string
       .from("bout_fighter_checks")
       .update(patch)
       .eq("id", existing.id);
-    if (error) throw new Error(error.message);
+    if (error) dbErr(error);
   } else {
     const { error } = await supabase
       .from("bout_fighter_checks")
       .insert({ bout_id, corner, ...patch });
-    if (error) throw new Error(error.message);
+    if (error) dbErr(error);
   }
 }
 
@@ -41,6 +42,7 @@ function revalidate(event_id: string, bout_id: string) {
 }
 
 export async function toggleCheckIn(formData: FormData) {
+  await requireStaff();
   const bout_id = formData.get("bout_id")?.toString();
   const event_id = formData.get("event_id")?.toString();
   const corner = requireCorner(formData.get("corner"));
@@ -55,6 +57,7 @@ export async function toggleCheckIn(formData: FormData) {
 }
 
 export async function recordWeighIn(formData: FormData) {
+  await requireStaff();
   const bout_id = formData.get("bout_id")?.toString();
   const event_id = formData.get("event_id")?.toString();
   const corner = requireCorner(formData.get("corner"));
@@ -74,6 +77,7 @@ export async function recordWeighIn(formData: FormData) {
 }
 
 export async function clearWeighIn(formData: FormData) {
+  await requireStaff();
   const bout_id = formData.get("bout_id")?.toString();
   const event_id = formData.get("event_id")?.toString();
   const corner = requireCorner(formData.get("corner"));
@@ -89,6 +93,7 @@ export async function clearWeighIn(formData: FormData) {
 }
 
 export async function toggleMedicalClearance(formData: FormData) {
+  await requireStaff();
   const bout_id = formData.get("bout_id")?.toString();
   const event_id = formData.get("event_id")?.toString();
   const corner = requireCorner(formData.get("corner"));
@@ -105,6 +110,7 @@ export async function toggleMedicalClearance(formData: FormData) {
 }
 
 export async function toggleClearedToFight(formData: FormData) {
+  await requireStaff();
   const bout_id = formData.get("bout_id")?.toString();
   const event_id = formData.get("event_id")?.toString();
   const corner = requireCorner(formData.get("corner"));

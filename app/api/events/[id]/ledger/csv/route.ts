@@ -1,4 +1,5 @@
 import { db } from "@/lib/db/client";
+import { requireStaff } from "@/lib/auth/session";
 import {
   ledgerCategoryLabel,
   num,
@@ -24,6 +25,7 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  await requireStaff();
   const { id } = await params;
   const supabase = db();
 
