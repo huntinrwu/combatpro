@@ -10,7 +10,7 @@ import { SponsorDialog } from "../_components/sponsor-dialog";
 import { SponsorTargetEditor } from "../_components/sponsor-target-editor";
 import { SponsorableItemActionButton } from "../_components/sponsorable-item-delete-button";
 import { SponsorableItemDialog } from "../_components/sponsorable-item-dialog";
-import { loadEventDetail } from "../_lib/event-detail";
+import { loadEventDetail, loadEventSponsorExtras } from "../_lib/event-detail";
 import { db } from "@/lib/db/client";
 import { getSessionUser } from "@/lib/auth/session";
 import { fmtDateShort } from "@/lib/format-utils";
@@ -79,22 +79,21 @@ export default async function EventSponsorsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const detail = await loadEventDetail(id);
+  const [detail, extras, session] = await Promise.all([
+    loadEventDetail(id),
+    loadEventSponsorExtras(id),
+    getSessionUser(),
+  ]);
   if (!detail) notFound();
 
-  const {
-    event,
-    sponsorSlots: slotList,
-    sponsorTargets: targetList,
-    sponsorRegistry: sponsorList,
-  } = detail;
+  const { event, sponsorSlots: slotList } = detail;
+  const { sponsorTargets: targetList, sponsorRegistry: sponsorList } = extras;
   const overrides = await ensureBootstrap(
     id,
-    detail.sponsorableItems,
+    extras.sponsorableItems,
     slotList,
   );
 
-  const session = await getSessionUser();
   const canSeeAmounts =
     (session?.isStaff ?? false) || session?.id === event.created_by;
 

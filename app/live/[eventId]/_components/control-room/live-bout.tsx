@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 
 import type { ControlRoomBout, ControlRoomJudge } from "../../page";
 
@@ -29,38 +29,15 @@ export function LiveBout({
     accumulatedMs: 0,
     round: 1,
   });
-  const [tick, setTick] = useState(0);
 
-  useEffect(() => {
-    if (timer.startedAt == null) return;
-    const id = window.setInterval(() => setTick((t) => t + 1), 250);
-    return () => window.clearInterval(id);
-  }, [timer.startedAt]);
-
-  // Re-derived every render — `tick` state forces one every 250ms while
-  // running. `Date.now()` during render is intentional here (the tick is the
-  // only reason we re-render), so the react-hooks/purity rule is disabled.
-  void tick;
-  // eslint-disable-next-line react-hooks/purity
-  const nowMs = Date.now();
-  const elapsedMs =
-    timer.startedAt == null ? timer.accumulatedMs : timer.accumulatedMs + (nowMs - timer.startedAt);
-
-  const remainingMs = roundLengthMs - elapsedMs;
-  const isRunning = timer.startedAt != null;
-  const isEndOfRound = remainingMs <= 0;
-
-  // Auto-pause at end of round.
-  const endedRef = useRef(false);
-  useEffect(() => {
-    if (isEndOfRound && isRunning && !endedRef.current) {
-      endedRef.current = true;
-      setTimer((t) =>
-        t.startedAt == null ? t : { ...t, startedAt: null, accumulatedMs: roundLengthMs },
-      );
-    }
-    if (!isEndOfRound) endedRef.current = false;
-  }, [isEndOfRound, isRunning, roundLengthMs]);
+  // Called by <Timer> when the clock runs out — auto-pause at end of round.
+  // The 250ms tick lives inside <Timer> so only the clock re-renders while
+  // running, not the result form / on-deck card / judge strip.
+  const endRound = useCallback(() => {
+    setTimer((t) =>
+      t.startedAt == null ? t : { ...t, startedAt: null, accumulatedMs: roundLengthMs },
+    );
+  }, [roundLengthMs]);
 
   const start = useCallback(() => {
     setTimer((t) => ({ ...t, startedAt: Date.now() }));
@@ -89,10 +66,9 @@ export function LiveBout({
   const isDeclared = Boolean(bout.result);
 
   // Prefill the round entered on the result form so the operator doesn't have
-  // to think — mid-round stoppages default to the current round.
-  const defaultRound = isEndOfRound
-    ? Math.min(timer.round, bout.rounds)
-    : timer.round;
+  // to think — mid-round stoppages default to the current round (nextRound
+  // already clamps it to bout.rounds).
+  const defaultRound = timer.round;
 
   return (
     <div className="mx-auto max-w-[1600px] px-6 pb-10 pt-6">
@@ -100,11 +76,10 @@ export function LiveBout({
         <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.04] to-transparent p-6">
           <BoutHeader bout={bout} live />
           <Timer
-            remainingMs={remainingMs}
-            round={timer.round}
+            timer={timer}
+            roundLengthMs={roundLengthMs}
             totalRounds={bout.rounds}
-            isRunning={isRunning}
-            isEndOfRound={isEndOfRound}
+            onRoundEnd={endRound}
             onStart={start}
             onPause={pause}
             onReset={resetRound}

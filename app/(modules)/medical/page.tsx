@@ -16,6 +16,8 @@ import {
 
 export const dynamic = "force-dynamic";
 
+type FighterRow = Pick<Fighter, "id" | "full_name" | "primary_sport">;
+
 const STATUS_META: Record<ClearanceStatus, { label: string; className: string; rank: number }> = {
   expired: {
     label: "Expired",
@@ -57,7 +59,7 @@ function soonestExpiry(records: FighterMedicalRecord[]): FighterMedicalRecord | 
 export default async function MedicalPage() {
   const supabase = db();
   const [{ data: fighters }, { data: records }] = await Promise.all([
-    supabase.from("fighters").select("*").order("full_name"),
+    supabase.from("fighters").select("id, full_name, primary_sport").order("full_name"),
     supabase.from("fighter_medical_records").select("*"),
   ]);
 
@@ -68,7 +70,7 @@ export default async function MedicalPage() {
     recordsByFighter.set(r.fighter_id, arr);
   }
 
-  const rows = ((fighters ?? []) as Fighter[]).map((f) => {
+  const rows = ((fighters ?? []) as FighterRow[]).map((f) => {
     const fRecords = recordsByFighter.get(f.id) ?? [];
     const summary = fighterClearanceSummary(fRecords);
     const soon = soonestExpiry(fRecords);
@@ -146,7 +148,7 @@ function FighterRow({
   summary,
   soonestExpiry,
 }: {
-  fighter: Fighter;
+  fighter: FighterRow;
   summary: ReturnType<typeof fighterClearanceSummary>;
   soonestExpiry: FighterMedicalRecord | null;
 }) {

@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useFormState, useFormStatus } from "react-dom";
+import { useActionState, useMemo, useState } from "react";
+import { useFormStatus } from "react-dom";
 
 import { signupAction } from "../actions";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import {
 type Gym = { id: string; name: string; city: string | null; state: string | null };
 
 export function SignupForm({ gyms }: { gyms: Gym[] }) {
-  const [state, formAction] = useFormState(signupAction, { ok: true });
+  const [state, formAction] = useActionState(signupAction, { ok: true });
   const [selectedRoles, setSelectedRoles] = useState<Set<PlatformRole>>(new Set());
   const [gymChoice, setGymChoice] = useState<string>("");
 

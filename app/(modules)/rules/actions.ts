@@ -5,10 +5,10 @@ import { redirect } from "next/navigation";
 
 import { db, dbErr } from "@/lib/db/client";
 import { orNull as str } from "@/lib/form-utils";
-import { getSessionUser, requireStaff } from "@/lib/auth/session";
+import { requireStaff } from "@/lib/auth/session";
 import { extractRulesetFromPdf, type ExtractedRuleset } from "@/lib/ai/parse-ruleset";
+import { RULESET_PDF_BUCKET as BUCKET } from "./_lib/pdf-urls";
 
-const BUCKET = "ruleset-pdfs";
 const MAX_PDF_BYTES = 15 * 1024 * 1024;
 
 async function pdfBufferFromForm(fd: FormData, field = "pdf"): Promise<{
@@ -142,12 +142,15 @@ export async function uploadNewPdfVersion(formData: FormData) {
     .maybeSingle<{ id: string; sport: string }>();
   if (!ruleset) throw new Error("Ruleset not found.");
 
-  const extraction = await tryExtract(buffer, ruleset.sport);
-
+  // The storage upload doesn't depend on the (slow) AI extraction, so overlap
+  // them. tryExtract never throws.
   const storagePath = `${rulesetId}/${Date.now()}-${safeSlug(filename)}.pdf`;
-  const { error: uploadErr } = await supabase.storage
-    .from(BUCKET)
-    .upload(storagePath, buffer, { contentType: "application/pdf", upsert: false });
+  const [extraction, { error: uploadErr }] = await Promise.all([
+    tryExtract(buffer, ruleset.sport),
+    supabase.storage
+      .from(BUCKET)
+      .upload(storagePath, buffer, { contentType: "application/pdf", upsert: false }),
+  ]);
   if (uploadErr) throw new Error(`Storage upload failed: ${uploadErr.message}`);
 
   // Demote prior versions
@@ -218,14 +221,4 @@ export async function assignBoutRuleset(formData: FormData) {
   if (error) dbErr(error);
 
   revalidatePath(`/events/${event_id}/bouts/${bout_id}`);
-}
-
-// Returns a short-lived signed URL for the given storage path. Server-only —
-// caller enforces auth. Used by the detail page to render a download link.
-export async function signedRulesetPdfUrl(storagePath: string): Promise<string | null> {
-  const u = await getSessionUser();
-  if (!u) return null;
-  const supabase = db();
-  const { data } = await supabase.storage.from(BUCKET).createSignedUrl(storagePath, 60 * 10);
-  return data?.signedUrl ?? null;
 }

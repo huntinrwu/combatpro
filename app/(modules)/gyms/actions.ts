@@ -4,19 +4,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { db, dbErr } from "@/lib/db/client";
+import { orNull as str } from "@/lib/form-utils";
 import { requireStaff } from "@/lib/auth/session";
 
-function str(raw: FormDataEntryValue | null): string | null {
-  if (typeof raw !== "string") return null;
-  const t = raw.trim();
-  return t.length ? t : null;
-}
-
-export async function createGym(formData: FormData) {
+// Shared by create + update. Name is the only required field.
+function gymPayload(formData: FormData) {
   const name = str(formData.get("name"));
   if (!name) throw new Error("Gym name is required.");
-
-  const payload = {
+  return {
     name,
     city: str(formData.get("city")),
     state: str(formData.get("state")),
@@ -28,6 +23,10 @@ export async function createGym(formData: FormData) {
     logo_url: str(formData.get("logo_url")),
     notes: str(formData.get("notes")),
   };
+}
+
+export async function createGym(formData: FormData) {
+  const payload = gymPayload(formData);
 
   const { data, error } = await db().from("gyms").insert(payload).select("id").single();
   if (error) dbErr(error);
@@ -42,21 +41,7 @@ export async function updateGym(formData: FormData) {
   const id = str(formData.get("id"));
   if (!id) throw new Error("Missing gym id.");
 
-  const name = str(formData.get("name"));
-  if (!name) throw new Error("Gym name is required.");
-
-  const payload = {
-    name,
-    city: str(formData.get("city")),
-    state: str(formData.get("state")),
-    country: str(formData.get("country")),
-    head_coach: str(formData.get("head_coach")),
-    contact_email: str(formData.get("contact_email")),
-    contact_phone: str(formData.get("contact_phone")),
-    website: str(formData.get("website")),
-    logo_url: str(formData.get("logo_url")),
-    notes: str(formData.get("notes")),
-  };
+  const payload = gymPayload(formData);
 
   const { error } = await db().from("gyms").update(payload).eq("id", id);
   if (error) dbErr(error);

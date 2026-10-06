@@ -47,15 +47,17 @@ export default async function FighterDetailPage({
 }) {
   const { id } = await params;
   const supabase = db();
-  const session = await getSessionUser();
   const [
+    session,
     { data: fighter },
     { data: medicalRecords },
     { data: gyms },
     { data: fightRecords },
     { data: weightLog },
     { data: classPrefs },
+    { data: rawBouts },
   ] = await Promise.all([
+    getSessionUser(),
     supabase.from("fighters").select("*").eq("id", id).maybeSingle<Fighter>(),
     supabase
       .from("fighter_medical_records")
@@ -78,42 +80,44 @@ export default async function FighterDetailPage({
       .from("fighter_class_preferences")
       .select("*")
       .eq("fighter_id", id),
+    // Promotions this fighter has appeared on — derived from CombatPro-tracked
+    // bouts. Doesn't include historical fights on other platforms; those live
+    // in fight_records under event_name (free-text).
+    supabase
+      .from("bouts")
+      .select("id, event_id, red_corner_fighter_id, blue_corner_fighter_id")
+      .or(`red_corner_fighter_id.eq.${id},blue_corner_fighter_id.eq.${id}`),
   ]);
 
   if (!fighter) notFound();
-
-  const { data: person } = fighter.person_id
-    ? await supabase
-        .from("persons")
-        .select("person_no")
-        .eq("id", fighter.person_id)
-        .maybeSingle<{ person_no: number }>()
-    : { data: null as { person_no: number } | null };
 
   const gymList = (gyms ?? []) as Pick<Gym, "id" | "name">[];
   const assignedGym = fighter.gym_id
     ? gymList.find((g) => g.id === fighter.gym_id) ?? null
     : null;
 
-  // Promotions this fighter has appeared on — derived from CombatPro-tracked
-  // bouts. Doesn't include historical fights on other platforms; those live
-  // in fight_records under event_name (free-text).
-  const { data: rawBouts } = await supabase
-    .from("bouts")
-    .select("id, event_id, red_corner_fighter_id, blue_corner_fighter_id")
-    .or(`red_corner_fighter_id.eq.${id},blue_corner_fighter_id.eq.${id}`);
   const fighterBouts = (rawBouts ?? []) as Pick<
     Bout,
     "id" | "event_id" | "red_corner_fighter_id" | "blue_corner_fighter_id"
   >[];
   const boutEventIds = Array.from(new Set(fighterBouts.map((b) => b.event_id)));
 
-  const { data: rawFighterEvents } = boutEventIds.length
-    ? await supabase
-        .from("events")
-        .select("id, name, event_date, promotion_id")
-        .in("id", boutEventIds)
-    : { data: [] };
+  // Person lookup and the bout events are independent — fetch together.
+  const [{ data: person }, { data: rawFighterEvents }] = await Promise.all([
+    fighter.person_id
+      ? supabase
+          .from("persons")
+          .select("person_no")
+          .eq("id", fighter.person_id)
+          .maybeSingle<{ person_no: number }>()
+      : Promise.resolve({ data: null as { person_no: number } | null }),
+    boutEventIds.length
+      ? supabase
+          .from("events")
+          .select("id, name, event_date, promotion_id")
+          .in("id", boutEventIds)
+      : Promise.resolve({ data: [] }),
+  ]);
   const fighterEvents = (rawFighterEvents ?? []) as Pick<
     EventRow,
     "id" | "name" | "event_date" | "promotion_id"

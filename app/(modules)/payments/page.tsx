@@ -22,7 +22,10 @@ export default async function PaymentsPage() {
   const supabase = db();
   const [{ data: events }, { data: bouts }, { data: purses }, { data: ledger }] =
     await Promise.all([
-      supabase.from("events").select("*").order("event_date", { ascending: false }),
+      supabase
+        .from("events")
+        .select("id, name, status, event_date, venue")
+        .order("event_date", { ascending: false }),
       supabase.from("bouts").select("id, event_id"),
       supabase.from("bout_purses").select("*"),
       supabase.from("event_ledger").select("*"),
@@ -33,7 +36,7 @@ export default async function PaymentsPage() {
   for (const b of (bouts ?? []) as { id: string; event_id: string }[]) {
     boutToEvent.set(b.id, b.event_id);
   }
-  // event_id → { boutIds: Set, purses: BoutPurse[] }
+  // event_id → purses
   const eventPurses = new Map<string, BoutPurse[]>();
   for (const p of (purses ?? []) as BoutPurse[]) {
     const eventId = boutToEvent.get(p.bout_id);
@@ -55,7 +58,9 @@ export default async function PaymentsPage() {
     ledgerByEvent.set(l.event_id, arr);
   }
 
-  const rows = ((events ?? []) as EventRow[]).map((e) => {
+  const rows = (
+    (events ?? []) as Pick<EventRow, "id" | "name" | "status" | "event_date" | "venue">[]
+  ).map((e) => {
     const ps = eventPurses.get(e.id) ?? [];
     let gross = 0;
     let net = 0;

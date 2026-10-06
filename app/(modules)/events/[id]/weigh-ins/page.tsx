@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { AlertTriangle, Scale } from "lucide-react";
 
-import { PrintButton } from "./_components/print-button";
+import { PrintButton } from "../_components/print-button";
+import { fighterIdsOf, loadEventDetail } from "../_lib/event-detail";
 import {
   clearWeighIn,
   recordWeighIn,
@@ -16,12 +17,14 @@ import {
   type Bout,
   type BoutFighterCheck,
   type Corner,
-  type EventRow,
   type Fighter,
-  type Gym,
 } from "@/lib/db/types";
 
 export const dynamic = "force-dynamic";
+
+type WeighInFighter = Pick<Fighter, "id" | "full_name" | "gym" | "gym_id"> & {
+  gym_ref: { name: string } | null;
+};
 
 function fmtTime(iso: string | null) {
   if (!iso) return null;
@@ -37,77 +40,34 @@ export default async function WeighInsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = db();
 
-  const { data: event } = await supabase
-    .from("events")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle<EventRow>();
+  // Event, bouts, and checks come from the per-request cache the [id] layout
+  // already populated.
+  const detail = await loadEventDetail(id);
+  if (!detail) notFound();
+  const { event, bouts, checksByBout } = detail;
 
-  if (!event) notFound();
+  const fighterIds = fighterIdsOf(bouts);
 
-  const { data: rawBouts } = await supabase
-    .from("bouts")
-    .select("*")
-    .eq("event_id", id)
-    .order("bout_order", { ascending: true, nullsFirst: false });
+  // Gym name is embedded via fighters.gym_id → gyms instead of pulling the
+  // whole gyms table.
+  const { data: fighters } = fighterIds.length
+    ? await db()
+        .from("fighters")
+        .select("id, full_name, gym, gym_id, gym_ref:gyms(name)")
+        .in("id", fighterIds)
+    : { data: [] };
 
-  const bouts = (rawBouts ?? []) as Bout[];
-  const boutIds = bouts.map((b) => b.id);
-
-  const fighterIds = Array.from(
-    new Set(
-      bouts
-        .flatMap((b) => [b.red_corner_fighter_id, b.blue_corner_fighter_id])
-        .filter((x): x is string => Boolean(x)),
-    ),
-  );
-
-  const [{ data: fighters }, { data: checks }, { data: gyms }] = await Promise.all([
-    fighterIds.length
-      ? supabase
-          .from("fighters")
-          .select("id, full_name, gym, gym_id")
-          .in("id", fighterIds)
-      : Promise.resolve({ data: [] }),
-    boutIds.length
-      ? supabase
-          .from("bout_fighter_checks")
-          .select("*")
-          .in("bout_id", boutIds)
-      : Promise.resolve({ data: [] }),
-    supabase.from("gyms").select("id, name"),
-  ]);
-
-  const fighterMap = new Map<
-    string,
-    Pick<Fighter, "id" | "full_name" | "gym" | "gym_id">
-  >();
-  for (const f of (fighters ?? []) as Pick<
-    Fighter,
-    "id" | "full_name" | "gym" | "gym_id"
-  >[]) {
+  const fighterMap = new Map<string, WeighInFighter>();
+  for (const f of (fighters ?? []) as unknown as WeighInFighter[]) {
     fighterMap.set(f.id, f);
-  }
-
-  const gymMap = new Map<string, Pick<Gym, "id" | "name">>();
-  for (const g of (gyms ?? []) as Pick<Gym, "id" | "name">[]) {
-    gymMap.set(g.id, g);
-  }
-
-  const checksByBout = new Map<string, Partial<Record<Corner, BoutFighterCheck>>>();
-  for (const c of (checks ?? []) as BoutFighterCheck[]) {
-    const entry = checksByBout.get(c.bout_id) ?? {};
-    entry[c.corner as Corner] = c;
-    checksByBout.set(c.bout_id, entry);
   }
 
   type Row = {
     key: string;
     bout: Bout;
     corner: Corner;
-    fighter: Pick<Fighter, "id" | "full_name" | "gym" | "gym_id"> | null;
+    fighter: WeighInFighter | null;
     check: BoutFighterCheck | null;
     contracted: number | null;
     actual: number | null;
@@ -149,7 +109,7 @@ export default async function WeighInsPage({
   const fighterLabel = (row: Row): string => {
     if (!row.fighter) return "TBD";
     const gym = row.fighter.gym_id
-      ? gymMap.get(row.fighter.gym_id)?.name
+      ? row.fighter.gym_ref?.name
       : row.fighter.gym;
     return gym ? `${row.fighter.full_name} (${gym})` : row.fighter.full_name;
   };

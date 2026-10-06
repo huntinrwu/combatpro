@@ -51,6 +51,10 @@ The "notes" field should capture anything material that doesn't fit elsewhere
 (fouls, medical requirements, specific stoppage conditions, etc.) — a short
 paragraph, not the whole document.`;
 
+// Created lazily on first use and reused across requests (keeps the SDK's
+// connection pool warm instead of building a fresh client per upload).
+let client: Anthropic | null = null;
+
 // Returns null when parsing is disabled (no ANTHROPIC_API_KEY on the server).
 // Callers should treat null as "skip silently" — not as an error. Throws only
 // for actual runtime failures (API error, malformed response).
@@ -61,7 +65,7 @@ export async function extractRulesetFromPdf(
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
 
-  const client = new Anthropic({ apiKey });
+  client ??= new Anthropic({ apiKey });
   const pdfBase64 = pdfBuffer.toString("base64");
 
   const response = await client.messages.create({

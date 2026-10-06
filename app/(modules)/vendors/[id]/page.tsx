@@ -44,30 +44,43 @@ export default async function VendorDetailPage({
   const { id } = await params;
   const supabase = db();
 
-  const { data: vendor } = await supabase
-    .from("vendors")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle<Vendor>();
+  const [{ data: vendor }, { data: ledger }] = await Promise.all([
+    supabase
+      .from("vendors")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle<Vendor>(),
+    supabase
+      .from("event_ledger")
+      .select("id, event_id, label, amount, subcategory, payment_method, received_at, reference, notes")
+      .eq("vendor_id", id)
+      .order("received_at", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false }),
+  ]);
   if (!vendor) notFound();
 
-  const { data: ledger } = await supabase
-    .from("event_ledger")
-    .select("*")
-    .eq("vendor_id", id)
-    .order("received_at", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false });
-  const entries = (ledger ?? []) as LedgerEntry[];
+  const entries = (ledger ?? []) as Pick<
+    LedgerEntry,
+    | "id"
+    | "event_id"
+    | "label"
+    | "amount"
+    | "subcategory"
+    | "payment_method"
+    | "received_at"
+    | "reference"
+    | "notes"
+  >[];
 
   const eventIds = Array.from(new Set(entries.map((e) => e.event_id)));
   const { data: events } = eventIds.length
     ? await supabase
         .from("events")
-        .select("id, name, event_date, slug")
+        .select("id, name, event_date")
         .in("id", eventIds)
-    : { data: [] as Pick<EventRow, "id" | "name" | "event_date" | "slug">[] };
+    : { data: [] as Pick<EventRow, "id" | "name" | "event_date">[] };
   const eventMap = new Map(
-    ((events ?? []) as Pick<EventRow, "id" | "name" | "event_date" | "slug">[]).map(
+    ((events ?? []) as Pick<EventRow, "id" | "name" | "event_date">[]).map(
       (e) => [e.id, e],
     ),
   );

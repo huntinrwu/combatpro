@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CheckCircle2, Download, FileText, RotateCcw } from "lucide-react";
 
 import { markDocumentFiled, unmarkDocumentFiled } from "../document-actions";
+import { fmtWhen } from "./fmt-when";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,16 +11,6 @@ import {
   type BoutDocument,
   type BoutDocumentKind,
 } from "@/lib/db/types";
-
-function fmtWhen(iso: string): string {
-  return new Date(iso).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
 
 export function DocumentsCard({
   boutId,

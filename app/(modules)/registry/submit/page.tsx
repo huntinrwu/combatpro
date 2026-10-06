@@ -1,14 +1,13 @@
 import Link from "next/link";
 
 import { submitSanctioningBody } from "../actions";
+import { SCOPES } from "../_components/sanctioning-body-form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormField } from "@/components/form-field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
-
-const SCOPES = ["international", "national", "regional", "state"];
 
 export default function SubmitSanctioningBodyPage() {
   return (

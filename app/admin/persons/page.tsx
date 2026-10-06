@@ -67,32 +67,30 @@ export default async function PersonsAdminPage({
   );
 
   // Look up the CP-number of any target we merged into so we can render the
-  // "→ CP-10042" hint on tombstoned rows.
-  const targetLookup = new Map<string, number>();
-  if (mergedTargetIds.length) {
-    const { data: targets } = await admin
-      .from("persons")
-      .select("id, person_no")
-      .in("id", mergedTargetIds);
-    for (const t of (targets ?? []) as { id: string; person_no: number }[]) {
-      targetLookup.set(t.id, t.person_no);
-    }
-  }
-
-  const [{ data: fighters }, { data: officials }, { data: promotions }] =
-    personIds.length
-      ? await Promise.all([
-          admin.from("fighters").select("person_id").in("person_id", personIds),
-          admin
-            .from("officials")
-            .select("person_id")
-            .in("person_id", personIds),
-          admin
+  // "→ CP-10042" hint on tombstoned rows. Runs alongside the role counts.
+  const [{ data: targets }, { data: fighters }, { data: officials }, { data: promotions }] =
+    await Promise.all([
+      mergedTargetIds.length
+        ? admin.from("persons").select("id, person_no").in("id", mergedTargetIds)
+        : Promise.resolve({ data: [] }),
+      personIds.length
+        ? admin.from("fighters").select("person_id").in("person_id", personIds)
+        : Promise.resolve({ data: [] }),
+      personIds.length
+        ? admin.from("officials").select("person_id").in("person_id", personIds)
+        : Promise.resolve({ data: [] }),
+      personIds.length
+        ? admin
             .from("promotions")
             .select("contact_person_id")
-            .in("contact_person_id", personIds),
-        ])
-      : [{ data: [] }, { data: [] }, { data: [] }];
+            .in("contact_person_id", personIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+  const targetLookup = new Map<string, number>();
+  for (const t of (targets ?? []) as { id: string; person_no: number }[]) {
+    targetLookup.set(t.id, t.person_no);
+  }
 
   const counts = new Map<string, Counts>();
   for (const r of rows) {

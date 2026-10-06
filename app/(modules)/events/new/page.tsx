@@ -1,27 +1,13 @@
 import { createEvent } from "../actions";
 import { EventForm } from "../_components/event-form";
-import { db } from "@/lib/db/client";
+import { loadEventFormOptions } from "../_lib/event-form-options";
 import { requireEventCreator } from "@/lib/auth/session";
-import type { Commission, Promotion, SanctioningBody } from "@/lib/db/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewEventPage() {
   await requireEventCreator();
-  const supabase = db();
-  const [{ data: commissions }, { data: bodies }, { data: promotions }] = await Promise.all([
-    supabase.from("commissions").select("id, abbreviation, name, state").order("state"),
-    supabase
-      .from("sanctioning_bodies")
-      .select("id, abbreviation, name, status")
-      .eq("status", "approved")
-      .order("abbreviation"),
-    supabase
-      .from("promotions")
-      .select("id, name, abbreviation, status")
-      .eq("status", "approved")
-      .order("name"),
-  ]);
+  const { commissions, bodies, promotions } = await loadEventFormOptions();
 
   return (
     <>
@@ -36,9 +22,9 @@ export default async function NewEventPage() {
         action={createEvent}
         submitLabel="Create event"
         cancelHref="/events"
-        commissions={(commissions ?? []) as Pick<Commission, "id" | "abbreviation" | "name" | "state">[]}
-        bodies={(bodies ?? []) as Pick<SanctioningBody, "id" | "abbreviation" | "name">[]}
-        promotions={(promotions ?? []) as Pick<Promotion, "id" | "name" | "abbreviation">[]}
+        commissions={commissions}
+        bodies={bodies}
+        promotions={promotions}
       />
     </>
   );

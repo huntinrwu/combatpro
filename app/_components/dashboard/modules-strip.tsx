@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { MODULE_SECTIONS, visibleModules } from "@/lib/modules";
+import { MODULE_SECTIONS, groupModulesBySection, visibleModules } from "@/lib/modules";
 import type { PlatformRole } from "@/lib/auth/roles";
 
 export function ModulesStrip({
@@ -10,19 +10,13 @@ export function ModulesStrip({
   approvedRoles: PlatformRole[];
   isStaff: boolean;
 }) {
-  const modules = visibleModules(approvedRoles, isStaff);
-  const grouped: Record<string, typeof modules> = {
-    operations: [],
-    regulatory: [],
-    business: [],
-  };
-  for (const m of modules) grouped[m.section].push(m);
+  const grouped = groupModulesBySection(visibleModules(approvedRoles, isStaff));
 
   return (
     <div className="space-y-6">
       {MODULE_SECTIONS.map((section) => {
         const items = grouped[section.key];
-        if (!items || items.length === 0) return null;
+        if (items.length === 0) return null;
         return (
           <section key={section.key}>
             <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">

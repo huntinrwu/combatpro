@@ -18,6 +18,7 @@ import { PursesCard } from "./_components/purses-card";
 import { ResultCard } from "./_components/result-card";
 import { RulesetCard } from "./_components/ruleset-card";
 import { ScorecardsSummary } from "./_components/scorecards-summary";
+import { loadEventDetail } from "../../_lib/event-detail";
 import { db } from "@/lib/db/client";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,24 +28,22 @@ import {
   EVENT_ROLE_LABELS,
   fighterClearanceSummary,
   suggestResultFromScorecards,
-  type Bout,
   type BoutCornerman,
   type BoutDocument,
-  type BoutFighterCheck,
-  type BoutPurse,
   type BoutScorecard,
   type ClearanceStatus,
-  type Corner,
   type EventOfficial,
   type EventRole,
-  type EventRow,
-  type Fighter,
   type FighterMedicalRecord,
   type Official,
   type Ruleset,
 } from "@/lib/db/types";
 
 export const dynamic = "force-dynamic";
+
+type RosterRow = Pick<EventOfficial, "id" | "official_id" | "event_role"> & {
+  official: Pick<Official, "full_name"> | null;
+};
 
 export default async function BoutDetailPage({
   params,
@@ -54,79 +53,60 @@ export default async function BoutDetailPage({
   const { id: eventId, boutId } = await params;
   const supabase = db();
 
-  const [{ data: event }, { data: bout }] = await Promise.all([
-    supabase
-      .from("events")
-      .select("id, name, event_date, primary_sport, sanctioning_body_id, current_bout_id")
-      .eq("id", eventId)
-      .maybeSingle<
-        Pick<
-          EventRow,
-          | "id"
-          | "name"
-          | "event_date"
-          | "primary_sport"
-          | "sanctioning_body_id"
-          | "current_bout_id"
-        >
-      >(),
-    supabase.from("bouts").select("*").eq("id", boutId).maybeSingle<Bout>(),
-  ]);
+  // Event, bout, checks, purses, and fighter names come from the per-request
+  // cache the [id] layout already populated. Finding the bout in the event's
+  // card also enforces bout ↔ event ownership.
+  const detail = await loadEventDetail(eventId);
+  const bout = detail?.bouts.find((b) => b.id === boutId);
+  if (!detail || !bout) notFound();
+  const { event } = detail;
 
-  if (!event || !bout || bout.event_id !== eventId) notFound();
+  const fighterIds = [bout.red_corner_fighter_id, bout.blue_corner_fighter_id].filter(
+    (x): x is string => Boolean(x),
+  );
 
   const [
     { data: eventRoster },
     { data: scorecards },
-    { data: checks },
     { data: documents },
-    { data: purses },
     { data: cornermen },
     { data: sanctioningBody },
     { data: allRulesets },
+    { data: med },
   ] = await Promise.all([
+    // Official names are embedded via event_officials.official_id → officials.
     supabase
       .from("event_officials")
-      .select("*")
+      .select("id, official_id, event_role, official:officials(full_name)")
       .eq("event_id", eventId)
       .order("created_at"),
     supabase.from("bout_scorecards").select("*").eq("bout_id", boutId).order("round_number"),
-    supabase.from("bout_fighter_checks").select("*").eq("bout_id", boutId),
     supabase.from("bout_documents").select("*").eq("bout_id", boutId),
-    supabase.from("bout_purses").select("*").eq("bout_id", boutId),
     supabase.from("bout_cornermen").select("*").eq("bout_id", boutId).order("created_at"),
     event.sanctioning_body_id
       ? supabase
           .from("sanctioning_bodies")
-          .select("name, abbreviation")
+          .select("name")
           .eq("id", event.sanctioning_body_id)
-          .maybeSingle<{ name: string; abbreviation: string }>()
-      : Promise.resolve({ data: null as { name: string; abbreviation: string } | null }),
+          .maybeSingle<{ name: string }>()
+      : Promise.resolve({ data: null as { name: string } | null }),
     supabase
       .from("rulesets")
       .select("id, name, sport, sanctioning_body_id, is_default")
       .order("name"),
+    fighterIds.length
+      ? supabase.from("fighter_medical_records").select("*").in("fighter_id", fighterIds)
+      : Promise.resolve({ data: [] as FighterMedicalRecord[] }),
   ]);
 
-  const rosterRows = (eventRoster ?? []) as EventOfficial[];
-  const officialIds = Array.from(new Set(rosterRows.map((r) => r.official_id)));
-  const { data: officialRecords } = officialIds.length
-    ? await supabase
-        .from("officials")
-        .select("id, full_name")
-        .in("id", officialIds)
-    : { data: [] as Pick<Official, "id" | "full_name">[] };
-  const officialNameById = new Map<string, string>();
-  for (const o of (officialRecords ?? []) as Pick<Official, "id" | "full_name">[]) {
-    officialNameById.set(o.id, o.full_name);
-  }
+  const rosterRows = (eventRoster ?? []) as unknown as RosterRow[];
   const rosterByRole = new Map<EventRole, { id: string; official_id: string; full_name: string }[]>();
   for (const r of rosterRows) {
     const arr = rosterByRole.get(r.event_role) ?? [];
     arr.push({
       id: r.id,
       official_id: r.official_id,
-      full_name: officialNameById.get(r.official_id) ?? "Official",
+      full_name: r.official?.full_name ?? "Official",
     });
     rosterByRole.set(r.event_role, arr);
   }
@@ -156,28 +136,16 @@ export default async function BoutDetailPage({
       ? weightClassFor(bout.sport, bout.contracted_weight_lbs)
       : null;
 
-  const checkByCorner = new Map<Corner, BoutFighterCheck>();
-  for (const c of (checks ?? []) as BoutFighterCheck[]) {
-    checkByCorner.set(c.corner, c);
-  }
+  const boutChecks = detail.checksByBout.get(bout.id) ?? {};
+  const boutPurses = detail.purses.filter((p) => p.bout_id === bout.id);
 
   // Fighter names + medical for header alerts
-  const fighterIds = [bout.red_corner_fighter_id, bout.blue_corner_fighter_id].filter(
-    (x): x is string => Boolean(x),
-  );
-  const fighterMap = new Map<string, Pick<Fighter, "id" | "full_name">>();
+  const fighterMap = detail.fighterMap;
   const medicalByFighter = new Map<string, FighterMedicalRecord[]>();
-  if (fighterIds.length) {
-    const [{ data: fs }, { data: med }] = await Promise.all([
-      supabase.from("fighters").select("id, full_name").in("id", fighterIds),
-      supabase.from("fighter_medical_records").select("*").in("fighter_id", fighterIds),
-    ]);
-    for (const f of fs ?? []) fighterMap.set(f.id, f);
-    for (const m of (med ?? []) as FighterMedicalRecord[]) {
-      const arr = medicalByFighter.get(m.fighter_id) ?? [];
-      arr.push(m);
-      medicalByFighter.set(m.fighter_id, arr);
-    }
+  for (const m of (med ?? []) as FighterMedicalRecord[]) {
+    const arr = medicalByFighter.get(m.fighter_id) ?? [];
+    arr.push(m);
+    medicalByFighter.set(m.fighter_id, arr);
   }
   const red = bout.red_corner_fighter_id ? fighterMap.get(bout.red_corner_fighter_id) ?? null : null;
   const blue = bout.blue_corner_fighter_id ? fighterMap.get(bout.blue_corner_fighter_id) ?? null : null;
@@ -361,7 +329,7 @@ export default async function BoutDetailPage({
           <CheckinCorner
             corner="red"
             fighter={red}
-            check={checkByCorner.get("red") ?? null}
+            check={boutChecks.red ?? null}
             contractedLbs={bout.contracted_weight_lbs}
             boutId={bout.id}
             eventId={event.id}
@@ -370,7 +338,7 @@ export default async function BoutDetailPage({
           <CheckinCorner
             corner="blue"
             fighter={blue}
-            check={checkByCorner.get("blue") ?? null}
+            check={boutChecks.blue ?? null}
             contractedLbs={bout.contracted_weight_lbs}
             boutId={bout.id}
             eventId={event.id}
@@ -457,7 +425,7 @@ export default async function BoutDetailPage({
           <PursesCard
             boutId={bout.id}
             eventId={event.id}
-            purses={(purses ?? []) as BoutPurse[]}
+            purses={boutPurses}
             red={red}
             blue={blue}
           />

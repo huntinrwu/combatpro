@@ -29,18 +29,6 @@ export const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-end",
   },
-  brand: {
-    fontSize: 18,
-    fontFamily: "Helvetica-Bold",
-    letterSpacing: 1,
-  },
-  brandTagline: {
-    fontSize: 8,
-    color: colors.gray,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginTop: 2,
-  },
   docKind: {
     fontSize: 9,
     color: colors.gray,

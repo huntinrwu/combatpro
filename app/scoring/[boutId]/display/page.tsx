@@ -5,7 +5,6 @@ import { db } from "@/lib/db/client";
 import type {
   Bout,
   BoutScorecard,
-  EventOfficial,
   Fighter,
   Official,
 } from "@/lib/db/types";
@@ -22,63 +21,55 @@ export default async function DisplayPage({
   const { boutId } = await params;
   const supabase = db();
 
-  const { data: bout } = await supabase
-    .from("bouts")
-    .select("*")
-    .eq("id", boutId)
-    .maybeSingle<Bout>();
+  // Scorecards only depend on boutId, so fetch them alongside the bout.
+  const [{ data: bout }, { data: cards }] = await Promise.all([
+    supabase
+      .from("bouts")
+      .select("event_id, red_corner_fighter_id, blue_corner_fighter_id, rounds")
+      .eq("id", boutId)
+      .maybeSingle<
+        Pick<Bout, "event_id" | "red_corner_fighter_id" | "blue_corner_fighter_id" | "rounds">
+      >(),
+    supabase
+      .from("bout_scorecards")
+      .select("*")
+      .eq("bout_id", boutId)
+      .order("round_number"),
+  ]);
 
   if (!bout) notFound();
 
-  // Judges come from the event roster — same pool for every bout on the card.
-  const { data: rosterJudges } = await supabase
-    .from("event_officials")
-    .select("*")
-    .eq("event_id", bout.event_id)
-    .eq("event_role", "judge")
-    .order("created_at");
-
-  const rosterRows = (rosterJudges ?? []) as EventOfficial[];
-  const judgeIds = rosterRows.map((r) => r.official_id);
-  const { data: judgesData } = judgeIds.length
-    ? await supabase
-        .from("officials")
-        .select("id, full_name")
-        .in("id", judgeIds)
-    : { data: [] as JudgeSummary[] };
-
-  // Preserve roster order so Judge 1/2/3 stays stable across the card.
-  const rosterOrder = new Map<string, number>();
-  rosterRows.forEach((r, idx) => rosterOrder.set(r.official_id, idx));
-  const judges = [...((judgesData ?? []) as JudgeSummary[])].sort(
-    (a, b) => (rosterOrder.get(a.id) ?? 999) - (rosterOrder.get(b.id) ?? 999),
-  );
-
-  // Fighter names
   const fighterIds = [bout.red_corner_fighter_id, bout.blue_corner_fighter_id].filter(
     (x): x is string => Boolean(x),
   );
+
+  // Judges come from the event roster — same pool for every bout on the card.
+  // Officials are embedded so roster order (Judge 1/2/3) stays stable.
+  const [{ data: rosterJudges }, { data: fs }] = await Promise.all([
+    supabase
+      .from("event_officials")
+      .select("official:officials(id, full_name)")
+      .eq("event_id", bout.event_id)
+      .eq("event_role", "judge")
+      .order("created_at"),
+    fighterIds.length
+      ? supabase.from("fighters").select("id, full_name").in("id", fighterIds)
+      : Promise.resolve({ data: [] as Pick<Fighter, "id" | "full_name">[] }),
+  ]);
+
+  const judges = ((rosterJudges ?? []) as unknown as { official: JudgeSummary | null }[])
+    .map((r) => r.official)
+    .filter((o): o is JudgeSummary => Boolean(o));
+
+  // Fighter names
   const fighterMap = new Map<string, Pick<Fighter, "id" | "full_name">>();
-  if (fighterIds.length) {
-    const { data: fs } = await supabase
-      .from("fighters")
-      .select("id, full_name")
-      .in("id", fighterIds);
-    for (const f of fs ?? []) fighterMap.set(f.id, f);
-  }
+  for (const f of fs ?? []) fighterMap.set(f.id, f);
   const redName = bout.red_corner_fighter_id
     ? fighterMap.get(bout.red_corner_fighter_id)?.full_name ?? "Red"
     : "Red";
   const blueName = bout.blue_corner_fighter_id
     ? fighterMap.get(bout.blue_corner_fighter_id)?.full_name ?? "Blue"
     : "Blue";
-
-  // Initial scorecards
-  const { data: cards } = await supabase
-    .from("bout_scorecards")
-    .select("*")
-    .eq("bout_id", boutId)
-    .order("round_number");
 
   return (
     <DisplayClient

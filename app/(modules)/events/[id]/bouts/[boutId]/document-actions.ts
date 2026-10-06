@@ -24,37 +24,23 @@ export async function markDocumentFiled(formData: FormData) {
 
   if (!bout_id || !event_id) throw new Error("bout is required.");
 
-  const supabase = db();
-  const { data: existing } = await supabase
+  // One row per (bout, kind) — unique constraint makes this a single upsert.
+  // Re-filing bumps filed_at.
+  const { error } = await db()
     .from("bout_documents")
-    .select("id")
-    .eq("bout_id", bout_id)
-    .eq("kind", kind)
-    .maybeSingle();
-
-  if (existing) {
-    const { error } = await supabase
-      .from("bout_documents")
-      .update({
+    .upsert(
+      {
+        bout_id,
+        kind,
         filed_at: new Date().toISOString(),
         filed_with,
         filed_by,
         reference,
         notes,
-      })
-      .eq("id", existing.id);
-    if (error) dbErr(error);
-  } else {
-    const { error } = await supabase.from("bout_documents").insert({
-      bout_id,
-      kind,
-      filed_with,
-      filed_by,
-      reference,
-      notes,
-    });
-    if (error) dbErr(error);
-  }
+      },
+      { onConflict: "bout_id,kind" },
+    );
+  if (error) dbErr(error);
 
   revalidatePath(`/events/${event_id}/bouts/${bout_id}`);
   revalidatePath(`/events/${event_id}`);

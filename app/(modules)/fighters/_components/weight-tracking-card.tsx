@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import type { FighterWeightLogEntry } from "@/lib/db/types";
 import { lbsToKg } from "@/lib/units";
 
+import { toNum } from "./num";
+
 function fmt(iso: string): string {
   return new Date(iso).toLocaleString("en-US", {
     year: "numeric",
@@ -20,12 +22,6 @@ function fmt(iso: string): string {
     hour: "numeric",
     minute: "2-digit",
   });
-}
-
-function toNum(v: number | string | null | undefined): number | null {
-  if (v == null) return null;
-  const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) ? n : null;
 }
 
 export function WeightTrackingCard({

@@ -25,28 +25,27 @@ function requireTier(raw: FormDataEntryValue | null): SponsorTier {
 
 // Accepts either a built-in SPONSORABLE_ITEMS key or an event-scoped custom
 // item key registered in event_sponsorable_items for the given event.
+// `customLabel` is the custom item's label (null for built-ins), returned so
+// callers building ledger labels don't have to look the row up again.
 async function requireItemForEvent(
   raw: FormDataEntryValue | null,
   event_id: string,
-): Promise<SponsorItemKey> {
+): Promise<{ key: SponsorItemKey; customLabel: string | null }> {
   const v = typeof raw === "string" ? raw.trim() : "";
   if (!v) throw new Error("Sponsorable item is required.");
-  if (isBuiltInSponsorItem(v)) return v;
+  if (isBuiltInSponsorItem(v)) return { key: v, customLabel: null };
   const { data } = await db()
     .from("event_sponsorable_items")
-    .select("key")
+    .select("label")
     .eq("event_id", event_id)
     .eq("key", v)
-    .maybeSingle<{ key: string }>();
+    .maybeSingle<{ label: string }>();
   if (!data) throw new Error("Unknown sponsorable item for this event.");
-  return v;
+  return { key: v, customLabel: data.label };
 }
 
-export async function createSponsor(formData: FormData) {
-  const name = str(formData.get("name"));
-  if (!name) throw new Error("Sponsor name is required.");
-
-  const payload = {
+function sponsorPayload(formData: FormData, name: string) {
+  return {
     name,
     website: str(formData.get("website")),
     logo_url: str(formData.get("logo_url")),
@@ -55,8 +54,13 @@ export async function createSponsor(formData: FormData) {
     contact_phone: str(formData.get("contact_phone")),
     notes: str(formData.get("notes")),
   };
+}
 
-  const { error } = await db().from("sponsors").insert(payload);
+export async function createSponsor(formData: FormData) {
+  const name = str(formData.get("name"));
+  if (!name) throw new Error("Sponsor name is required.");
+
+  const { error } = await db().from("sponsors").insert(sponsorPayload(formData, name));
   if (error) dbErr(error);
 
   revalidatePath("/sponsors");
@@ -70,17 +74,10 @@ export async function updateSponsor(formData: FormData) {
   const name = str(formData.get("name"));
   if (!name) throw new Error("Sponsor name is required.");
 
-  const payload = {
-    name,
-    website: str(formData.get("website")),
-    logo_url: str(formData.get("logo_url")),
-    contact_name: str(formData.get("contact_name")),
-    contact_email: str(formData.get("contact_email")),
-    contact_phone: str(formData.get("contact_phone")),
-    notes: str(formData.get("notes")),
-  };
-
-  const { error } = await db().from("sponsors").update(payload).eq("id", id);
+  const { error } = await db()
+    .from("sponsors")
+    .update(sponsorPayload(formData, name))
+    .eq("id", id);
   if (error) dbErr(error);
 
   revalidatePath("/sponsors");
@@ -115,23 +112,16 @@ async function sponsorName(sponsor_id: string): Promise<string> {
   return data?.name ?? "Sponsor";
 }
 
-async function itemLabelForLedger(
-  event_id: string,
-  item: SponsorItemKey,
+function itemLabelForLedger(
+  item: { key: SponsorItemKey; customLabel: string | null },
   slot_label: string | null,
-): Promise<string> {
-  if (isBuiltInSponsorItem(item)) {
-    return item === "custom"
+): string {
+  if (isBuiltInSponsorItem(item.key)) {
+    return item.key === "custom"
       ? slot_label ?? "custom"
-      : sponsorableItemLabel(item);
+      : sponsorableItemLabel(item.key);
   }
-  const { data } = await db()
-    .from("event_sponsorable_items")
-    .select("label")
-    .eq("event_id", event_id)
-    .eq("key", item)
-    .maybeSingle<{ label: string }>();
-  return data?.label ?? item;
+  return item.customLabel ?? item.key;
 }
 
 function ledgerLabelFor(
@@ -147,7 +137,11 @@ export async function addEventSponsor(formData: FormData) {
   const sponsor_id = str(formData.get("sponsor_id"));
   if (!event_id || !sponsor_id) throw new Error("event + sponsor required.");
   const tier = requireTier(formData.get("tier"));
-  const item_type = await requireItemForEvent(formData.get("item_type"), event_id);
+  const [item, name] = await Promise.all([
+    requireItemForEvent(formData.get("item_type"), event_id),
+    sponsorName(sponsor_id),
+  ]);
+  const item_type = item.key;
   const slot_label = str(formData.get("slot_label"));
   if (item_type === "custom" && !slot_label) {
     throw new Error("Custom item needs a label.");
@@ -158,8 +152,7 @@ export async function addEventSponsor(formData: FormData) {
   const notes = str(formData.get("notes"));
 
   const supabase = db();
-  const name = await sponsorName(sponsor_id);
-  const itemLabel = await itemLabelForLedger(event_id, item_type, slot_label);
+  const itemLabel = itemLabelForLedger(item, slot_label);
 
   let ledger_entry_id: string | null = null;
   if (contract_value > 0) {
@@ -207,7 +200,17 @@ export async function updateEventSponsor(formData: FormData) {
   const sponsor_id = str(formData.get("sponsor_id"));
   if (!sponsor_id) throw new Error("Sponsor required.");
   const tier = requireTier(formData.get("tier"));
-  const item_type = await requireItemForEvent(formData.get("item_type"), event_id);
+  const supabase = db();
+  const [item, name, { data: existing }] = await Promise.all([
+    requireItemForEvent(formData.get("item_type"), event_id),
+    sponsorName(sponsor_id),
+    supabase
+      .from("event_sponsors")
+      .select("ledger_entry_id")
+      .eq("id", id)
+      .maybeSingle<{ ledger_entry_id: string | null }>(),
+  ]);
+  const item_type = item.key;
   const slot_label = str(formData.get("slot_label"));
   if (item_type === "custom" && !slot_label) {
     throw new Error("Custom item needs a label.");
@@ -217,17 +220,9 @@ export async function updateEventSponsor(formData: FormData) {
   const paid_at = paid_raw ? new Date(paid_raw).toISOString() : null;
   const notes = str(formData.get("notes"));
 
-  const supabase = db();
-  const { data: existing } = await supabase
-    .from("event_sponsors")
-    .select("ledger_entry_id")
-    .eq("id", id)
-    .maybeSingle<{ ledger_entry_id: string | null }>();
   if (!existing) throw new Error("Slot not found.");
 
-  const name = await sponsorName(sponsor_id);
-  const itemLabel = await itemLabelForLedger(event_id, item_type, slot_label);
-  const label = ledgerLabelFor(name, tier, itemLabel);
+  const label = ledgerLabelFor(name, tier, itemLabelForLedger(item, slot_label));
 
   let ledger_entry_id: string | null = existing.ledger_entry_id;
   if (contract_value > 0) {
@@ -282,13 +277,13 @@ export async function removeEventSponsor(formData: FormData) {
   if (!id || !event_id) throw new Error("slot id + event required.");
 
   const supabase = db();
-  const { data: existing } = await supabase
+  // Delete and read back the linked ledger row id in one round-trip.
+  const { data: existing, error } = await supabase
     .from("event_sponsors")
-    .select("ledger_entry_id")
+    .delete()
     .eq("id", id)
+    .select("ledger_entry_id")
     .maybeSingle<{ ledger_entry_id: string | null }>();
-
-  const { error } = await supabase.from("event_sponsors").delete().eq("id", id);
   if (error) dbErr(error);
 
   if (existing?.ledger_entry_id) {
@@ -334,26 +329,12 @@ export async function updateEventSponsorableItem(formData: FormData) {
   if (!label) throw new Error("Label is required.");
   const hint = str(formData.get("hint"));
 
-  const supabase = db();
-  const { data: existing } = await supabase
+  // unique (event_id, key): the upsert only writes label/hint, so `hidden`
+  // and sort_order on an existing row are left untouched.
+  const { error } = await db()
     .from("event_sponsorable_items")
-    .select("id")
-    .eq("event_id", event_id)
-    .eq("key", key)
-    .maybeSingle<{ id: string }>();
-
-  if (existing) {
-    const { error } = await supabase
-      .from("event_sponsorable_items")
-      .update({ label, hint })
-      .eq("id", existing.id);
-    if (error) dbErr(error);
-  } else {
-    const { error } = await supabase
-      .from("event_sponsorable_items")
-      .insert({ event_id, key, label, hint });
-    if (error) dbErr(error);
-  }
+    .upsert({ event_id, key, label, hint }, { onConflict: "event_id,key" });
+  if (error) dbErr(error);
 
   revalidatePath(`/events/${event_id}/sponsors`);
 }
@@ -399,8 +380,8 @@ export async function removeEventSponsorableItem(formData: FormData) {
 export async function setEventSponsorTarget(formData: FormData) {
   const event_id = str(formData.get("event_id"));
   if (!event_id) throw new Error("event required.");
-  const item_type = await requireItemForEvent(formData.get("item_type"), event_id);
-  const raw = toNum(formData.get("target_value"));
+  const { key: item_type } = await requireItemForEvent(formData.get("item_type"), event_id);
+  const raw =toNum(formData.get("target_value"));
   const target_value = raw != null && raw >= 0 ? raw : 0;
 
   const supabase = db();

@@ -34,11 +34,12 @@ const VIEW_AS_COOKIE = "cp:view-as";
 
 // Cached per request. Anon (unsigned) → null.
 export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
+  // getClaims verifies the JWT locally (asymmetric signing keys) instead of
+  // the getUser() round-trip to Supabase Auth on every render.
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const userId = claimsData?.claims.sub;
+  if (!userId) return null;
 
   // Admin client dodges the RLS trip round-trip on profiles/grants for the
   // owning user (the RLS policies allow it anyway; this is just latency).
@@ -47,8 +48,8 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   const [{ data: profile }, { data: grants }] = await Promise.all([
     admin
       .from("profiles")
-      .select("id, email, full_name, is_staff, is_admin, person_id")
-      .eq("id", user.id)
+      .select("id, email, full_name, is_staff, is_admin, person_id, persons(person_no)")
+      .eq("id", userId)
       .maybeSingle<{
         id: string;
         email: string;
@@ -56,24 +57,16 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
         is_staff: boolean;
         is_admin: boolean;
         person_id: string | null;
+        persons: { person_no: number } | null;
       }>(),
     admin
       .from("user_role_grants")
       .select("role, status")
-      .eq("user_id", user.id),
+      .eq("user_id", userId),
   ]);
 
   if (!profile) return null;
-
-  let personNo: number | null = null;
-  if (profile.person_id) {
-    const { data: person } = await admin
-      .from("persons")
-      .select("person_no")
-      .eq("id", profile.person_id)
-      .maybeSingle<{ person_no: number }>();
-    personNo = person?.person_no ?? null;
-  }
+  const personNo = profile.persons?.person_no ?? null;
 
   const approvedRoles: PlatformRole[] = [];
   const pendingRoles: PlatformRole[] = [];

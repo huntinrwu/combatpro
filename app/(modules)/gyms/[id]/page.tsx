@@ -36,9 +36,9 @@ export default async function GymDetailPage({
 }) {
   const { id } = await params;
   const supabase = db();
-  const session = await getSessionUser();
 
-  const [{ data: gym }, { data: roster }] = await Promise.all([
+  const [session, { data: gym }, { data: roster }] = await Promise.all([
+    getSessionUser(),
     supabase.from("gyms").select("*").eq("id", id).maybeSingle<Gym>(),
     supabase
       .from("fighters")

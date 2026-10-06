@@ -30,35 +30,35 @@ function outcomesForFighters(
 async function syncFightRecordsForBout(bout_id: string) {
   const supabase = db();
 
-  // Wipe any prior rows for this bout so re-declares stay in sync.
-  await supabase.from("fight_records").delete().eq("bout_id", bout_id);
-
-  const { data: bout } = await supabase
-    .from("bouts")
-    .select(
-      "id, event_id, sport, weight_class, bout_class, result, method, round_finished, time_finished, red_corner_fighter_id, blue_corner_fighter_id",
-    )
-    .eq("id", bout_id)
-    .maybeSingle<{
-      id: string;
-      event_id: string;
-      sport: string;
-      weight_class: string | null;
-      bout_class: BoutClass;
-      result: BoutOutcome | null;
-      method: string | null;
-      round_finished: number | null;
-      time_finished: string | null;
-      red_corner_fighter_id: string | null;
-      blue_corner_fighter_id: string | null;
-    }>();
+  // Wipe any prior rows for this bout so re-declares stay in sync. The bout
+  // read (with its event embedded) runs alongside — it doesn't touch
+  // fight_records, and the insert below waits for both. The `!event_id` hint
+  // is required: events.current_bout_id is a second bouts↔events FK.
+  const [, { data: bout }] = await Promise.all([
+    supabase.from("fight_records").delete().eq("bout_id", bout_id),
+    supabase
+      .from("bouts")
+      .select(
+        "id, sport, weight_class, bout_class, result, method, round_finished, time_finished, red_corner_fighter_id, blue_corner_fighter_id, event:events!event_id(event_date, name, city, state)",
+      )
+      .eq("id", bout_id)
+      .maybeSingle<{
+        id: string;
+        sport: string;
+        weight_class: string | null;
+        bout_class: BoutClass;
+        result: BoutOutcome | null;
+        method: string | null;
+        round_finished: number | null;
+        time_finished: string | null;
+        red_corner_fighter_id: string | null;
+        blue_corner_fighter_id: string | null;
+        event: { event_date: string; name: string; city: string | null; state: string | null } | null;
+      }>(),
+  ]);
   if (!bout || !bout.result) return;
 
-  const { data: event } = await supabase
-    .from("events")
-    .select("event_date, name, city, state")
-    .eq("id", bout.event_id)
-    .maybeSingle<{ event_date: string; name: string; city: string | null; state: string | null }>();
+  const event = bout.event;
   if (!event) return;
 
   const fighterIds = [bout.red_corner_fighter_id, bout.blue_corner_fighter_id].filter(
@@ -165,46 +165,36 @@ async function applyRecordDeltas(
     perFighter.set(d.fighter_id, cols);
   }
 
-  for (const [fighter_id, cols] of perFighter) {
-    const colNames = Array.from(cols.keys());
-    const { data: fighter, error: readErr } = await supabase
-      .from("fighters")
-      .select(`id, ${colNames.join(", ")}`)
-      .eq("id", fighter_id)
-      .maybeSingle();
-    if (readErr || !fighter) continue;
+  // At most two fighters (red + blue) — update them concurrently.
+  await Promise.all(
+    Array.from(perFighter, async ([fighter_id, cols]) => {
+      const colNames = Array.from(cols.keys());
+      const { data: fighter, error: readErr } = await supabase
+        .from("fighters")
+        .select(`id, ${colNames.join(", ")}`)
+        .eq("id", fighter_id)
+        .maybeSingle();
+      if (readErr || !fighter) return;
 
-    const update: Record<string, number> = {};
-    for (const col of colNames) {
-      const cur = Number(fighter[col as keyof typeof fighter] ?? 0);
-      const delta = cols.get(col) ?? 0;
-      update[col] = Math.max(0, cur + delta);
-    }
-    const { error: updErr } = await supabase
-      .from("fighters")
-      .update(update)
-      .eq("id", fighter_id);
-    if (updErr) dbErr(updErr);
-  }
+      const update: Record<string, number> = {};
+      for (const col of colNames) {
+        const cur = Number(fighter[col as keyof typeof fighter] ?? 0);
+        const delta = cols.get(col) ?? 0;
+        update[col] = Math.max(0, cur + delta);
+      }
+      const { error: updErr } = await supabase
+        .from("fighters")
+        .update(update)
+        .eq("id", fighter_id);
+      if (updErr) dbErr(updErr);
+    }),
+  );
 }
 
-export async function declareBoutResult(formData: FormData) {
-  await requireStaff();
-  const bout_id = formData.get("bout_id")?.toString();
-  const event_id = formData.get("event_id")?.toString();
-  const result = formData.get("result")?.toString() as BoutOutcome | undefined;
-  const method = formData.get("method")?.toString() as BoutMethod | undefined;
-  const bout_class =
-    (formData.get("bout_class")?.toString() as BoutClass | undefined) ?? "pro";
-
-  if (!bout_id || !event_id || !result || !method) {
-    throw new Error("bout, result, and method are required.");
-  }
-
-  const supabase = db();
-
-  // Snapshot the current bout so we can reverse a previously-applied result.
-  const { data: current, error: readErr } = await supabase
+// Snapshot the current bout and reverse any previously-applied record deltas.
+// Shared by declare (before re-applying) and clear.
+async function reverseAppliedRecords(bout_id: string) {
+  const { data: current, error: readErr } = await db()
     .from("bouts")
     .select(
       "id, red_corner_fighter_id, blue_corner_fighter_id, result, bout_class, records_applied",
@@ -232,6 +222,39 @@ export async function declareBoutResult(formData: FormData) {
     );
     await applyRecordDeltas(oldDeltas, current.bout_class, -1);
   }
+  return current;
+}
+
+function revalidateBout(
+  event_id: string,
+  bout_id: string,
+  fighterIds: (string | null)[],
+) {
+  revalidatePath(`/events/${event_id}/bouts/${bout_id}`);
+  revalidatePath(`/events/${event_id}`);
+  for (const fid of fighterIds) {
+    if (fid) revalidatePath(`/fighters/${fid}`);
+  }
+  revalidatePath("/fighters");
+}
+
+export async function declareBoutResult(formData: FormData) {
+  await requireStaff();
+  const bout_id = formData.get("bout_id")?.toString();
+  const event_id = formData.get("event_id")?.toString();
+  const result = formData.get("result")?.toString() as BoutOutcome | undefined;
+  const method = formData.get("method")?.toString() as BoutMethod | undefined;
+  const bout_class =
+    (formData.get("bout_class")?.toString() as BoutClass | undefined) ?? "pro";
+
+  if (!bout_id || !event_id || !result || !method) {
+    throw new Error("bout, result, and method are required.");
+  }
+
+  const supabase = db();
+
+  // Reverse a previously-applied result before writing the new one.
+  const current = await reverseAppliedRecords(bout_id);
 
   const { error: updErr } = await supabase
     .from("bouts")
@@ -256,15 +279,10 @@ export async function declareBoutResult(formData: FormData) {
 
   await syncFightRecordsForBout(bout_id);
 
-  revalidatePath(`/events/${event_id}/bouts/${bout_id}`);
-  revalidatePath(`/events/${event_id}`);
-  if (current.red_corner_fighter_id) {
-    revalidatePath(`/fighters/${current.red_corner_fighter_id}`);
-  }
-  if (current.blue_corner_fighter_id) {
-    revalidatePath(`/fighters/${current.blue_corner_fighter_id}`);
-  }
-  revalidatePath("/fighters");
+  revalidateBout(event_id, bout_id, [
+    current.red_corner_fighter_id,
+    current.blue_corner_fighter_id,
+  ]);
 }
 
 export async function clearBoutResult(formData: FormData) {
@@ -276,34 +294,7 @@ export async function clearBoutResult(formData: FormData) {
 
   const supabase = db();
 
-  const { data: current, error: readErr } = await supabase
-    .from("bouts")
-    .select(
-      "id, red_corner_fighter_id, blue_corner_fighter_id, result, bout_class, records_applied",
-    )
-    .eq("id", bout_id)
-    .maybeSingle<
-      Pick<
-        Bout,
-        | "id"
-        | "red_corner_fighter_id"
-        | "blue_corner_fighter_id"
-        | "result"
-        | "bout_class"
-        | "records_applied"
-      >
-    >();
-  if (readErr) dbErr(readErr);
-  if (!current) throw new Error("bout not found");
-
-  if (current.records_applied && current.result) {
-    const oldDeltas = computeRecordDeltas(
-      current.result as BoutOutcome,
-      current.red_corner_fighter_id,
-      current.blue_corner_fighter_id,
-    );
-    await applyRecordDeltas(oldDeltas, current.bout_class, -1);
-  }
+  const current = await reverseAppliedRecords(bout_id);
 
   const { error: updErr } = await supabase
     .from("bouts")
@@ -320,13 +311,8 @@ export async function clearBoutResult(formData: FormData) {
   // Reverting a bout also revokes the verified fight_record rows it produced.
   await supabase.from("fight_records").delete().eq("bout_id", bout_id);
 
-  revalidatePath(`/events/${event_id}/bouts/${bout_id}`);
-  revalidatePath(`/events/${event_id}`);
-  if (current.red_corner_fighter_id) {
-    revalidatePath(`/fighters/${current.red_corner_fighter_id}`);
-  }
-  if (current.blue_corner_fighter_id) {
-    revalidatePath(`/fighters/${current.blue_corner_fighter_id}`);
-  }
-  revalidatePath("/fighters");
+  revalidateBout(event_id, bout_id, [
+    current.red_corner_fighter_id,
+    current.blue_corner_fighter_id,
+  ]);
 }

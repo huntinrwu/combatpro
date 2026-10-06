@@ -9,7 +9,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import type { SanctioningBody } from "@/lib/db/types";
 
-const SCOPES = ["international", "national", "regional", "state"] as const;
+export const SCOPES = ["international", "national", "regional", "state"] as const;
 
 export function SanctioningBodyForm({
   action,

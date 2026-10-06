@@ -2,10 +2,10 @@ import { notFound, redirect } from "next/navigation";
 
 import { updateEvent } from "../../actions";
 import { EventForm } from "../../_components/event-form";
-import { db } from "@/lib/db/client";
+import { loadEventFormOptions } from "../../_lib/event-form-options";
+import { loadEventDetail } from "../_lib/event-detail";
 import { requireUser } from "@/lib/auth/session";
 import { canEditEvent } from "@/lib/auth/roles";
-import type { Commission, EventRow, Promotion, SanctioningBody } from "@/lib/db/types";
 
 export const dynamic = "force-dynamic";
 
@@ -17,23 +17,13 @@ export default async function EditEventPage({
   const user = await requireUser();
   const { id } = await params;
 
-  const supabase = db();
-  const [{ data: event }, { data: commissions }, { data: bodies }, { data: promotions }] =
-    await Promise.all([
-      supabase.from("events").select("*").eq("id", id).maybeSingle<EventRow>(),
-      supabase.from("commissions").select("id, abbreviation, name, state").order("state"),
-      supabase
-        .from("sanctioning_bodies")
-        .select("id, abbreviation, name, status")
-        .eq("status", "approved")
-        .order("abbreviation"),
-      supabase
-        .from("promotions")
-        .select("id, name, abbreviation, status")
-        .eq("status", "approved")
-        .order("name"),
-    ]);
-  if (!event) notFound();
+  // Event comes from the per-request cache the [id] layout already populated.
+  const [detail, { commissions, bodies, promotions }] = await Promise.all([
+    loadEventDetail(id),
+    loadEventFormOptions(),
+  ]);
+  if (!detail) notFound();
+  const { event } = detail;
   if (!canEditEvent(event, user)) redirect(`/events/${id}`);
 
   return (
@@ -50,9 +40,9 @@ export default async function EditEventPage({
         defaults={event}
         submitLabel="Save changes"
         cancelHref={`/events/${id}`}
-        commissions={(commissions ?? []) as Pick<Commission, "id" | "abbreviation" | "name" | "state">[]}
-        bodies={(bodies ?? []) as Pick<SanctioningBody, "id" | "abbreviation" | "name">[]}
-        promotions={(promotions ?? []) as Pick<Promotion, "id" | "name" | "abbreviation">[]}
+        commissions={commissions}
+        bodies={bodies}
+        promotions={promotions}
         hiddenFields={{ id }}
       />
     </>

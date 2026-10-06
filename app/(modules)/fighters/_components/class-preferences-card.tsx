@@ -1,5 +1,3 @@
-"use client";
-
 import { X } from "lucide-react";
 
 import { setFighterClassPreference } from "../weight-actions";
@@ -10,11 +8,7 @@ import { WeightClassSelect } from "@/components/weight-class-select";
 import { SPORTS, type FighterClassPreference } from "@/lib/db/types";
 import { weightClassFor } from "@/lib/weight-classes";
 
-function toNum(v: number | string | null | undefined): number | null {
-  if (v == null) return null;
-  const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) ? n : null;
-}
+import { toNum } from "./num";
 
 export function ClassPreferencesCard({
   fighterId,

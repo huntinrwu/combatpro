@@ -1,5 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
-import { createClient as createAdmin } from "@supabase/supabase-js";
+import { createClient as createAdmin, type SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 export async function createClient() {
@@ -26,10 +26,15 @@ export async function createClient() {
   );
 }
 
+// Service-role client is stateless (no session, no cookies), so one instance
+// per server process is enough — db() is called many times per request.
+let adminClient: SupabaseClient | null = null;
+
 export function createAdminClient() {
-  return createAdmin(
+  adminClient ??= createAdmin(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { persistSession: false, autoRefreshToken: false } },
   );
+  return adminClient;
 }

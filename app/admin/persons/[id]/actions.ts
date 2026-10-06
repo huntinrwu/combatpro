@@ -33,15 +33,15 @@ export async function adminUpdatePerson(fd: FormData) {
     updated_at: new Date().toISOString(),
   };
 
-  const { error } = await admin.from("persons").update(payload).eq("id", id);
+  const { data: person, error } = await admin
+    .from("persons")
+    .update(payload)
+    .eq("id", id)
+    .select("auth_user_id")
+    .maybeSingle<{ auth_user_id: string | null }>();
   if (error) dbErr(error);
 
   // Mirror name onto the linked profile so header/sidebar stays in sync.
-  const { data: person } = await admin
-    .from("persons")
-    .select("auth_user_id")
-    .eq("id", id)
-    .maybeSingle<{ auth_user_id: string | null }>();
   if (person?.auth_user_id) {
     await admin
       .from("profiles")

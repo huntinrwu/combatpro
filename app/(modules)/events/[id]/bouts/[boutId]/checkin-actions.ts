@@ -12,27 +12,13 @@ function requireCorner(raw: FormDataEntryValue | null): Corner {
   throw new Error("corner must be red or blue");
 }
 
+// One row per (bout, corner) — unique constraint makes this a single upsert.
+// Only the patched columns are written on conflict.
 async function upsertCheck(bout_id: string, corner: Corner, patch: Record<string, unknown>) {
-  const supabase = db();
-  const { data: existing } = await supabase
+  const { error } = await db()
     .from("bout_fighter_checks")
-    .select("id")
-    .eq("bout_id", bout_id)
-    .eq("corner", corner)
-    .maybeSingle();
-
-  if (existing) {
-    const { error } = await supabase
-      .from("bout_fighter_checks")
-      .update(patch)
-      .eq("id", existing.id);
-    if (error) dbErr(error);
-  } else {
-    const { error } = await supabase
-      .from("bout_fighter_checks")
-      .insert({ bout_id, corner, ...patch });
-    if (error) dbErr(error);
-  }
+    .upsert({ bout_id, corner, ...patch }, { onConflict: "bout_id,corner" });
+  if (error) dbErr(error);
 }
 
 function revalidate(event_id: string, bout_id: string) {

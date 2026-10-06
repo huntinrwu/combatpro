@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { createBout } from "../../../actions";
+import { loadEventDetail } from "../../_lib/event-detail";
 import { db } from "@/lib/db/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +12,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { WeightClassSelect } from "@/components/weight-class-select";
 import { BOUT_CLASSES, SCORING_MODES, SPORTS } from "@/lib/db/types";
-import type { EventRow, Fighter, Ruleset } from "@/lib/db/types";
+import type { Fighter, Ruleset } from "@/lib/db/types";
 
 export const dynamic = "force-dynamic";
 
@@ -23,12 +24,9 @@ export default async function NewBoutPage({
   const { id } = await params;
   const supabase = db();
 
-  const [{ data: event }, { data: fighters }, { data: rulesets }] = await Promise.all([
-    supabase
-      .from("events")
-      .select("id, name, primary_sport, sanctioning_body_id")
-      .eq("id", id)
-      .maybeSingle<Pick<EventRow, "id" | "name" | "primary_sport" | "sanctioning_body_id">>(),
+  // Event comes from the per-request cache the [id] layout already populated.
+  const [detail, { data: fighters }, { data: rulesets }] = await Promise.all([
+    loadEventDetail(id),
     supabase
       .from("fighters")
       .select("id, full_name, primary_sport")
@@ -36,7 +34,8 @@ export default async function NewBoutPage({
     supabase.from("rulesets").select("id, name, sport, sanctioning_body_id, is_default").order("name"),
   ]);
 
-  if (!event) notFound();
+  if (!detail) notFound();
+  const { event } = detail;
 
   const fighterList = (fighters ?? []) as Pick<Fighter, "id" | "full_name" | "primary_sport">[];
   const rulesetList = (rulesets ?? []) as Pick<

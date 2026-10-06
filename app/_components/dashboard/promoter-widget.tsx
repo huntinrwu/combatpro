@@ -8,11 +8,16 @@ import { EVENT_STATUS_VARIANT as STATUS_VARIANT } from "@/lib/ui-config";
 import { fmtDateShort as fmtEventDate } from "@/lib/format-utils";
 import type { EventRow } from "@/lib/db/types";
 
+export type PromoterEvent = Pick<
+  EventRow,
+  "id" | "name" | "event_date" | "status" | "slug"
+>;
+
 export function PromoterWidget({
   events,
   totalOwned,
 }: {
-  events: EventRow[];
+  events: PromoterEvent[];
   totalOwned: number;
 }) {
   return (

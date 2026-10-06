@@ -26,31 +26,20 @@ type GymRef = { id: string; name: string; approval_status: string };
 export default async function AccessRequestsPage() {
   await requireAdmin();
   const admin = createAdminClient();
+  // Requester profile + gym are embedded (user_id hint: reviewed_by is also
+  // an FK to profiles) so the page is a single query.
   const { data: grants } = await admin
     .from("user_role_grants")
-    .select("id, role, status, requested_at, gym_id, user_id")
+    .select(
+      "id, role, status, requested_at, gym_id, user_id, profile:profiles!user_id(id, email, full_name), gym:gyms(id, name, approval_status)",
+    )
     .eq("status", "pending")
     .order("requested_at", { ascending: true });
 
-  const rows = (grants ?? []) as PendingGrant[];
-  const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
-  const gymIds = Array.from(
-    new Set(rows.map((r) => r.gym_id).filter((g): g is string => Boolean(g))),
-  );
-
-  const [{ data: profs }, { data: gyms }] = await Promise.all([
-    userIds.length
-      ? admin.from("profiles").select("id, email, full_name").in("id", userIds)
-      : Promise.resolve({ data: [] }),
-    gymIds.length
-      ? admin.from("gyms").select("id, name, approval_status").in("id", gymIds)
-      : Promise.resolve({ data: [] }),
-  ]);
-
-  const profMap = new Map<string, Profile>();
-  for (const p of (profs ?? []) as Profile[]) profMap.set(p.id, p);
-  const gymMap = new Map<string, GymRef>();
-  for (const g of (gyms ?? []) as GymRef[]) gymMap.set(g.id, g);
+  const rows = (grants ?? []) as unknown as (PendingGrant & {
+    profile: Profile | null;
+    gym: GymRef | null;
+  })[];
 
   return (
     <Card>
@@ -68,8 +57,8 @@ export default async function AccessRequestsPage() {
         ) : (
           <ul className="divide-y divide-border/60">
             {rows.map((r) => {
-              const p = profMap.get(r.user_id);
-              const gym = r.gym_id ? gymMap.get(r.gym_id) : null;
+              const p = r.profile;
+              const gym = r.gym_id ? r.gym : null;
               return (
                 <li key={r.id} className="flex flex-wrap items-center gap-3 py-3 text-sm">
                   <div className="min-w-0 flex-1">

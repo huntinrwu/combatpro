@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useTransition, type FormHTMLAttributes, type ReactNode } from "react";
+import { useTransition, type FormHTMLAttributes, type ReactNode } from "react";
 import { toast } from "sonner";
 
 type ServerAction = (formData: FormData) => Promise<void> | void;
@@ -24,11 +24,9 @@ export function ToastedForm({
   ...rest
 }: Props) {
   const [, startTransition] = useTransition();
-  const formRef = useRef<HTMLFormElement>(null);
 
   return (
     <form
-      ref={formRef}
       {...rest}
       onSubmit={(e) => {
         e.preventDefault();

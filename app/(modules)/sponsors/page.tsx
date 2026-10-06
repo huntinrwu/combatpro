@@ -26,6 +26,11 @@ const VIEWS = ["list", "card", "grid", "compact", "kanban"] as const;
 
 type Search = { view?: string };
 
+type SponsorRow = Pick<
+  Sponsor,
+  "id" | "name" | "website" | "logo_url" | "contact_name" | "contact_email"
+>;
+
 type Stats = {
   events: Set<string>;
   contracted: number;
@@ -50,30 +55,34 @@ export default async function SponsorsListPage({
   const viewerId = session?.id ?? null;
   const isStaff = session?.isStaff ?? false;
 
-  const [{ data: sponsors, error }, { data: slots }, { data: events }] =
+  const [{ data: sponsors, error }, { data: slots }, { data: ownedEvents }] =
     await Promise.all([
-      supabase.from("sponsors").select("*").order("name"),
+      supabase
+        .from("sponsors")
+        .select("id, name, website, logo_url, contact_name, contact_email")
+        .order("name"),
       supabase
         .from("event_sponsors")
-        .select("id, sponsor_id, tier, contract_value, paid_at, event_id"),
-      supabase.from("events").select("id, created_by"),
+        .select("sponsor_id, tier, contract_value, paid_at, event_id"),
+      // Staff sees every amount and anonymous viewers see none, so only a
+      // signed-in non-staff viewer needs their owned event ids.
+      !isStaff && viewerId
+        ? supabase.from("events").select("id").eq("created_by", viewerId)
+        : Promise.resolve({ data: [] }),
     ]);
 
-  const list = (sponsors ?? []) as Sponsor[];
+  const list = (sponsors ?? []) as SponsorRow[];
   const slotList = (slots ?? []) as Pick<
     EventSponsor,
-    "id" | "sponsor_id" | "tier" | "contract_value" | "paid_at" | "event_id"
+    "sponsor_id" | "tier" | "contract_value" | "paid_at" | "event_id"
   >[];
 
   // Which events the viewer owns — staff sees all $, non-staff only their own.
-  const ownerMap = new Map<string, string | null>();
-  for (const e of (events ?? []) as { id: string; created_by: string | null }[]) {
-    ownerMap.set(e.id, e.created_by);
-  }
+  const ownedEventIds = new Set(((ownedEvents ?? []) as { id: string }[]).map((e) => e.id));
   const canSeeAmount = (eventId: string): boolean => {
     if (isStaff) return true;
     if (!viewerId) return false;
-    return ownerMap.get(eventId) === viewerId;
+    return ownedEventIds.has(eventId);
   };
 
   const summary = new Map<string, Stats>();
@@ -170,7 +179,7 @@ export default async function SponsorsListPage({
   );
 }
 
-function ListView({ sponsors, summary }: { sponsors: Sponsor[]; summary: Map<string, Stats> }) {
+function ListView({ sponsors, summary }: { sponsors: SponsorRow[]; summary: Map<string, Stats> }) {
   return (
     <TableShell
       head={
@@ -247,7 +256,7 @@ function ListView({ sponsors, summary }: { sponsors: Sponsor[]; summary: Map<str
   );
 }
 
-function CardView({ sponsors, summary }: { sponsors: Sponsor[]; summary: Map<string, Stats> }) {
+function CardView({ sponsors, summary }: { sponsors: SponsorRow[]; summary: Map<string, Stats> }) {
   return (
     <CardGrid>
       {sponsors.map((s) => {
@@ -314,7 +323,7 @@ function CardView({ sponsors, summary }: { sponsors: Sponsor[]; summary: Map<str
   );
 }
 
-function GridView({ sponsors, summary }: { sponsors: Sponsor[]; summary: Map<string, Stats> }) {
+function GridView({ sponsors, summary }: { sponsors: SponsorRow[]; summary: Map<string, Stats> }) {
   return (
     <TileGrid dense>
       {sponsors.map((s) => {
@@ -355,7 +364,7 @@ function CompactView({
   sponsors,
   summary,
 }: {
-  sponsors: Sponsor[];
+  sponsors: SponsorRow[];
   summary: Map<string, Stats>;
 }) {
   return (
@@ -392,12 +401,12 @@ function KanbanView({
   sponsors,
   summary,
 }: {
-  sponsors: Sponsor[];
+  sponsors: SponsorRow[];
   summary: Map<string, Stats>;
 }) {
-  const buckets = new Map<string, Sponsor[]>();
+  const buckets = new Map<string, SponsorRow[]>();
   for (const t of SPONSOR_TIERS) buckets.set(t.value, []);
-  const unassigned: Sponsor[] = [];
+  const unassigned: SponsorRow[] = [];
   for (const s of sponsors) {
     const stats = summary.get(s.id);
     if (!stats?.topTier) {

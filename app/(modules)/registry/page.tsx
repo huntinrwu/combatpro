@@ -17,6 +17,12 @@ const VIEWS = ["list", "card", "grid", "compact"] as const;
 
 type Search = { submitted?: string; view?: string };
 
+type CommissionLite = Pick<Commission, "id" | "name" | "abbreviation" | "jurisdiction" | "state">;
+type BodyLite = Pick<
+  SanctioningBody,
+  "id" | "name" | "abbreviation" | "scope" | "sports" | "headquarters" | "status"
+>;
+
 export default async function RegistryPage({
   searchParams,
 }: {
@@ -26,16 +32,25 @@ export default async function RegistryPage({
   const view = pickView(rawView, VIEWS);
 
   const supabase = db();
-  const session = await getSessionUser();
 
-  const [{ data: commissions }, { data: bodies }, { data: rulesets }] = await Promise.all([
-    supabase.from("commissions").select("*").order("state", { ascending: true }),
-    supabase.from("sanctioning_bodies").select("*").order("status").order("abbreviation"),
-    supabase.from("rulesets").select("id, commission_id, sanctioning_body_id"),
+  // Rejected bodies are never shown, so they're filtered out in the DB.
+  const [session, { data: commissions }, { data: bodies }, { data: rulesets }] = await Promise.all([
+    getSessionUser(),
+    supabase
+      .from("commissions")
+      .select("id, name, abbreviation, jurisdiction, state")
+      .order("state", { ascending: true }),
+    supabase
+      .from("sanctioning_bodies")
+      .select("id, name, abbreviation, scope, sports, headquarters, status")
+      .in("status", ["approved", "pending"])
+      .order("status")
+      .order("abbreviation"),
+    supabase.from("rulesets").select("commission_id, sanctioning_body_id"),
   ]);
 
-  const commissionList = (commissions ?? []) as Commission[];
-  const allBodies = (bodies ?? []) as SanctioningBody[];
+  const commissionList = (commissions ?? []) as CommissionLite[];
+  const allBodies = (bodies ?? []) as BodyLite[];
   const approved = allBodies.filter((b) => b.status === "approved");
   const pending = allBodies.filter((b) => b.status === "pending");
 
@@ -133,9 +148,9 @@ export default async function RegistryPage({
 }
 
 type ViewProps = {
-  commissions: Commission[];
-  approved: SanctioningBody[];
-  pending: SanctioningBody[];
+  commissions: CommissionLite[];
+  approved: BodyLite[];
+  pending: BodyLite[];
   ruleByCommission: Map<string, number>;
   ruleByBody: Map<string, number>;
 };
@@ -384,7 +399,7 @@ function CompactView({
   );
 }
 
-function CommissionRow({ commission, ruleCount }: { commission: Commission; ruleCount: number }) {
+function CommissionRow({ commission, ruleCount }: { commission: CommissionLite; ruleCount: number }) {
   return (
     <Link
       href={`/registry/commissions/${commission.id}`}
@@ -407,7 +422,7 @@ function CommissionRow({ commission, ruleCount }: { commission: Commission; rule
   );
 }
 
-function BodyRow({ body, ruleCount }: { body: SanctioningBody; ruleCount: number }) {
+function BodyRow({ body, ruleCount }: { body: BodyLite; ruleCount: number }) {
   return (
     <Link
       href={`/sb/${body.id}`}

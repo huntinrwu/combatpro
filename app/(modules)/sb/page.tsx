@@ -16,6 +16,7 @@ const VIEWS = ["list", "card", "grid", "compact", "kanban"] as const;
 
 type Search = { view?: string };
 type Counts = { total: number; upcoming: number };
+type SbCard = Pick<SanctioningBody, "id" | "abbreviation" | "name" | "scope" | "sports">;
 
 export default async function SbIndexPage({
   searchParams,
@@ -30,17 +31,20 @@ export default async function SbIndexPage({
   const [{ data: bodies }, { data: events }] = await Promise.all([
     supabase
       .from("sanctioning_bodies")
-      .select("*")
+      .select("id, abbreviation, name, scope, sports")
       .eq("status", "approved")
       .order("abbreviation"),
-    supabase.from("events").select("id, sanctioning_body_id, event_date, status"),
+    supabase
+      .from("events")
+      .select("sanctioning_body_id, event_date, status")
+      .not("sanctioning_body_id", "is", null),
   ]);
 
   const eventCounts = new Map<string, Counts>();
   const today = new Date().toISOString().slice(0, 10);
   for (const e of (events ?? []) as Pick<
     EventRow,
-    "id" | "sanctioning_body_id" | "event_date" | "status"
+    "sanctioning_body_id" | "event_date" | "status"
   >[]) {
     if (!e.sanctioning_body_id) continue;
     const entry = eventCounts.get(e.sanctioning_body_id) ?? { total: 0, upcoming: 0 };
@@ -51,7 +55,7 @@ export default async function SbIndexPage({
     eventCounts.set(e.sanctioning_body_id, entry);
   }
 
-  const list = (bodies ?? []) as SanctioningBody[];
+  const list = (bodies ?? []) as SbCard[];
 
   return (
     <>
@@ -97,7 +101,7 @@ function CardView({
   bodies,
   counts,
 }: {
-  bodies: SanctioningBody[];
+  bodies: SbCard[];
   counts: Map<string, Counts>;
 }) {
   return (
@@ -157,7 +161,7 @@ function ListView({
   bodies,
   counts,
 }: {
-  bodies: SanctioningBody[];
+  bodies: SbCard[];
   counts: Map<string, Counts>;
 }) {
   return (
@@ -210,7 +214,7 @@ function GridView({
   bodies,
   counts,
 }: {
-  bodies: SanctioningBody[];
+  bodies: SbCard[];
   counts: Map<string, Counts>;
 }) {
   return (
@@ -242,7 +246,7 @@ function CompactView({
   bodies,
   counts,
 }: {
-  bodies: SanctioningBody[];
+  bodies: SbCard[];
   counts: Map<string, Counts>;
 }) {
   return (
@@ -275,10 +279,10 @@ function KanbanView({
   bodies,
   counts,
 }: {
-  bodies: SanctioningBody[];
+  bodies: SbCard[];
   counts: Map<string, Counts>;
 }) {
-  const buckets = new Map<string, SanctioningBody[]>();
+  const buckets = new Map<string, SbCard[]>();
   for (const b of bodies) {
     if (!buckets.has(b.scope)) buckets.set(b.scope, []);
     buckets.get(b.scope)!.push(b);

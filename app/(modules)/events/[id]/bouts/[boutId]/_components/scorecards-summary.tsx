@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Radio } from "lucide-react";
 
-import type { BoutScorecard, Official } from "@/lib/db/types";
+import type { BoutScorecard } from "@/lib/db/types";
 
 type JudgeInfo = { official_id: string; full_name: string };
 
@@ -159,11 +159,3 @@ export function ScorecardsSummary({
   );
 }
 
-// Small helper — pull the {official_id, full_name} shape out of a bout-detail
-// assignment row, so the page can pass a clean array to <ScorecardsSummary>.
-export function toJudgeInfo(
-  assignment: { official_id: string },
-  official: Pick<Official, "id" | "full_name"> | null | undefined,
-): JudgeInfo {
-  return { official_id: assignment.official_id, full_name: official?.full_name ?? "Judge" };
-}

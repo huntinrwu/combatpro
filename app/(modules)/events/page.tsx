@@ -28,6 +28,12 @@ const VIEWS = [
 
 type Search = { view?: string };
 
+// Only the columns the list views render.
+type EventListRow = Pick<
+  EventRow,
+  "id" | "name" | "promoter" | "event_date" | "primary_sport" | "venue" | "city" | "state" | "status"
+>;
+
 export default async function EventsListPage({
   searchParams,
 }: {
@@ -37,11 +43,14 @@ export default async function EventsListPage({
   const view = pickView(rawView, VIEWS);
 
   const [{ data: events, error }, session] = await Promise.all([
-    db().from("events").select("*").order("event_date", { ascending: false }),
+    db()
+      .from("events")
+      .select("id, name, promoter, event_date, primary_sport, venue, city, state, status")
+      .order("event_date", { ascending: false }),
     getSessionUser(),
   ]);
   const canCreate = session ? canCreateEvents(session.approvedRoles, session.isStaff) : false;
-  const list = (events ?? []) as EventRow[];
+  const list = (events ?? []) as EventListRow[];
 
   return (
     <>
@@ -90,11 +99,11 @@ export default async function EventsListPage({
   );
 }
 
-function locationOf(e: EventRow): string {
+function locationOf(e: EventListRow): string {
   return [e.venue, e.city, e.state].filter(Boolean).join(", ") || "—";
 }
 
-function ListView({ events }: { events: EventRow[] }) {
+function ListView({ events }: { events: EventListRow[] }) {
   return (
     <TableShell
       head={
@@ -135,7 +144,7 @@ function ListView({ events }: { events: EventRow[] }) {
   );
 }
 
-function CardView({ events }: { events: EventRow[] }) {
+function CardView({ events }: { events: EventListRow[] }) {
   return (
     <CardGrid>
       {events.map((e) => (
@@ -169,7 +178,7 @@ function CardView({ events }: { events: EventRow[] }) {
   );
 }
 
-function GridView({ events }: { events: EventRow[] }) {
+function GridView({ events }: { events: EventListRow[] }) {
   return (
     <TileGrid>
       {events.map((e) => (
@@ -199,7 +208,7 @@ function GridView({ events }: { events: EventRow[] }) {
   );
 }
 
-function CompactView({ events }: { events: EventRow[] }) {
+function CompactView({ events }: { events: EventListRow[] }) {
   return (
     <CompactList>
       {events.map((e) => (
@@ -227,8 +236,8 @@ function CompactView({ events }: { events: EventRow[] }) {
   );
 }
 
-function KanbanView({ events }: { events: EventRow[] }) {
-  const buckets = new Map<string, EventRow[]>();
+function KanbanView({ events }: { events: EventListRow[] }) {
+  const buckets = new Map<string, EventListRow[]>();
   for (const s of EVENT_STATUSES) buckets.set(s, []);
   for (const e of events) {
     if (!buckets.has(e.status)) buckets.set(e.status, []);
@@ -266,9 +275,9 @@ function KanbanView({ events }: { events: EventRow[] }) {
   );
 }
 
-function CalendarView({ events }: { events: EventRow[] }) {
+function CalendarView({ events }: { events: EventListRow[] }) {
   // Group events by YYYY-MM, then render a mini month grid per month.
-  const months = new Map<string, EventRow[]>();
+  const months = new Map<string, EventListRow[]>();
   for (const e of events) {
     const key = e.event_date.slice(0, 7); // YYYY-MM
     if (!months.has(key)) months.set(key, []);
@@ -283,10 +292,16 @@ function CalendarView({ events }: { events: EventRow[] }) {
         const first = new Date(y, m - 1, 1);
         const daysInMonth = new Date(y, m, 0).getDate();
         const leadingBlanks = first.getDay();
-        const cells: (EventRow[] | null)[] = Array(leadingBlanks).fill(null);
+        const byDate = new Map<string, EventListRow[]>();
+        for (const e of arr) {
+          const list = byDate.get(e.event_date) ?? [];
+          list.push(e);
+          byDate.set(e.event_date, list);
+        }
+        const cells: (EventListRow[] | null)[] = Array(leadingBlanks).fill(null);
         for (let d = 1; d <= daysInMonth; d++) {
           const iso = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-          cells.push(arr.filter((e) => e.event_date === iso));
+          cells.push(byDate.get(iso) ?? []);
         }
 
         return (
@@ -336,7 +351,7 @@ function CalendarView({ events }: { events: EventRow[] }) {
   );
 }
 
-function TimelineView({ events }: { events: EventRow[] }) {
+function TimelineView({ events }: { events: EventListRow[] }) {
   const sorted = [...events].sort((a, b) => b.event_date.localeCompare(a.event_date));
   return (
     <div className="relative pl-6">

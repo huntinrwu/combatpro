@@ -23,14 +23,12 @@ export default async function EventFinancialsTabPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const detail = await loadEventDetail(id);
+  const [detail, { data: vendors }] = await Promise.all([
+    loadEventDetail(id),
+    db().from("vendors").select("id, name").order("name"),
+  ]);
   if (!detail) notFound();
   const { bouts, purses: allPurseRows, ledger: entries } = detail;
-
-  const { data: vendors } = await db()
-    .from("vendors")
-    .select("id, name")
-    .order("name");
 
   let payoutGross = 0;
   let payoutNet = 0;

@@ -42,6 +42,15 @@ import {
 
 export const dynamic = "force-dynamic";
 
+type SbEvent = Pick<
+  EventRow,
+  "id" | "name" | "status" | "event_date" | "city" | "state" | "promoter"
+>;
+type SbBout = Pick<
+  Bout,
+  "id" | "event_id" | "red_corner_fighter_id" | "blue_corner_fighter_id" | "result" | "bout_order"
+>;
+
 export default async function SbDashboardPage({
   params,
 }: {
@@ -49,48 +58,48 @@ export default async function SbDashboardPage({
 }) {
   const { bodyId } = await params;
   const supabase = db();
-  const session = await getSessionUser();
 
-  const { data: body } = await supabase
-    .from("sanctioning_bodies")
-    .select("*")
-    .eq("id", bodyId)
-    .maybeSingle<SanctioningBody>();
-
-  if (!body) notFound();
-
-  const [{ data: rawEvents }, { data: rawRules }, { data: rawOfficialLinks }] = await Promise.all([
+  // None of these depend on each other — fetch the body alongside its
+  // events/rules/official links instead of waterfalling on the body lookup.
+  const [
+    session,
+    { data: body },
+    { data: rawEvents },
+    { data: rawRules },
+    { data: rawOfficialLinks },
+  ] = await Promise.all([
+    getSessionUser(),
+    supabase
+      .from("sanctioning_bodies")
+      .select("*")
+      .eq("id", bodyId)
+      .maybeSingle<SanctioningBody>(),
     supabase
       .from("events")
-      .select("*")
+      .select("id, name, status, event_date, city, state, promoter")
       .eq("sanctioning_body_id", bodyId)
       .order("event_date", { ascending: false }),
     supabase
       .from("rulesets")
-      .select("*")
+      .select("id, sport, name, is_default")
       .eq("sanctioning_body_id", bodyId)
       .order("sport"),
     supabase
       .from("official_sanctioning_bodies")
-      .select("*")
+      .select("id, official_id, status, level")
       .eq("sanctioning_body_id", bodyId),
   ]);
-  const bodyRules = (rawRules ?? []) as Ruleset[];
-  const officialLinks = (rawOfficialLinks ?? []) as OfficialSanctioningBody[];
-  const linkedOfficialIds = officialLinks.map((l) => l.official_id);
-  const { data: rawLinkedOfficials } = linkedOfficialIds.length
-    ? await supabase
-        .from("officials")
-        .select("id, full_name, roles, is_active, home_state")
-        .in("id", linkedOfficialIds)
-    : { data: [] as Pick<Official, "id" | "full_name" | "roles" | "is_active" | "home_state">[] };
-  const officialLookup = new Map(
-    ((rawLinkedOfficials ?? []) as Pick<Official, "id" | "full_name" | "roles" | "is_active" | "home_state">[]).map(
-      (o) => [o.id, o],
-    ),
-  );
 
-  const events = (rawEvents ?? []) as EventRow[];
+  if (!body) notFound();
+
+  const bodyRules = (rawRules ?? []) as Pick<Ruleset, "id" | "sport" | "name" | "is_default">[];
+  const officialLinks = (rawOfficialLinks ?? []) as Pick<
+    OfficialSanctioningBody,
+    "id" | "official_id" | "status" | "level"
+  >[];
+  const linkedOfficialIds = officialLinks.map((l) => l.official_id);
+
+  const events = (rawEvents ?? []) as SbEvent[];
   const eventIds = events.map((e) => e.id);
   const today = new Date().toISOString().slice(0, 10);
 
@@ -104,13 +113,28 @@ export default async function SbDashboardPage({
     (e) => e.event_date < today || e.status === "complete",
   );
 
-  const [{ data: rawBouts }] = await Promise.all([
+  // Officials only depend on the links, so load them alongside the bouts.
+  const [{ data: rawBouts }, { data: rawLinkedOfficials }] = await Promise.all([
     eventIds.length
-      ? supabase.from("bouts").select("*").in("event_id", eventIds)
+      ? supabase
+          .from("bouts")
+          .select("id, event_id, red_corner_fighter_id, blue_corner_fighter_id, result, bout_order")
+          .in("event_id", eventIds)
+      : Promise.resolve({ data: [] }),
+    linkedOfficialIds.length
+      ? supabase
+          .from("officials")
+          .select("id, full_name, home_state")
+          .in("id", linkedOfficialIds)
       : Promise.resolve({ data: [] }),
   ]);
+  const officialLookup = new Map(
+    ((rawLinkedOfficials ?? []) as Pick<Official, "id" | "full_name" | "home_state">[]).map(
+      (o) => [o.id, o],
+    ),
+  );
 
-  const bouts = (rawBouts ?? []) as Bout[];
+  const bouts = (rawBouts ?? []) as SbBout[];
   const boutIds = bouts.map((b) => b.id);
 
   const fighterIds = Array.from(
@@ -128,35 +152,36 @@ export default async function SbDashboardPage({
     { data: rawMedicals },
   ] = await Promise.all([
     boutIds.length
-      ? supabase.from("bout_documents").select("*").in("bout_id", boutIds)
+      ? supabase.from("bout_documents").select("bout_id, kind").in("bout_id", boutIds)
       : Promise.resolve({ data: [] }),
     boutIds.length
-      ? supabase.from("bout_purses").select("*").in("bout_id", boutIds)
+      ? supabase.from("bout_purses").select("sanctioning_fee, paid_at").in("bout_id", boutIds)
       : Promise.resolve({ data: [] }),
     fighterIds.length
       ? supabase
           .from("fighters")
-          .select("id, full_name, primary_sport, pro_wins, pro_losses, pro_draws, am_wins, am_losses, am_draws")
+          .select("id, full_name, primary_sport, pro_wins, pro_losses, pro_draws")
           .in("id", fighterIds)
       : Promise.resolve({ data: [] }),
+    // fighterClearanceSummary only reads fighter_id/kind/issued_on/expires_on.
     fighterIds.length
       ? supabase
           .from("fighter_medical_records")
-          .select("*")
+          .select("fighter_id, kind, issued_on, expires_on")
           .in("fighter_id", fighterIds)
       : Promise.resolve({ data: [] }),
   ]);
 
-  const docs = (rawDocs ?? []) as BoutDocument[];
-  const purses = (rawPurses ?? []) as BoutPurse[];
+  const docs = (rawDocs ?? []) as Pick<BoutDocument, "bout_id" | "kind">[];
+  const purses = (rawPurses ?? []) as Pick<BoutPurse, "sanctioning_fee" | "paid_at">[];
   const fighters = (rawFighters ?? []) as Pick<
     Fighter,
-    "id" | "full_name" | "primary_sport" | "pro_wins" | "pro_losses" | "pro_draws" | "am_wins" | "am_losses" | "am_draws"
+    "id" | "full_name" | "primary_sport" | "pro_wins" | "pro_losses" | "pro_draws"
   >[];
   const medicals = (rawMedicals ?? []) as FighterMedicalRecord[];
 
   const eventById = new Map(events.map((e) => [e.id, e]));
-  const boutsByEvent = new Map<string, Bout[]>();
+  const boutsByEvent = new Map<string, SbBout[]>();
   for (const b of bouts) {
     const arr = boutsByEvent.get(b.event_id) ?? [];
     arr.push(b);
@@ -164,11 +189,11 @@ export default async function SbDashboardPage({
   }
   const fighterById = new Map(fighters.map((f) => [f.id, f]));
 
-  const docsByBout = new Map<string, { agreement?: BoutDocument; report?: BoutDocument }>();
+  const docsByBout = new Map<string, { agreement?: boolean; report?: boolean }>();
   for (const d of docs) {
     const entry = docsByBout.get(d.bout_id) ?? {};
-    if (d.kind === "bout_agreement") entry.agreement = d;
-    else if (d.kind === "fight_report") entry.report = d;
+    if (d.kind === "bout_agreement") entry.agreement = true;
+    else if (d.kind === "fight_report") entry.report = true;
     docsByBout.set(d.bout_id, entry);
   }
 
@@ -646,7 +671,7 @@ function EventRowLine({
   event,
   cardSize,
 }: {
-  event: EventRow;
+  event: SbEvent;
   cardSize: number;
 }) {
   return (
@@ -684,8 +709,8 @@ function DocRow({
   fighters,
   kind,
 }: {
-  bout: Bout;
-  event: EventRow | undefined;
+  bout: SbBout;
+  event: SbEvent | undefined;
   fighters: Map<string, Pick<Fighter, "id" | "full_name">>;
   kind: "agreement" | "report";
 }) {

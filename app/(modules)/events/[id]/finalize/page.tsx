@@ -12,6 +12,7 @@ import {
 import { fileAllFightReports, setEventStatus } from "./actions";
 import { declareBoutResult } from "../bouts/[boutId]/actions";
 import { markDocumentFiled } from "../bouts/[boutId]/document-actions";
+import { loadEventDetail } from "../_lib/event-detail";
 import { db } from "@/lib/db/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,6 @@ import {
   BOUT_OUTCOMES,
   type Bout,
   type BoutDocument,
-  type EventRow,
   type Fighter,
 } from "@/lib/db/types";
 
@@ -42,53 +42,24 @@ export default async function EventFinalizePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = db();
 
-  const { data: event } = await supabase
-    .from("events")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle<EventRow>();
-  if (!event) notFound();
-
-  const { data: rawBouts } = await supabase
-    .from("bouts")
-    .select("*")
-    .eq("event_id", id)
-    .order("bout_order", { ascending: true, nullsFirst: false });
-
-  const bouts = (rawBouts ?? []) as Bout[];
+  // Event, bouts, and fighter names come from the per-request cache the [id]
+  // layout already populated.
+  const detail = await loadEventDetail(id);
+  if (!detail) notFound();
+  const { event, bouts, fighterMap } = detail;
   const boutIds = bouts.map((b) => b.id);
 
-  const [fightersRes, docsRes] = await Promise.all([
-    (() => {
-      const fighterIds = Array.from(
-        new Set(
-          bouts
-            .flatMap((b) => [b.red_corner_fighter_id, b.blue_corner_fighter_id])
-            .filter((x): x is string => Boolean(x)),
-        ),
-      );
-      if (fighterIds.length === 0) return Promise.resolve({ data: [] });
-      return supabase.from("fighters").select("id, full_name").in("id", fighterIds);
-    })(),
-    boutIds.length > 0
-      ? supabase
-          .from("bout_documents")
-          .select("bout_id, kind")
-          .eq("kind", "fight_report")
-          .in("bout_id", boutIds)
-      : Promise.resolve({ data: [] as Pick<BoutDocument, "bout_id" | "kind">[] }),
-  ]);
+  const { data: docs } = boutIds.length > 0
+    ? await db()
+        .from("bout_documents")
+        .select("bout_id")
+        .eq("kind", "fight_report")
+        .in("bout_id", boutIds)
+    : { data: [] as Pick<BoutDocument, "bout_id">[] };
 
-  const fighterMap = new Map(
-    ((fightersRes.data ?? []) as Pick<Fighter, "id" | "full_name">[]).map((f) => [
-      f.id,
-      f,
-    ]),
-  );
   const filedSet = new Set(
-    ((docsRes.data ?? []) as { bout_id: string }[]).map((d) => d.bout_id),
+    ((docs ?? []) as { bout_id: string }[]).map((d) => d.bout_id),
   );
 
   const rows: BoutRow[] = bouts.map((b) => ({

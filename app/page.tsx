@@ -2,16 +2,28 @@ import { redirect } from "next/navigation";
 
 import { FighterWidget, type FighterNextBout } from "./_components/dashboard/fighter-widget";
 import { GlobalSearch } from "./_components/dashboard/global-search";
-import { GymWidget } from "./_components/dashboard/gym-widget";
+import { GymWidget, type RosterFighter } from "./_components/dashboard/gym-widget";
 import { ModulesStrip } from "./_components/dashboard/modules-strip";
 import {
   OfficialWidget,
   type OfficialUpcoming,
 } from "./_components/dashboard/official-widget";
-import { PromoterWidget } from "./_components/dashboard/promoter-widget";
-import { RecentFightersWidget } from "./_components/dashboard/recent-fighters-widget";
-import { RegulatorWidget } from "./_components/dashboard/regulator-widget";
-import { UpcomingEventsWidget } from "./_components/dashboard/upcoming-events-widget";
+import {
+  PromoterWidget,
+  type PromoterEvent,
+} from "./_components/dashboard/promoter-widget";
+import {
+  RecentFightersWidget,
+  type RecentFighter,
+} from "./_components/dashboard/recent-fighters-widget";
+import {
+  RegulatorWidget,
+  type SanctionedEvent,
+} from "./_components/dashboard/regulator-widget";
+import {
+  UpcomingEventsWidget,
+  type UpcomingEvent,
+} from "./_components/dashboard/upcoming-events-widget";
 import { db } from "@/lib/db/client";
 import { getSessionUser } from "@/lib/auth/session";
 import { ROLE_LABELS } from "@/lib/auth/roles";
@@ -25,6 +37,15 @@ import type {
 } from "@/lib/db/types";
 
 export const dynamic = "force-dynamic";
+
+// Column lists match exactly what each widget renders — keeps the
+// every-login dashboard from pulling whole rows (notes, contact info, …).
+const UPCOMING_EVENT_COLS = "id, name, event_date, status, slug, city, state";
+const PROMOTER_EVENT_COLS = "id, name, event_date, status, slug";
+const SANCTIONED_EVENT_COLS = "id, name, event_date, slug";
+const RECENT_FIGHTER_COLS =
+  "id, full_name, nickname, photo_url, weight_class, primary_sport, pro_wins, pro_losses, pro_draws";
+const ROSTER_FIGHTER_COLS = "id, full_name, pro_wins, pro_losses, pro_draws";
 
 export default async function Home() {
   const user = await getSessionUser();
@@ -40,14 +61,14 @@ export default async function Home() {
   const universalPromise = Promise.all([
     supabase
       .from("events")
-      .select("*")
+      .select(UPCOMING_EVENT_COLS)
       .gte("event_date", today)
       .in("status", ["draft", "scheduled"])
       .order("event_date", { ascending: true })
       .limit(5),
     supabase
       .from("fighters")
-      .select("*")
+      .select(RECENT_FIGHTER_COLS)
       .order("created_at", { ascending: false })
       .limit(5),
   ]);
@@ -58,7 +79,7 @@ export default async function Home() {
     ? Promise.all([
         supabase
           .from("events")
-          .select("*")
+          .select(PROMOTER_EVENT_COLS)
           .eq("created_by", user.id)
           .gte("event_date", today)
           .order("event_date", { ascending: true })
@@ -123,7 +144,7 @@ export default async function Home() {
             .eq("status", "pending"),
           supabase
             .from("events")
-            .select("*")
+            .select(SANCTIONED_EVENT_COLS)
             .gte("event_date", today)
             .not("sanctioning_body_id", "is", null)
             .in("status", ["draft", "scheduled"])
@@ -159,9 +180,10 @@ export default async function Home() {
     gymPromise,
   ]);
 
-  // Follow-up queries that depend on the results above.
-  let officialUpcoming: OfficialUpcoming[] = [];
-  if (officialProfile?.data) {
+  // Follow-up queries that depend on the results above. The three chains
+  // are independent of each other, so run them concurrently.
+  const loadOfficialUpcoming = async (): Promise<OfficialUpcoming[]> => {
+    if (!officialProfile?.data) return [];
     const { data: assignments } = await supabase
       .from("event_officials")
       .select("event_id, event_role")
@@ -170,48 +192,52 @@ export default async function Home() {
       EventOfficial,
       "event_id" | "event_role"
     >[];
-    if (rows.length) {
-      const eventIds = Array.from(new Set(rows.map((a) => a.event_id)));
-      const { data: events } = await supabase
-        .from("events")
-        .select("id, name, event_date, slug")
-        .in("id", eventIds)
-        .gte("event_date", today)
-        .order("event_date", { ascending: true });
-      const eventMap = new Map(
-        ((events ?? []) as Pick<EventRow, "id" | "name" | "event_date" | "slug">[]).map(
-          (e) => [e.id, e],
-        ),
-      );
-      for (const a of rows) {
-        const e = eventMap.get(a.event_id);
-        if (!e) continue;
-        officialUpcoming.push({
-          eventId: e.id,
-          eventName: e.name,
-          eventDate: e.event_date,
-          eventSlug: e.slug,
-          role: a.event_role,
-        });
-      }
-      officialUpcoming.sort((a, b) => a.eventDate.localeCompare(b.eventDate));
-      officialUpcoming = officialUpcoming.slice(0, 5);
+    if (!rows.length) return [];
+    const eventIds = Array.from(new Set(rows.map((a) => a.event_id)));
+    const { data: events } = await supabase
+      .from("events")
+      .select("id, name, event_date, slug")
+      .in("id", eventIds)
+      .gte("event_date", today)
+      .order("event_date", { ascending: true });
+    const eventMap = new Map(
+      ((events ?? []) as Pick<EventRow, "id" | "name" | "event_date" | "slug">[]).map(
+        (e) => [e.id, e],
+      ),
+    );
+    const out: OfficialUpcoming[] = [];
+    for (const a of rows) {
+      const e = eventMap.get(a.event_id);
+      if (!e) continue;
+      out.push({
+        eventId: e.id,
+        eventName: e.name,
+        eventDate: e.event_date,
+        eventSlug: e.slug,
+        role: a.event_role,
+      });
     }
-  }
+    out.sort((a, b) => a.eventDate.localeCompare(b.eventDate));
+    return out.slice(0, 5);
+  };
 
-  let fighterNextBout: FighterNextBout = null;
-  let fighterGym: Pick<Gym, "id" | "name" | "city" | "state"> | null = null;
-  let gymRoster: Fighter[] = [];
-  if (fighterProfile?.data) {
+  const loadFighterGym = async (): Promise<Pick<
+    Gym,
+    "id" | "name" | "city" | "state"
+  > | null> => {
+    const gymId = fighterProfile?.data?.gym_id;
+    if (!gymId) return null;
+    const { data: g } = await supabase
+      .from("gyms")
+      .select("id, name, city, state")
+      .eq("id", gymId)
+      .maybeSingle<Pick<Gym, "id" | "name" | "city" | "state">>();
+    return g ?? null;
+  };
+
+  const loadFighterNextBout = async (): Promise<FighterNextBout> => {
+    if (!fighterProfile?.data) return null;
     const fid = fighterProfile.data.id;
-    if (fighterProfile.data.gym_id) {
-      const { data: g } = await supabase
-        .from("gyms")
-        .select("id, name, city, state")
-        .eq("id", fighterProfile.data.gym_id)
-        .maybeSingle<Pick<Gym, "id" | "name" | "city" | "state">>();
-      fighterGym = g ?? null;
-    }
     const { data: bouts } = await supabase
       .from("bouts")
       .select("id, event_id, red_corner_fighter_id, blue_corner_fighter_id")
@@ -220,60 +246,67 @@ export default async function Home() {
       Bout,
       "id" | "event_id" | "red_corner_fighter_id" | "blue_corner_fighter_id"
     >[];
-    if (boutRows.length) {
-      const { data: events } = await supabase
-        .from("events")
-        .select("id, name, event_date, slug")
-        .in(
-          "id",
-          boutRows.map((b) => b.event_id),
-        )
-        .gte("event_date", today)
-        .order("event_date", { ascending: true })
-        .limit(1);
-      const nextEvent = (events ?? [])[0] as
-        | Pick<EventRow, "id" | "name" | "event_date" | "slug">
-        | undefined;
-      if (nextEvent) {
-        const bout = boutRows.find((b) => b.event_id === nextEvent.id);
-        if (bout) {
-          const opponentId =
-            bout.red_corner_fighter_id === fid
-              ? bout.blue_corner_fighter_id
-              : bout.red_corner_fighter_id;
-          const corner: "red" | "blue" =
-            bout.red_corner_fighter_id === fid ? "red" : "blue";
-          let opponentName: string | null = null;
-          if (opponentId) {
-            const { data: opp } = await supabase
-              .from("fighters")
-              .select("full_name")
-              .eq("id", opponentId)
-              .maybeSingle<Pick<Fighter, "full_name">>();
-            opponentName = opp?.full_name ?? null;
-          }
-          fighterNextBout = {
-            boutId: bout.id,
-            eventId: nextEvent.id,
-            eventName: nextEvent.name,
-            eventDate: nextEvent.event_date,
-            eventSlug: nextEvent.slug,
-            opponentName,
-            corner,
-          };
-        }
-      }
+    if (!boutRows.length) return null;
+    const { data: events } = await supabase
+      .from("events")
+      .select("id, name, event_date, slug")
+      .in(
+        "id",
+        boutRows.map((b) => b.event_id),
+      )
+      .gte("event_date", today)
+      .order("event_date", { ascending: true })
+      .limit(1);
+    const nextEvent = (events ?? [])[0] as
+      | Pick<EventRow, "id" | "name" | "event_date" | "slug">
+      | undefined;
+    if (!nextEvent) return null;
+    const bout = boutRows.find((b) => b.event_id === nextEvent.id);
+    if (!bout) return null;
+    const opponentId =
+      bout.red_corner_fighter_id === fid
+        ? bout.blue_corner_fighter_id
+        : bout.red_corner_fighter_id;
+    const corner: "red" | "blue" =
+      bout.red_corner_fighter_id === fid ? "red" : "blue";
+    let opponentName: string | null = null;
+    if (opponentId) {
+      const { data: opp } = await supabase
+        .from("fighters")
+        .select("full_name")
+        .eq("id", opponentId)
+        .maybeSingle<Pick<Fighter, "full_name">>();
+      opponentName = opp?.full_name ?? null;
     }
-  }
-  if (gymRecord?.data) {
+    return {
+      boutId: bout.id,
+      eventId: nextEvent.id,
+      eventName: nextEvent.name,
+      eventDate: nextEvent.event_date,
+      eventSlug: nextEvent.slug,
+      opponentName,
+      corner,
+    };
+  };
+
+  const loadGymRoster = async (): Promise<RosterFighter[]> => {
+    if (!gymRecord?.data) return [];
     const { data: roster } = await supabase
       .from("fighters")
-      .select("*")
+      .select(ROSTER_FIGHTER_COLS)
       .eq("gym_id", gymRecord.data.id)
       .order("full_name", { ascending: true })
       .limit(10);
-    gymRoster = (roster ?? []) as Fighter[];
-  }
+    return (roster ?? []) as RosterFighter[];
+  };
+
+  const [officialUpcoming, fighterGym, fighterNextBout, gymRoster] =
+    await Promise.all([
+      loadOfficialUpcoming(),
+      loadFighterGym(),
+      loadFighterNextBout(),
+      loadGymRoster(),
+    ]);
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-10">
@@ -303,8 +336,8 @@ export default async function Home() {
       </section>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <UpcomingEventsWidget events={(upcomingEvents ?? []) as EventRow[]} />
-        <RecentFightersWidget fighters={(recentFighters ?? []) as Fighter[]} />
+        <UpcomingEventsWidget events={(upcomingEvents ?? []) as UpcomingEvent[]} />
+        <RecentFightersWidget fighters={(recentFighters ?? []) as RecentFighter[]} />
       </div>
 
       {(isPromoter || isOfficial || isFighter || isSb || isCommission || isGymPerson) && (
@@ -315,7 +348,7 @@ export default async function Home() {
           <div className="grid gap-4 md:grid-cols-2">
             {isPromoter && promoterData && (
               <PromoterWidget
-                events={(promoterData[0].data ?? []) as EventRow[]}
+                events={(promoterData[0].data ?? []) as PromoterEvent[]}
                 totalOwned={promoterData[1].count ?? 0}
               />
             )}
@@ -337,7 +370,7 @@ export default async function Home() {
                 role={isSb ? "sanctioning_body" : "commission"}
                 pendingSbCount={regulatorData[0].count ?? 0}
                 pendingPromotionsCount={regulatorData[1].count ?? 0}
-                upcomingSanctioned={(regulatorData[2].data ?? []) as EventRow[]}
+                upcomingSanctioned={(regulatorData[2].data ?? []) as SanctionedEvent[]}
               />
             )}
             {isGymPerson && (

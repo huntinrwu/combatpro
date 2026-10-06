@@ -9,13 +9,16 @@ import { ViewSwitcher } from "@/components/view-switcher";
 import { KanbanBoard } from "@/components/views/kanban";
 import { CardGrid, CompactList, TableShell, TileGrid } from "@/components/views/containers";
 import { pickView } from "@/lib/view-mode";
-import type { Fighter, Gym } from "@/lib/db/types";
+import type { Gym } from "@/lib/db/types";
 
 export const dynamic = "force-dynamic";
 
 const VIEWS = ["list", "card", "grid", "compact", "kanban"] as const;
 
 type Search = { q?: string; state?: string; view?: string };
+
+// Only the columns the views render or the search filter reads.
+type GymRow = Pick<Gym, "id" | "name" | "city" | "state" | "head_coach" | "notes">;
 
 export default async function GymsListPage({
   searchParams,
@@ -28,17 +31,17 @@ export default async function GymsListPage({
   const supabase = db();
 
   const [{ data: gyms, error }, { data: fighters }] = await Promise.all([
-    supabase.from("gyms").select("*").order("name"),
-    supabase.from("fighters").select("id, gym_id"),
+    supabase.from("gyms").select("id, name, city, state, head_coach, notes").order("name"),
+    // Unaffiliated fighters never count toward a roster — skip them in SQL.
+    supabase.from("fighters").select("gym_id").not("gym_id", "is", null),
   ]);
 
   const rosterCount = new Map<string, number>();
-  for (const f of ((fighters ?? []) as Pick<Fighter, "id" | "gym_id">[])) {
-    if (!f.gym_id) continue;
+  for (const f of ((fighters ?? []) as { gym_id: string }[])) {
     rosterCount.set(f.gym_id, (rosterCount.get(f.gym_id) ?? 0) + 1);
   }
 
-  const list = ((gyms ?? []) as Gym[]).filter((g) => {
+  const list = ((gyms ?? []) as GymRow[]).filter((g) => {
     if (state && (g.state ?? "").toLowerCase() !== state.toLowerCase()) return false;
     if (q) {
       const needle = q.toLowerCase();
@@ -54,7 +57,7 @@ export default async function GymsListPage({
   });
 
   const uniqueStates = Array.from(
-    new Set(((gyms ?? []) as Gym[]).map((g) => g.state).filter((s): s is string => Boolean(s))),
+    new Set(((gyms ?? []) as GymRow[]).map((g) => g.state).filter((s): s is string => Boolean(s))),
   ).sort();
 
   const anyFilter = Boolean(q || state);
@@ -143,11 +146,11 @@ export default async function GymsListPage({
   );
 }
 
-function locationOf(g: Gym): string {
+function locationOf(g: GymRow): string {
   return [g.city, g.state].filter(Boolean).join(", ") || "—";
 }
 
-function ListView({ gyms, rosterCount }: { gyms: Gym[]; rosterCount: Map<string, number> }) {
+function ListView({ gyms, rosterCount }: { gyms: GymRow[]; rosterCount: Map<string, number> }) {
   return (
     <TableShell
       head={
@@ -177,7 +180,7 @@ function ListView({ gyms, rosterCount }: { gyms: Gym[]; rosterCount: Map<string,
   );
 }
 
-function CardView({ gyms, rosterCount }: { gyms: Gym[]; rosterCount: Map<string, number> }) {
+function CardView({ gyms, rosterCount }: { gyms: GymRow[]; rosterCount: Map<string, number> }) {
   return (
     <CardGrid>
       {gyms.map((g) => (
@@ -210,7 +213,7 @@ function CardView({ gyms, rosterCount }: { gyms: Gym[]; rosterCount: Map<string,
   );
 }
 
-function GridView({ gyms, rosterCount }: { gyms: Gym[]; rosterCount: Map<string, number> }) {
+function GridView({ gyms, rosterCount }: { gyms: GymRow[]; rosterCount: Map<string, number> }) {
   return (
     <TileGrid>
       {gyms.map((g) => (
@@ -234,7 +237,7 @@ function GridView({ gyms, rosterCount }: { gyms: Gym[]; rosterCount: Map<string,
   );
 }
 
-function CompactView({ gyms, rosterCount }: { gyms: Gym[]; rosterCount: Map<string, number> }) {
+function CompactView({ gyms, rosterCount }: { gyms: GymRow[]; rosterCount: Map<string, number> }) {
   return (
     <CompactList>
       {gyms.map((g) => (
@@ -259,8 +262,8 @@ function CompactView({ gyms, rosterCount }: { gyms: Gym[]; rosterCount: Map<stri
   );
 }
 
-function KanbanView({ gyms, rosterCount }: { gyms: Gym[]; rosterCount: Map<string, number> }) {
-  const buckets = new Map<string, Gym[]>();
+function KanbanView({ gyms, rosterCount }: { gyms: GymRow[]; rosterCount: Map<string, number> }) {
+  const buckets = new Map<string, GymRow[]>();
   for (const g of gyms) {
     const key = g.state ?? "Unknown";
     if (!buckets.has(key)) buckets.set(key, []);

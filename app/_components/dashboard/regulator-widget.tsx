@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fmtDateShort as fmtEventDate } from "@/lib/format-utils";
 import type { EventRow } from "@/lib/db/types";
 
+export type SanctionedEvent = Pick<EventRow, "id" | "name" | "event_date" | "slug">;
+
 export function RegulatorWidget({
   role,
   pendingSbCount,
@@ -14,7 +16,7 @@ export function RegulatorWidget({
   role: "sanctioning_body" | "commission";
   pendingSbCount: number;
   pendingPromotionsCount: number;
-  upcomingSanctioned: EventRow[];
+  upcomingSanctioned: SanctionedEvent[];
 }) {
   const isSb = role === "sanctioning_body";
   const label = isSb ? "Sanctioning body" : "Commission";

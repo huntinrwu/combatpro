@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { cache } from "react";
 import {
   CalendarDays,
   Clock,
@@ -30,16 +31,34 @@ import {
 
 export const dynamic = "force-dynamic";
 
-async function loadEvent(slug: string) {
+// cache()d so generateMetadata and the page share one query per request.
+const loadEvent = cache(async (slug: string) => {
   const supabase = db();
   const { data: event } = await supabase
     .from("events")
-    .select("*")
+    .select(
+      "id, name, event_date, venue, city, state, status, primary_sport, promoter, sanctioning_body_id, current_bout_id",
+    )
     .eq("slug", slug)
     .in("status", ["scheduled", "complete"])
-    .maybeSingle<EventRow>();
+    .maybeSingle<
+      Pick<
+        EventRow,
+        | "id"
+        | "name"
+        | "event_date"
+        | "venue"
+        | "city"
+        | "state"
+        | "status"
+        | "primary_sport"
+        | "promoter"
+        | "sanctioning_body_id"
+        | "current_bout_id"
+      >
+    >();
   return event;
-}
+});
 
 export async function generateMetadata({
   params,
@@ -63,10 +82,23 @@ export async function generateMetadata({
   };
 }
 
-
-type BoutWithFighters = Bout & {
-  red?: Pick<Fighter, "id" | "full_name"> | null;
-  blue?: Pick<Fighter, "id" | "full_name"> | null;
+type BoutWithFighters = Pick<
+  Bout,
+  | "id"
+  | "bout_order"
+  | "scheduled_start_time"
+  | "sport"
+  | "weight_class"
+  | "rounds"
+  | "round_length_minutes"
+  | "bout_class"
+  | "result"
+  | "method"
+  | "round_finished"
+  | "time_finished"
+> & {
+  red: Pick<Fighter, "full_name"> | null;
+  blue: Pick<Fighter, "full_name"> | null;
 };
 
 export default async function PublicEventPage({
@@ -80,10 +112,14 @@ export default async function PublicEventPage({
   const event = await loadEvent(slug);
   if (!event) notFound();
 
+  // Fighter and sponsor names are embedded so the whole page is one round trip
+  // after the event lookup.
   const [{ data: rawBouts }, sbRes, { data: sponsorSlots }] = await Promise.all([
     supabase
       .from("bouts")
-      .select("*")
+      .select(
+        "id, bout_order, scheduled_start_time, sport, weight_class, rounds, round_length_minutes, bout_class, result, method, round_finished, time_finished, red:fighters!red_corner_fighter_id(full_name), blue:fighters!blue_corner_fighter_id(full_name)",
+      )
       .eq("event_id", event.id)
       .order("bout_order", { ascending: true, nullsFirst: false }),
     event.sanctioning_body_id
@@ -93,49 +129,23 @@ export default async function PublicEventPage({
           .eq("id", event.sanctioning_body_id)
           .maybeSingle<Pick<SanctioningBody, "id" | "name" | "abbreviation" | "website">>()
       : Promise.resolve({ data: null }),
-    supabase.from("event_sponsors").select("*").eq("event_id", event.id),
+    supabase
+      .from("event_sponsors")
+      .select("tier, sponsor:sponsors(name)")
+      .eq("event_id", event.id),
   ]);
 
-  const bouts = (rawBouts ?? []) as Bout[];
-  const fighterIds = Array.from(
-    new Set(
-      bouts
-        .flatMap((b) => [b.red_corner_fighter_id, b.blue_corner_fighter_id])
-        .filter((x): x is string => Boolean(x)),
-    ),
-  );
-  const fighterMap = new Map<string, Pick<Fighter, "id" | "full_name">>();
-  if (fighterIds.length > 0) {
-    const { data: fighters } = await supabase
-      .from("fighters")
-      .select("id, full_name")
-      .in("id", fighterIds);
-    for (const f of fighters ?? []) fighterMap.set(f.id, f);
-  }
+  const enriched = (rawBouts ?? []) as unknown as BoutWithFighters[];
 
-  const enriched: BoutWithFighters[] = bouts.map((b) => ({
-    ...b,
-    red: b.red_corner_fighter_id ? fighterMap.get(b.red_corner_fighter_id) ?? null : null,
-    blue: b.blue_corner_fighter_id ? fighterMap.get(b.blue_corner_fighter_id) ?? null : null,
-  }));
-
-  const slotList = (sponsorSlots ?? []) as EventSponsor[];
-  const sponsorNameMap = new Map<string, string>();
-  if (slotList.length > 0) {
-    const sponsorIds = Array.from(new Set(slotList.map((s) => s.sponsor_id)));
-    const { data: sponsorRows } = await supabase
-      .from("sponsors")
-      .select("id, name")
-      .in("id", sponsorIds);
-    for (const s of (sponsorRows ?? []) as Pick<Sponsor, "id" | "name">[]) {
-      sponsorNameMap.set(s.id, s.name);
-    }
-  }
+  const slotList = (sponsorSlots ?? []) as unknown as {
+    tier: EventSponsor["tier"];
+    sponsor: Pick<Sponsor, "name"> | null;
+  }[];
 
   const sponsorsByTier = new Map<SponsorTier, string[]>();
   for (const s of slotList) {
     const list = sponsorsByTier.get(s.tier) ?? [];
-    const name = sponsorNameMap.get(s.sponsor_id);
+    const name = s.sponsor?.name;
     if (name) list.push(name);
     sponsorsByTier.set(s.tier, list);
   }

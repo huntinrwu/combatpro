@@ -33,6 +33,11 @@ import type {
 
 export const dynamic = "force-dynamic";
 
+type PromoEvent = Pick<
+  EventRow,
+  "id" | "name" | "status" | "event_date" | "venue" | "city" | "state"
+>;
+
 export default async function PromotionDetailPage({
   params,
 }: {
@@ -40,29 +45,43 @@ export default async function PromotionDetailPage({
 }) {
   const { id } = await params;
   const supabase = db();
-  const session = await getSessionUser();
 
-  const { data: promo } = await supabase
-    .from("promotions")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle<Promotion>();
+  // Session, promotion and its events are independent — fetch together.
+  const [session, { data: promo }, { data: rawEvents }] = await Promise.all([
+    getSessionUser(),
+    supabase
+      .from("promotions")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle<Promotion>(),
+    supabase
+      .from("events")
+      .select("id, name, status, event_date, venue, city, state")
+      .eq("promotion_id", id)
+      .order("event_date", { ascending: false }),
+  ]);
   if (!promo) notFound();
 
-  const { data: rawEvents } = await supabase
-    .from("events")
-    .select("*")
-    .eq("promotion_id", id)
-    .order("event_date", { ascending: false });
-  const events = (rawEvents ?? []) as EventRow[];
+  const events = (rawEvents ?? []) as PromoEvent[];
   const eventIds = events.map((e) => e.id);
 
-  const [{ data: rawBouts }] = await Promise.all([
+  // Bouts and official assignments both key off the event ids only.
+  const [{ data: rawBouts }, { data: rawAssigns }] = await Promise.all([
     eventIds.length
-      ? supabase.from("bouts").select("*").in("event_id", eventIds)
+      ? supabase
+          .from("bouts")
+          .select("red_corner_fighter_id, blue_corner_fighter_id, result, method")
+          .in("event_id", eventIds)
+      : Promise.resolve({ data: [] }),
+    eventIds.length
+      ? supabase.from("event_officials").select("official_id").in("event_id", eventIds)
       : Promise.resolve({ data: [] }),
   ]);
-  const bouts = (rawBouts ?? []) as Bout[];
+  const bouts = (rawBouts ?? []) as Pick<
+    Bout,
+    "red_corner_fighter_id" | "blue_corner_fighter_id" | "result" | "method"
+  >[];
+  const assigns = (rawAssigns ?? []) as Pick<EventOfficial, "official_id">[];
 
   const fighterIds = Array.from(
     new Set(
@@ -71,32 +90,27 @@ export default async function PromotionDetailPage({
         .filter((x): x is string => Boolean(x)),
     ),
   );
+  const officialIds = Array.from(new Set(assigns.map((a) => a.official_id)));
 
-  const [{ data: rawFighters }, { data: rawAssigns }] = await Promise.all([
+  const [{ data: rawFighters }, { data: rawOfficials }] = await Promise.all([
     fighterIds.length
       ? supabase
           .from("fighters")
-          .select("id, full_name, nickname, primary_sport, pro_wins, pro_losses, pro_draws, am_wins, am_losses, am_draws")
+          .select("id, full_name, nickname, primary_sport, pro_wins, pro_losses, pro_draws")
           .in("id", fighterIds)
       : Promise.resolve({ data: [] }),
-    eventIds.length
-      ? supabase.from("event_officials").select("*").in("event_id", eventIds)
+    officialIds.length
+      ? supabase
+          .from("officials")
+          .select("id, full_name, roles")
+          .in("id", officialIds)
       : Promise.resolve({ data: [] }),
   ]);
 
   const fighters = (rawFighters ?? []) as Pick<
     Fighter,
-    "id" | "full_name" | "nickname" | "primary_sport" | "pro_wins" | "pro_losses" | "pro_draws" | "am_wins" | "am_losses" | "am_draws"
+    "id" | "full_name" | "nickname" | "primary_sport" | "pro_wins" | "pro_losses" | "pro_draws"
   >[];
-  const assigns = (rawAssigns ?? []) as EventOfficial[];
-
-  const officialIds = Array.from(new Set(assigns.map((a) => a.official_id)));
-  const { data: rawOfficials } = officialIds.length
-    ? await supabase
-        .from("officials")
-        .select("id, full_name, roles")
-        .in("id", officialIds)
-    : { data: [] };
   const officials = (rawOfficials ?? []) as Pick<Official, "id" | "full_name" | "roles">[];
 
   // ── Rollups ────────────────────────────────────────────────────────────
@@ -464,7 +478,7 @@ function SummaryTile({
   );
 }
 
-function EventLine({ event }: { event: EventRow }) {
+function EventLine({ event }: { event: PromoEvent }) {
   return (
     <li>
       <Link

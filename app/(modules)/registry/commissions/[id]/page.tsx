@@ -18,15 +18,39 @@ export default async function CommissionDetailPage({
 }) {
   const { id } = await params;
   const supabase = db();
-  const session = await getSessionUser();
 
-  const [{ data: commission }, { data: rulesets }] = await Promise.all([
-    supabase.from("commissions").select("*").eq("id", id).maybeSingle<Commission>(),
-    supabase.from("rulesets").select("*").eq("commission_id", id).order("sport"),
+  const [session, { data: commission }, { data: rulesets }] = await Promise.all([
+    getSessionUser(),
+    supabase
+      .from("commissions")
+      .select("id, name, abbreviation, jurisdiction, state, website, notes")
+      .eq("id", id)
+      .maybeSingle<
+        Pick<
+          Commission,
+          "id" | "name" | "abbreviation" | "jurisdiction" | "state" | "website" | "notes"
+        >
+      >(),
+    supabase
+      .from("rulesets")
+      .select(
+        "id, sport, name, is_default, rounds_championship, rounds_non_championship, round_length_minutes",
+      )
+      .eq("commission_id", id)
+      .order("sport"),
   ]);
   if (!commission) notFound();
 
-  const rules = (rulesets ?? []) as Ruleset[];
+  const rules = (rulesets ?? []) as Pick<
+    Ruleset,
+    | "id"
+    | "sport"
+    | "name"
+    | "is_default"
+    | "rounds_championship"
+    | "rounds_non_championship"
+    | "round_length_minutes"
+  >[];
 
   return (
     <>

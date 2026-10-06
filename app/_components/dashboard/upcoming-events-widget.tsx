@@ -7,7 +7,12 @@ import { EVENT_STATUS_VARIANT as STATUS_VARIANT } from "@/lib/ui-config";
 import { fmtDateShortWithDay as fmtEventDate } from "@/lib/format-utils";
 import type { EventRow } from "@/lib/db/types";
 
-export function UpcomingEventsWidget({ events }: { events: EventRow[] }) {
+export type UpcomingEvent = Pick<
+  EventRow,
+  "id" | "name" | "event_date" | "status" | "slug" | "city" | "state"
+>;
+
+export function UpcomingEventsWidget({ events }: { events: UpcomingEvent[] }) {
   return (
     <Card>
       <CardHeader>

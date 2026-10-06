@@ -10,17 +10,16 @@ import { canEditEvent } from "@/lib/auth/roles";
 import { makeEventSlug, type BoutClass, type EventRow, type EventStatus, type ScoringMode } from "@/lib/db/types";
 import { weightClassFor } from "@/lib/weight-classes";
 
-export async function createEvent(formData: FormData) {
-  const user = await requireEventCreator();
+// Shared create/update field parsing. Throws on missing required fields.
+function eventFieldsFrom(formData: FormData) {
   const name = formData.get("name")?.toString().trim();
   const event_date = formData.get("event_date")?.toString();
   const primary_sport = formData.get("primary_sport")?.toString().trim();
-
   if (!name || !event_date || !primary_sport) {
     throw new Error("Name, date, and sport are required.");
   }
 
-  const payload = {
+  return {
     name,
     event_date,
     primary_sport,
@@ -37,8 +36,13 @@ export async function createEvent(formData: FormData) {
     sanctioning_body_id: orNull(formData.get("sanctioning_body_id")),
     status: (formData.get("status")?.toString() as EventStatus) || "draft",
     notes: orNull(formData.get("notes")),
-    created_by: user.id,
   };
+}
+
+export async function createEvent(formData: FormData) {
+  const user = await requireEventCreator();
+  const fields = eventFieldsFrom(formData);
+  const payload = { ...fields, created_by: user.id };
 
   const { data, error } = await db()
     .from("events")
@@ -49,15 +53,17 @@ export async function createEvent(formData: FormData) {
   if (error) dbErr(error);
 
   // Slug depends on the DB-assigned id, so patch it after insert.
-  const slug = makeEventSlug(name, event_date, data.id);
-  await db().from("events").update({ slug }).eq("id", data.id);
-
-  // Seed the 3 starter sponsorable items — every event begins with Ring,
-  // Blue Corner, Red Corner. The promoter adds/removes anything else.
-  await db().from("event_sponsorable_items").insert([
-    { event_id: data.id, key: "ring", label: "The Ring / Cage", hint: null, sort_order: 0 },
-    { event_id: data.id, key: "blue_corner", label: "Blue Corner", hint: null, sort_order: 1 },
-    { event_id: data.id, key: "red_corner", label: "Red Corner", hint: null, sort_order: 2 },
+  // Seed the 3 starter sponsorable items alongside — every event begins with
+  // Ring, Blue Corner, Red Corner. The promoter adds/removes anything else.
+  const supabase = db();
+  const slug = makeEventSlug(fields.name, fields.event_date, data.id);
+  await Promise.all([
+    supabase.from("events").update({ slug }).eq("id", data.id),
+    supabase.from("event_sponsorable_items").insert([
+      { event_id: data.id, key: "ring", label: "The Ring / Cage", hint: null, sort_order: 0 },
+      { event_id: data.id, key: "blue_corner", label: "Blue Corner", hint: null, sort_order: 1 },
+      { event_id: data.id, key: "red_corner", label: "Red Corner", hint: null, sort_order: 2 },
+    ]),
   ]);
 
   revalidatePath("/events");
@@ -77,32 +83,8 @@ export async function updateEvent(formData: FormData) {
   if (!existing) throw new Error("Event not found.");
   if (!canEditEvent(existing, user)) throw new Error("Not authorized to edit this event.");
 
-  const name = formData.get("name")?.toString().trim();
-  const event_date = formData.get("event_date")?.toString();
-  const primary_sport = formData.get("primary_sport")?.toString().trim();
-  if (!name || !event_date || !primary_sport) {
-    throw new Error("Name, date, and sport are required.");
-  }
-
-  const payload = {
-    name,
-    event_date,
-    primary_sport,
-    venue: orNull(formData.get("venue")),
-    city: orNull(formData.get("city")),
-    state: orNull(formData.get("state")),
-    country: orNull(formData.get("country")) ?? "US",
-    promoter: orNull(formData.get("promoter")),
-    promotion_id: (() => {
-      const v = orNull(formData.get("promotion_id"));
-      return v && v !== "__none__" ? v : null;
-    })(),
-    commission_id: orNull(formData.get("commission_id")),
-    sanctioning_body_id: orNull(formData.get("sanctioning_body_id")),
-    status: (formData.get("status")?.toString() as EventStatus) || "draft",
-    notes: orNull(formData.get("notes")),
-    slug: makeEventSlug(name, event_date, id),
-  };
+  const fields = eventFieldsFrom(formData);
+  const payload = { ...fields, slug: makeEventSlug(fields.name, fields.event_date, id) };
 
   const { error } = await db().from("events").update(payload).eq("id", id);
   if (error) dbErr(error);

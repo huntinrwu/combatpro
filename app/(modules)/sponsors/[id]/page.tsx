@@ -26,6 +26,11 @@ import {
 
 export const dynamic = "force-dynamic";
 
+type SlotRow = Pick<
+  EventSponsor,
+  "id" | "event_id" | "item_type" | "slot_label" | "tier" | "contract_value" | "paid_at"
+>;
+
 function SponsorDetailRow({
   label,
   value,
@@ -48,21 +53,22 @@ export default async function SponsorDetailPage({
 }) {
   const { id } = await params;
   const supabase = db();
-  const session = await getSessionUser();
 
-  const { data: sponsor } = await supabase
-    .from("sponsors")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle<Sponsor>();
+  const [session, { data: sponsor }, { data: slots }] = await Promise.all([
+    getSessionUser(),
+    supabase
+      .from("sponsors")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle<Sponsor>(),
+    supabase
+      .from("event_sponsors")
+      .select("id, event_id, item_type, slot_label, tier, contract_value, paid_at")
+      .eq("sponsor_id", id),
+  ]);
   if (!sponsor) notFound();
 
-  const { data: slots } = await supabase
-    .from("event_sponsors")
-    .select("*")
-    .eq("sponsor_id", id);
-
-  const slotList = (slots ?? []) as EventSponsor[];
+  const slotList = (slots ?? []) as SlotRow[];
 
   const eventIds = Array.from(new Set(slotList.map((s) => s.event_id)));
   const eventMap = new Map<
@@ -86,7 +92,7 @@ export default async function SponsorDetailPage({
   // event (or staff). Aggregated totals sum only rows the viewer can see.
   const isStaff = session?.isStaff ?? false;
   const viewerId = session?.id ?? null;
-  const canSeeSlot = (slot: EventSponsor): boolean => {
+  const canSeeSlot = (slot: SlotRow): boolean => {
     if (isStaff) return true;
     if (!viewerId) return false;
     return eventMap.get(slot.event_id)?.created_by === viewerId;

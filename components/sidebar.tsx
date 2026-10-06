@@ -23,8 +23,7 @@ import {
 import { ThemeToggle } from "@/components/theme-toggle";
 import { PLATFORM_ROLES, ROLE_LABELS, type PlatformRole } from "@/lib/auth/roles";
 import { setViewAsRole } from "@/lib/auth/view-as";
-import type { Module } from "@/lib/modules";
-import { MODULES, MODULE_SECTIONS } from "@/lib/modules";
+import { MODULES, MODULE_SECTIONS, groupModulesBySection } from "@/lib/modules";
 import { cn } from "@/lib/utils";
 
 type SidebarUser = {
@@ -93,9 +92,7 @@ export function Sidebar({
   }
 
   const visibleSet = new Set(visibleSlugs);
-  const modules = MODULES.filter((m) => visibleSet.has(m.slug));
-  const grouped: Record<string, Module[]> = { operations: [], regulatory: [], business: [] };
-  for (const m of modules) grouped[m.section].push(m);
+  const grouped = groupModulesBySection(MODULES.filter((m) => visibleSet.has(m.slug)));
 
   // When the mobile drawer is open, always show labels; otherwise defer to
   // the desktop `collapsed` state.
@@ -149,7 +146,7 @@ export function Sidebar({
           )}
           title="CombatPro"
         >
-          <Image src="/logo-mark.svg" alt="" width={22} height={22} priority />
+          <Image src="/logo-mark.svg" alt="" width={22} height={22} loading="eager" />
           {!iconOnly && <span>CombatPro</span>}
         </Link>
         {/* Mobile close — only inside the drawer. */}
@@ -190,7 +187,7 @@ export function Sidebar({
         )}
 
         {MODULE_SECTIONS.map((section) => {
-          const items = grouped[section.key] ?? [];
+          const items = grouped[section.key];
           if (items.length === 0) return null;
           return (
             <div key={section.key} className="mb-3">

@@ -1,6 +1,7 @@
 import { BadgeCheck, DollarSign, RotateCcw } from "lucide-react";
 
 import { markPursePaid, unmarkPursePaid, upsertPurse } from "../purse-actions";
+import { fmtWhen } from "./fmt-when";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/form-field";
@@ -17,16 +18,6 @@ const CORNER_DOT: Record<Corner, string> = {
   red: "bg-red-500",
   blue: "bg-blue-500",
 };
-
-function fmtWhen(iso: string): string {
-  return new Date(iso).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
 
 export function PursesCard({
   boutId,

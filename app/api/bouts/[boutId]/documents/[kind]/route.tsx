@@ -47,17 +47,26 @@ export async function GET(
 
   if (!bout) return new Response("Bout not found", { status: 404 });
 
+  const fighterIds = [bout.red_corner_fighter_id, bout.blue_corner_fighter_id].filter(
+    (x): x is string => Boolean(x),
+  );
+
+  // Everything below depends only on the bout, so it loads in one round trip.
+  // Sanctioning body / commission names are embedded in the event lookup.
   const [
     { data: event },
     { data: assignments },
     { data: scorecards },
     { data: checks },
-    { data: sanctioningBody },
-    { data: commission },
+    { data: fs },
+    { data: meds },
+    { data: rulesetData },
   ] = await Promise.all([
     supabase
       .from("events")
-      .select("id, name, event_date, venue, city, state, country, primary_sport, commission_id, sanctioning_body_id")
+      .select(
+        "id, name, event_date, venue, city, state, country, primary_sport, sanctioning_body:sanctioning_bodies(name), commission:commissions(name)",
+      )
       .eq("id", bout.event_id)
       .maybeSingle<
         Pick<
@@ -70,66 +79,42 @@ export async function GET(
           | "state"
           | "country"
           | "primary_sport"
-          | "commission_id"
-          | "sanctioning_body_id"
-        >
+        > & {
+          sanctioning_body: Pick<SanctioningBody, "name"> | null;
+          commission: Pick<Commission, "name"> | null;
+        }
       >(),
     supabase
       .from("event_officials")
-      .select("*")
+      .select("official_id, event_role, official:officials(full_name, home_state)")
       .eq("event_id", bout.event_id),
     supabase.from("bout_scorecards").select("*").eq("bout_id", boutId).order("round_number"),
     supabase.from("bout_fighter_checks").select("*").eq("bout_id", boutId),
-    (async () => {
-      const { data: e } = await supabase
-        .from("events")
-        .select("sanctioning_body_id")
-        .eq("id", bout.event_id)
-        .maybeSingle();
-      if (!e?.sanctioning_body_id) return { data: null as SanctioningBody | null };
-      return await supabase
-        .from("sanctioning_bodies")
-        .select("id, name, abbreviation")
-        .eq("id", e.sanctioning_body_id)
-        .maybeSingle<Pick<SanctioningBody, "id" | "name" | "abbreviation">>();
-    })(),
-    (async () => {
-      const { data: e } = await supabase
-        .from("events")
-        .select("commission_id")
-        .eq("id", bout.event_id)
-        .maybeSingle();
-      if (!e?.commission_id) return { data: null as Commission | null };
-      return await supabase
-        .from("commissions")
-        .select("id, name, abbreviation")
-        .eq("id", e.commission_id)
-        .maybeSingle<Pick<Commission, "id" | "name" | "abbreviation">>();
-    })(),
+    // Fighters + medical records (clearance is computed as of event date)
+    fighterIds.length
+      ? supabase.from("fighters").select("*").in("id", fighterIds)
+      : Promise.resolve({ data: [] as Fighter[] }),
+    fighterIds.length
+      ? supabase.from("fighter_medical_records").select("*").in("fighter_id", fighterIds)
+      : Promise.resolve({ data: [] as FighterMedicalRecord[] }),
+    bout.ruleset_id
+      ? supabase
+          .from("rulesets")
+          .select("*")
+          .eq("id", bout.ruleset_id)
+          .maybeSingle<Ruleset>()
+      : Promise.resolve({ data: null as Ruleset | null }),
   ]);
 
   if (!event) return new Response("Event not found", { status: 404 });
 
-  // Fighters + medical records (clearance is computed as of event date)
-  const fighterIds = [bout.red_corner_fighter_id, bout.blue_corner_fighter_id].filter(
-    (x): x is string => Boolean(x),
-  );
   const fighterMap = new Map<string, Fighter>();
   const medicalByFighter = new Map<string, FighterMedicalRecord[]>();
-  if (fighterIds.length) {
-    const [{ data: fs }, { data: meds }] = await Promise.all([
-      supabase.from("fighters").select("*").in("id", fighterIds),
-      supabase
-        .from("fighter_medical_records")
-        .select("*")
-        .in("fighter_id", fighterIds),
-    ]);
-    for (const f of (fs ?? []) as Fighter[]) fighterMap.set(f.id, f);
-    for (const m of (meds ?? []) as FighterMedicalRecord[]) {
-      const arr = medicalByFighter.get(m.fighter_id) ?? [];
-      arr.push(m);
-      medicalByFighter.set(m.fighter_id, arr);
-    }
+  for (const f of (fs ?? []) as Fighter[]) fighterMap.set(f.id, f);
+  for (const m of (meds ?? []) as FighterMedicalRecord[]) {
+    const arr = medicalByFighter.get(m.fighter_id) ?? [];
+    arr.push(m);
+    medicalByFighter.set(m.fighter_id, arr);
   }
   const red = bout.red_corner_fighter_id ? fighterMap.get(bout.red_corner_fighter_id) ?? null : null;
   const blue = bout.blue_corner_fighter_id ? fighterMap.get(bout.blue_corner_fighter_id) ?? null : null;
@@ -150,29 +135,20 @@ export async function GET(
     : null;
 
   // Officials — sourced from the event roster (same for every bout on the card).
-  const rosterRows = (assignments ?? []) as EventOfficial[];
-  const officialIds = Array.from(new Set(rosterRows.map((a) => a.official_id)));
-  const officialMap = new Map<string, Pick<Official, "id" | "full_name" | "home_state">>();
-  if (officialIds.length) {
-    const { data: os } = await supabase
-      .from("officials")
-      .select("id, full_name, home_state")
-      .in("id", officialIds);
-    for (const o of os ?? []) officialMap.set(o.id, o);
-  }
-  const officials = rosterRows.map((a) => {
-    const o = officialMap.get(a.official_id);
-    return {
-      role: a.event_role,
-      name: o?.full_name ?? "(missing)",
-      state: o?.home_state ?? null,
-    };
-  });
+  const rosterRows = (assignments ?? []) as unknown as (Pick<
+    EventOfficial,
+    "official_id" | "event_role"
+  > & { official: Pick<Official, "full_name" | "home_state"> | null })[];
+  const officials = rosterRows.map((a) => ({
+    role: a.event_role,
+    name: a.official?.full_name ?? "(missing)",
+    state: a.official?.home_state ?? null,
+  }));
   const judges = rosterRows
     .filter((a) => a.event_role === "judge")
     .map((a) => ({
       official_id: a.official_id,
-      name: officialMap.get(a.official_id)?.full_name ?? "Judge",
+      name: a.official?.full_name ?? "Judge",
     }));
 
   // Checks by corner
@@ -181,20 +157,9 @@ export async function GET(
     checksByCorner[c.corner] = c;
   }
 
-  const sanctioningBodyName =
-    (sanctioningBody as { name?: string; abbreviation?: string } | null)?.name ?? null;
-  const commissionName =
-    (commission as { name?: string; abbreviation?: string } | null)?.name ?? null;
-
-  let ruleset: Ruleset | null = null;
-  if (bout.ruleset_id) {
-    const { data } = await supabase
-      .from("rulesets")
-      .select("*")
-      .eq("id", bout.ruleset_id)
-      .maybeSingle<Ruleset>();
-    ruleset = data ?? null;
-  }
+  const sanctioningBodyName = event.sanctioning_body?.name ?? null;
+  const commissionName = event.commission?.name ?? null;
+  const ruleset = rulesetData ?? null;
 
   const shared = {
     event: {

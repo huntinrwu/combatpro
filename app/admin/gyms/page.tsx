@@ -25,19 +25,13 @@ export default async function GymApprovalsPage() {
   const admin = createAdminClient();
   const { data: gyms } = await admin
     .from("gyms")
-    .select("id, name, city, state, submitted_by, created_at")
+    .select(
+      "id, name, city, state, submitted_by, created_at, submitter:profiles!submitted_by(id, email, full_name)",
+    )
     .eq("approval_status", "pending")
     .order("created_at", { ascending: true });
 
-  const rows = (gyms ?? []) as PendingGym[];
-  const userIds = Array.from(
-    new Set(rows.map((r) => r.submitted_by).filter((u): u is string => Boolean(u))),
-  );
-  const { data: profs } = userIds.length
-    ? await admin.from("profiles").select("id, email, full_name").in("id", userIds)
-    : { data: [] };
-  const profMap = new Map<string, Profile>();
-  for (const p of (profs ?? []) as Profile[]) profMap.set(p.id, p);
+  const rows = (gyms ?? []) as unknown as (PendingGym & { submitter: Profile | null })[];
 
   return (
     <Card>
@@ -55,7 +49,7 @@ export default async function GymApprovalsPage() {
         ) : (
           <ul className="divide-y divide-border/60">
             {rows.map((g) => {
-              const submitter = g.submitted_by ? profMap.get(g.submitted_by) : null;
+              const submitter = g.submitted_by ? g.submitter : null;
               return (
                 <li key={g.id} className="flex flex-wrap items-center gap-3 py-3 text-sm">
                   <div className="min-w-0 flex-1">

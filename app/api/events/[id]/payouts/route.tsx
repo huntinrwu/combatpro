@@ -19,6 +19,7 @@ import type {
   SanctioningBody,
   Sponsor,
 } from "@/lib/db/types";
+import { fileSlug } from "@/app/api/_lib/slug";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,76 +32,64 @@ export async function GET(
   const { id } = await params;
   const supabase = db();
 
-  const { data: event } = await supabase
-    .from("events")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle<EventRow>();
+  // Bouts, purses (joined through bouts) and sponsor slots only need the
+  // event id, so they load alongside the event itself.
+  const [{ data: event }, { data: bouts }, { data: purses }, { data: sponsorSlots }] =
+    await Promise.all([
+      supabase
+        .from("events")
+        .select(
+          "name, event_date, venue, city, state, primary_sport, promoter, sanctioning_body:sanctioning_bodies(name), commission:commissions(name)",
+        )
+        .eq("id", id)
+        .maybeSingle<
+          Pick<
+            EventRow,
+            "name" | "event_date" | "venue" | "city" | "state" | "primary_sport" | "promoter"
+          > & {
+            sanctioning_body: Pick<SanctioningBody, "name"> | null;
+            commission: Pick<Commission, "name"> | null;
+          }
+        >(),
+      supabase
+        .from("bouts")
+        .select("id, bout_order, red_corner_fighter_id, blue_corner_fighter_id")
+        .eq("event_id", id)
+        .order("bout_order"),
+      supabase
+        .from("bout_purses")
+        .select("*, bouts!inner(event_id)")
+        .eq("bouts.event_id", id),
+      supabase
+        .from("event_sponsors")
+        .select("tier, sponsor:sponsors(name)")
+        .eq("event_id", id),
+    ]);
 
   if (!event) return new Response("Event not found", { status: 404 });
 
-  const [{ data: bouts }, { data: sanctioningBody }, { data: commission }] = await Promise.all([
-    supabase
-      .from("bouts")
-      .select("id, bout_order, red_corner_fighter_id, blue_corner_fighter_id")
-      .eq("event_id", id)
-      .order("bout_order"),
-    event.sanctioning_body_id
-      ? supabase
-          .from("sanctioning_bodies")
-          .select("name")
-          .eq("id", event.sanctioning_body_id)
-          .maybeSingle<Pick<SanctioningBody, "name">>()
-      : Promise.resolve({ data: null as { name: string } | null }),
-    event.commission_id
-      ? supabase
-          .from("commissions")
-          .select("name")
-          .eq("id", event.commission_id)
-          .maybeSingle<Pick<Commission, "name">>()
-      : Promise.resolve({ data: null as { name: string } | null }),
-  ]);
-
   const boutList = (bouts ?? []) as Pick<Bout, "id" | "bout_order" | "red_corner_fighter_id" | "blue_corner_fighter_id">[];
-  const boutIds = boutList.map((b) => b.id);
   const fighterIds = boutList
     .flatMap((b) => [b.red_corner_fighter_id, b.blue_corner_fighter_id])
     .filter((x): x is string => Boolean(x));
 
-  const [{ data: purses }, { data: fighters }] = await Promise.all([
-    boutIds.length
-      ? supabase.from("bout_purses").select("*").in("bout_id", boutIds)
-      : Promise.resolve({ data: [] as BoutPurse[] }),
-    fighterIds.length
-      ? supabase
-          .from("fighters")
-          .select("id, full_name, gym, gym_id")
-          .in("id", fighterIds)
-      : Promise.resolve({ data: [] as Pick<Fighter, "id" | "full_name" | "gym" | "gym_id">[] }),
-  ]);
-
-  const fighterRows = (fighters ?? []) as Pick<Fighter, "id" | "full_name" | "gym" | "gym_id">[];
-  const gymIds = Array.from(
-    new Set(fighterRows.map((f) => f.gym_id).filter((x): x is string => Boolean(x))),
-  );
-  const gymNameMap = new Map<string, string>();
-  if (gymIds.length) {
-    const { data: gyms } = await supabase
-      .from("gyms")
-      .select("id, name")
-      .in("id", gymIds);
-    for (const g of ((gyms ?? []) as Pick<Gym, "id" | "name">[])) {
-      gymNameMap.set(g.id, g.name);
-    }
-  }
+  type FighterRow = Pick<Fighter, "id" | "full_name" | "gym" | "gym_id"> & {
+    gym_ref: Pick<Gym, "name"> | null;
+  };
+  const { data: fighters } = fighterIds.length
+    ? await supabase
+        .from("fighters")
+        .select("id, full_name, gym, gym_id, gym_ref:gyms(name)")
+        .in("id", fighterIds)
+    : { data: [] as FighterRow[] };
 
   const fighterMap = new Map<string, string>();
   const fighterGymMap = new Map<string, string | null>();
-  for (const f of fighterRows) {
+  for (const f of (fighters ?? []) as unknown as FighterRow[]) {
     fighterMap.set(f.id, f.full_name);
     fighterGymMap.set(
       f.id,
-      (f.gym_id && gymNameMap.get(f.gym_id)) || f.gym || null,
+      (f.gym_id && f.gym_ref?.name) || f.gym || null,
     );
   }
   const purseByBoutCorner = new Map<string, BoutPurse>();
@@ -108,25 +97,12 @@ export async function GET(
     purseByBoutCorner.set(`${p.bout_id}:${p.corner}`, p);
   }
 
-  const { data: sponsorSlots } = await supabase
-    .from("event_sponsors")
-    .select("sponsor_id, tier")
-    .eq("event_id", id);
-  const slotRows = (sponsorSlots ?? []) as Pick<EventSponsor, "sponsor_id" | "tier">[];
-  let sponsorLines: PayoutSponsorLine[] = [];
-  if (slotRows.length) {
-    const sponsorIds = Array.from(new Set(slotRows.map((s) => s.sponsor_id)));
-    const { data: sponsorRows } = await supabase
-      .from("sponsors")
-      .select("id, name")
-      .in("id", sponsorIds);
-    const nameMap = new Map(
-      ((sponsorRows ?? []) as Pick<Sponsor, "id" | "name">[]).map((s) => [s.id, s.name]),
-    );
-    sponsorLines = slotRows
-      .map((s) => ({ name: nameMap.get(s.sponsor_id) ?? "Sponsor", tier: s.tier }))
-      .sort((a, b) => compareSponsorTier(a.tier, b.tier));
-  }
+  const slotRows = (sponsorSlots ?? []) as unknown as (Pick<EventSponsor, "tier"> & {
+    sponsor: Pick<Sponsor, "name"> | null;
+  })[];
+  const sponsorLines: PayoutSponsorLine[] = slotRows
+    .map((s) => ({ name: s.sponsor?.name ?? "Sponsor", tier: s.tier }))
+    .sort((a, b) => compareSponsorTier(a.tier, b.tier));
 
   const rows: PayoutRow[] = [];
   for (const b of boutList) {
@@ -157,15 +133,14 @@ export async function GET(
         primary_sport: event.primary_sport,
       }}
       promoter={event.promoter}
-      sanctioningBody={(sanctioningBody as { name?: string } | null)?.name ?? null}
-      commission={(commission as { name?: string } | null)?.name ?? null}
+      sanctioningBody={event.sanctioning_body?.name ?? null}
+      commission={event.commission?.name ?? null}
       rows={rows}
       sponsors={sponsorLines}
     />,
   );
 
-  const slug = event.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-");
-  const filename = `payout-sheet-${slug}.pdf`;
+  const filename = `payout-sheet-${fileSlug(event.name)}.pdf`;
 
   return new Response(new Uint8Array(buffer), {
     status: 200,

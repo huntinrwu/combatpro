@@ -19,7 +19,30 @@ const VIEWS = ["list", "card", "grid", "compact", "kanban", "gallery"] as const;
 
 type Search = { view?: string };
 
-function gymName(f: Fighter, gymMap: Map<string, string>): string | null {
+// Only the columns the list views render — the full row carries contact
+// info, notes, licenses etc. that this page never shows.
+const LIST_COLUMNS =
+  "id, full_name, nickname, primary_sport, weight_class, gym, gym_id, photo_url, pro_wins, pro_losses, pro_draws, am_wins, am_losses, am_draws";
+
+type FighterRow = Pick<
+  Fighter,
+  | "id"
+  | "full_name"
+  | "nickname"
+  | "primary_sport"
+  | "weight_class"
+  | "gym"
+  | "gym_id"
+  | "photo_url"
+  | "pro_wins"
+  | "pro_losses"
+  | "pro_draws"
+  | "am_wins"
+  | "am_losses"
+  | "am_draws"
+>;
+
+function gymName(f: FighterRow, gymMap: Map<string, string>): string | null {
   if (f.gym_id && gymMap.has(f.gym_id)) return gymMap.get(f.gym_id)!;
   return f.gym ?? null;
 }
@@ -34,13 +57,13 @@ export default async function FightersListPage({
 
   const supabase = db();
   const [{ data: fighters, error }, { data: gyms }] = await Promise.all([
-    supabase.from("fighters").select("*").order("created_at", { ascending: false }),
+    supabase.from("fighters").select(LIST_COLUMNS).order("created_at", { ascending: false }),
     supabase.from("gyms").select("id, name"),
   ]);
   const gymMap = new Map<string, string>();
   for (const g of ((gyms ?? []) as Pick<Gym, "id" | "name">[])) gymMap.set(g.id, g.name);
 
-  const list = (fighters ?? []) as Fighter[];
+  const list = (fighters ?? []) as FighterRow[];
 
   return (
     <>
@@ -99,7 +122,7 @@ export default async function FightersListPage({
   );
 }
 
-function ListView({ fighters, gymMap }: { fighters: Fighter[]; gymMap: Map<string, string> }) {
+function ListView({ fighters, gymMap }: { fighters: FighterRow[]; gymMap: Map<string, string> }) {
   return (
     <TableShell
       head={
@@ -150,7 +173,7 @@ function ListView({ fighters, gymMap }: { fighters: Fighter[]; gymMap: Map<strin
   );
 }
 
-function CardView({ fighters, gymMap }: { fighters: Fighter[]; gymMap: Map<string, string> }) {
+function CardView({ fighters, gymMap }: { fighters: FighterRow[]; gymMap: Map<string, string> }) {
   return (
     <CardGrid>
       {fighters.map((f) => (
@@ -204,7 +227,7 @@ function CardView({ fighters, gymMap }: { fighters: Fighter[]; gymMap: Map<strin
   );
 }
 
-function GridView({ fighters, gymMap }: { fighters: Fighter[]; gymMap: Map<string, string> }) {
+function GridView({ fighters, gymMap }: { fighters: FighterRow[]; gymMap: Map<string, string> }) {
   return (
     <TileGrid dense>
       {fighters.map((f) => (
@@ -234,7 +257,7 @@ function GridView({ fighters, gymMap }: { fighters: Fighter[]; gymMap: Map<strin
   );
 }
 
-function CompactView({ fighters, gymMap }: { fighters: Fighter[]; gymMap: Map<string, string> }) {
+function CompactView({ fighters, gymMap }: { fighters: FighterRow[]; gymMap: Map<string, string> }) {
   return (
     <CompactList>
       {fighters.map((f) => (
@@ -267,8 +290,8 @@ function CompactView({ fighters, gymMap }: { fighters: Fighter[]; gymMap: Map<st
   );
 }
 
-function KanbanView({ fighters, gymMap }: { fighters: Fighter[]; gymMap: Map<string, string> }) {
-  const buckets = new Map<string, Fighter[]>();
+function KanbanView({ fighters, gymMap }: { fighters: FighterRow[]; gymMap: Map<string, string> }) {
+  const buckets = new Map<string, FighterRow[]>();
   for (const s of SPORTS) buckets.set(s, []);
   for (const f of fighters) {
     const key = (SPORTS as readonly string[]).includes(f.primary_sport)
@@ -310,7 +333,7 @@ function KanbanView({ fighters, gymMap }: { fighters: Fighter[]; gymMap: Map<str
   );
 }
 
-function GalleryView({ fighters }: { fighters: Fighter[] }) {
+function GalleryView({ fighters }: { fighters: FighterRow[] }) {
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
       {fighters.map((f) => (

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { LoginForm } from "./_components/login-form";
+import { safeNext } from "@/lib/auth/safe-next";
 import { getSessionUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -13,8 +14,8 @@ export default async function LoginPage({
   searchParams: Promise<{ next?: string }>;
 }) {
   const user = await getSessionUser();
-  const { next } = await searchParams;
-  if (user) redirect(next || "/");
+  const next = safeNext((await searchParams).next);
+  if (user) redirect(next);
 
   return (
     <div className="mx-auto flex min-h-[80vh] w-full max-w-sm flex-col justify-center px-6 py-10">
@@ -28,7 +29,7 @@ export default async function LoginPage({
         <p className="mt-1 text-sm text-muted-foreground">Welcome back.</p>
       </div>
 
-      <LoginForm next={next ?? "/"} />
+      <LoginForm next={next} />
 
       <p className="mt-4 text-xs text-muted-foreground">
         Don&apos;t have an account?{" "}

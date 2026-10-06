@@ -38,13 +38,24 @@ const RANGE_LABEL: Record<string, string> = {
 
 type Search = { range?: string };
 
+type CashFlowEntry = Pick<
+  LedgerEntry,
+  | "event_id"
+  | "entry_type"
+  | "category"
+  | "amount"
+  | "received_at"
+  | "vendor_id"
+  | "payment_method"
+>;
+
 function categoryLabel(entryType: "revenue" | "expense", category: string): string {
   const list = entryType === "revenue" ? REVENUE_CATEGORIES : EXPENSE_CATEGORIES;
   return list.find((c) => c.value === category)?.label ?? category;
 }
 
 // Bucket the ledger entries into 8 evenly-spaced buckets across the range.
-function bucketize(entries: LedgerEntry[], sinceIso: string, todayIso: string) {
+function bucketize(entries: CashFlowEntry[], sinceIso: string, todayIso: string) {
   const since = new Date(sinceIso + "T00:00:00Z").getTime();
   const today = new Date(todayIso + "T00:00:00Z").getTime();
   const span = Math.max(1, today - since);
@@ -88,27 +99,34 @@ export default async function CashFlowPage({
   sinceDate.setDate(sinceDate.getDate() - days);
   const sinceIso = sinceDate.toISOString().slice(0, 10);
 
-  const supabase = db();
-  const [{ data: ledger }, { data: vendors }, { data: events }] = await Promise.all([
-    supabase.from("event_ledger").select("*"),
-    supabase.from("vendors").select("id, name"),
-    supabase.from("events").select("id, name, event_date"),
-  ]);
+  // Date range is applied in the DB (null-dated entries only show for "all").
+  // Vendor + event names are embedded so we don't load those whole tables.
+  const query0 = db()
+    .from("event_ledger")
+    .select(
+      "event_id, entry_type, category, amount, received_at, vendor_id, payment_method, vendor:vendors(name), event:events(id, name, event_date)",
+    );
+  // `lt(today)` mirrors the previous JS string comparison against the
+  // timestamptz value, which excluded entries dated today.
+  const query =
+    range === "all"
+      ? query0.or(
+          `received_at.is.null,and(received_at.gte.${sinceIso},received_at.lt.${today})`,
+        )
+      : query0.gte("received_at", sinceIso).lt("received_at", today);
+  const { data: ledger } = await query;
 
-  const vendorMap = new Map(
-    ((vendors ?? []) as Pick<Vendor, "id" | "name">[]).map((v) => [v.id, v.name]),
-  );
-  const eventMap = new Map(
-    ((events ?? []) as Pick<EventRow, "id" | "name" | "event_date">[]).map((e) => [e.id, e]),
-  );
+  const inRange = (ledger ?? []) as unknown as (CashFlowEntry & {
+    vendor: Pick<Vendor, "name"> | null;
+    event: Pick<EventRow, "id" | "name" | "event_date"> | null;
+  })[];
 
-  const all = (ledger ?? []) as LedgerEntry[];
-  // Filter to entries with a received_at inside range, PLUS keep null-dated
-  // entries when range=all so they don't vanish from totals.
-  const inRange = all.filter((e) => {
-    if (!e.received_at) return range === "all";
-    return e.received_at >= sinceIso && e.received_at <= today;
-  });
+  const vendorMap = new Map<string, string>();
+  const eventMap = new Map<string, Pick<EventRow, "id" | "name" | "event_date">>();
+  for (const e of inRange) {
+    if (e.vendor_id && e.vendor) vendorMap.set(e.vendor_id, e.vendor.name);
+    if (e.event) eventMap.set(e.event_id, e.event);
+  }
 
   let revenue = 0;
   let expense = 0;

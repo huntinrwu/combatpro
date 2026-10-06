@@ -12,7 +12,8 @@ import {
   Upload,
 } from "lucide-react";
 
-import { deleteRuleset, signedRulesetPdfUrl, uploadNewPdfVersion } from "../actions";
+import { deleteRuleset, uploadNewPdfVersion } from "../actions";
+import { signedRulesetPdfUrls } from "../_lib/pdf-urls";
 import { db } from "@/lib/db/client";
 import { fmtDateShortWithDay as fmtEventDate } from "@/lib/format-utils";
 import { getSessionUser } from "@/lib/auth/session";
@@ -72,9 +73,9 @@ export default async function RulesetDetailPage({
 }) {
   const { id } = await params;
   const supabase = db();
-  const session = await getSessionUser();
 
-  const [{ data: ruleset }, { data: usedBy }, { data: versions }] = await Promise.all([
+  const [session, { data: ruleset }, { data: usedBy }, { data: versions }] = await Promise.all([
+    getSessionUser(),
     supabase.from("rulesets").select("*").eq("id", id).maybeSingle<Ruleset>(),
     supabase
       .from("bouts")
@@ -106,7 +107,9 @@ export default async function RulesetDetailPage({
     ),
   );
 
-  const [{ data: events }, { data: fighters }, { data: sb }, { data: comm }] = await Promise.all([
+  // Signed PDF URLs (current first, then history) are batched into one storage
+  // call and fetched alongside the lookups below.
+  const [{ data: events }, { data: fighters }, { data: sb }, { data: comm }, pdfUrls] = await Promise.all([
     eventIds.length
       ? supabase.from("events").select("id, name, event_date").in("id", eventIds)
       : Promise.resolve({ data: [] as Pick<EventRow, "id" | "name" | "event_date">[] }),
@@ -127,6 +130,9 @@ export default async function RulesetDetailPage({
           .eq("id", ruleset.commission_id)
           .maybeSingle<Pick<Commission, "id" | "name" | "abbreviation">>()
       : Promise.resolve({ data: null }),
+    signedRulesetPdfUrls(
+      [...(currentVersion ? [currentVersion] : []), ...historyVersions].map((v) => v.storage_path),
+    ),
   ]);
 
   const eventMap = new Map<string, Pick<EventRow, "id" | "name" | "event_date">>();
@@ -138,12 +144,8 @@ export default async function RulesetDetailPage({
     fighterMap.set(f.id, f.full_name);
   }
 
-  const currentPdfUrl = currentVersion
-    ? await signedRulesetPdfUrl(currentVersion.storage_path)
-    : null;
-  const historyUrls = await Promise.all(
-    historyVersions.map((v) => signedRulesetPdfUrl(v.storage_path)),
-  );
+  const currentPdfUrl = currentVersion ? pdfUrls[0] : null;
+  const historyUrls = currentVersion ? pdfUrls.slice(1) : pdfUrls;
 
   const backHref = comm
     ? `/registry/commissions/${comm.id}`

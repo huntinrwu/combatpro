@@ -7,7 +7,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fighterProRecord, initials } from "@/lib/text-utils";
 import type { Fighter } from "@/lib/db/types";
 
-export function RecentFightersWidget({ fighters }: { fighters: Fighter[] }) {
+export type RecentFighter = Pick<
+  Fighter,
+  | "id"
+  | "full_name"
+  | "nickname"
+  | "photo_url"
+  | "weight_class"
+  | "primary_sport"
+  | "pro_wins"
+  | "pro_losses"
+  | "pro_draws"
+>;
+
+export function RecentFightersWidget({ fighters }: { fighters: RecentFighter[] }) {
   return (
     <Card>
       <CardHeader>

@@ -7,7 +7,6 @@ import { db } from "@/lib/db/client";
 import type {
   Bout,
   BoutScorecard,
-  EventOfficial,
   EventRow,
   Fighter,
   Gym,
@@ -49,13 +48,44 @@ export type ControlRoomJudge = {
   roundsScored: number;
 };
 
+type FighterRow = Pick<
+  Fighter,
+  | "id"
+  | "full_name"
+  | "nickname"
+  | "gym"
+  | "gym_id"
+  | "hometown"
+  | "pro_wins"
+  | "pro_losses"
+  | "pro_draws"
+  | "am_wins"
+  | "am_losses"
+  | "am_draws"
+> & { gym_ref: Pick<Gym, "name"> | null };
+
+type RoomBoutRow = Pick<
+  Bout,
+  | "id"
+  | "bout_order"
+  | "weight_class"
+  | "contracted_weight_lbs"
+  | "rounds"
+  | "round_length_minutes"
+  | "bout_class"
+  | "sport"
+  | "scheduled_start_time"
+  | "result"
+  | "red_corner_fighter_id"
+  | "blue_corner_fighter_id"
+>;
+
 function fighterFromRow(
-  f: Pick<Fighter, "id" | "full_name" | "nickname" | "gym" | "gym_id" | "hometown" | "pro_wins" | "pro_losses" | "pro_draws" | "am_wins" | "am_losses" | "am_draws"> | undefined,
+  f: FighterRow | undefined,
   boutClass: "pro" | "amateur",
-  gymMap: Map<string, Pick<Gym, "id" | "name">>,
 ): ControlRoomFighter | null {
   if (!f) return null;
-  const gymLabel = f.gym_id ? gymMap.get(f.gym_id)?.name ?? f.gym : f.gym;
+  const gymLabel = f.gym_id ? f.gym_ref?.name ?? f.gym : f.gym;
   const record =
     boutClass === "pro"
       ? { wins: f.pro_wins, losses: f.pro_losses, draws: f.pro_draws }
@@ -78,29 +108,29 @@ export default async function ControlRoomPage({
   const { eventId } = await params;
   const supabase = db();
 
-  const { data: event } = await supabase
-    .from("events")
-    .select("*")
-    .eq("id", eventId)
-    .maybeSingle<EventRow>();
-  if (!event) notFound();
-
-  const [{ data: rawBouts }, sanctioningRes] = await Promise.all([
+  // Bouts and the judge roster only need eventId, so they load alongside the event.
+  const [{ data: event }, { data: rawBouts }, { data: judgeData }] = await Promise.all([
+    supabase
+      .from("events")
+      .select("id, name, sanctioning_body_id, current_bout_id")
+      .eq("id", eventId)
+      .maybeSingle<Pick<EventRow, "id" | "name" | "sanctioning_body_id" | "current_bout_id">>(),
     supabase
       .from("bouts")
-      .select("*")
+      .select(
+        "id, bout_order, weight_class, contracted_weight_lbs, rounds, round_length_minutes, bout_class, sport, scheduled_start_time, result, red_corner_fighter_id, blue_corner_fighter_id",
+      )
       .eq("event_id", eventId)
       .order("bout_order", { ascending: true, nullsFirst: false }),
-    event.sanctioning_body_id
-      ? supabase
-          .from("sanctioning_bodies")
-          .select("abbreviation, name")
-          .eq("id", event.sanctioning_body_id)
-          .maybeSingle<Pick<SanctioningBody, "abbreviation" | "name">>()
-      : Promise.resolve({ data: null }),
+    supabase
+      .from("event_officials")
+      .select("official_id, official:officials(full_name)")
+      .eq("event_id", eventId)
+      .eq("event_role", "judge"),
   ]);
+  if (!event) notFound();
 
-  const bouts = (rawBouts ?? []) as Bout[];
+  const bouts = (rawBouts ?? []) as RoomBoutRow[];
 
   // Determine current + next.
   const currentBout =
@@ -117,63 +147,42 @@ export default async function ControlRoomPage({
   const fighterIds = Array.from(
     new Set(
       [currentBout, nextBout]
-        .filter((b): b is Bout => Boolean(b))
+        .filter((b): b is RoomBoutRow => Boolean(b))
         .flatMap((b) => [b.red_corner_fighter_id, b.blue_corner_fighter_id])
         .filter((x): x is string => Boolean(x)),
     ),
   );
 
-  const [{ data: fighters }, { data: gyms }, judgesRes, scorecardsRes] = await Promise.all([
+  const [{ data: fighters }, sanctioningRes, scorecardsRes] = await Promise.all([
     fighterIds.length
       ? supabase
           .from("fighters")
           .select(
-            "id, full_name, nickname, gym, gym_id, hometown, pro_wins, pro_losses, pro_draws, am_wins, am_losses, am_draws",
+            "id, full_name, nickname, gym, gym_id, hometown, pro_wins, pro_losses, pro_draws, am_wins, am_losses, am_draws, gym_ref:gyms(name)",
           )
           .in("id", fighterIds)
       : Promise.resolve({ data: [] }),
-    supabase.from("gyms").select("id, name"),
-    supabase
-      .from("event_officials")
-      .select("*")
-      .eq("event_id", event.id)
-      .eq("event_role", "judge"),
+    event.sanctioning_body_id
+      ? supabase
+          .from("sanctioning_bodies")
+          .select("abbreviation")
+          .eq("id", event.sanctioning_body_id)
+          .maybeSingle<Pick<SanctioningBody, "abbreviation">>()
+      : Promise.resolve({ data: null }),
     currentBout
       ? supabase
           .from("bout_scorecards")
-          .select("*")
+          .select("judge_official_id, red_score, blue_score")
           .eq("bout_id", currentBout.id)
       : Promise.resolve({ data: [] }),
   ]);
 
-  const fighterMap = new Map<
-    string,
-    Pick<
-      Fighter,
-      | "id"
-      | "full_name"
-      | "nickname"
-      | "gym"
-      | "gym_id"
-      | "hometown"
-      | "pro_wins"
-      | "pro_losses"
-      | "pro_draws"
-      | "am_wins"
-      | "am_losses"
-      | "am_draws"
-    >
-  >();
-  for (const f of (fighters ?? []) as Parameters<typeof fighterFromRow>[0][]) {
+  const fighterMap = new Map<string, FighterRow>();
+  for (const f of (fighters ?? []) as unknown as FighterRow[]) {
     if (f) fighterMap.set(f.id, f);
   }
 
-  const gymMap = new Map<string, Pick<Gym, "id" | "name">>();
-  for (const g of (gyms ?? []) as Pick<Gym, "id" | "name">[]) {
-    gymMap.set(g.id, g);
-  }
-
-  function toRoom(b: Bout | null): ControlRoomBout | null {
+  function toRoom(b: RoomBoutRow | null): ControlRoomBout | null {
     if (!b) return null;
     return {
       id: b.id,
@@ -189,36 +198,29 @@ export default async function ControlRoomPage({
       red: fighterFromRow(
         b.red_corner_fighter_id ? fighterMap.get(b.red_corner_fighter_id) : undefined,
         b.bout_class,
-        gymMap,
       ),
       blue: fighterFromRow(
         b.blue_corner_fighter_id ? fighterMap.get(b.blue_corner_fighter_id) : undefined,
         b.bout_class,
-        gymMap,
       ),
     };
   }
 
   // Judge totals for the current bout — judges come from the event roster.
-  const judgeRows = (judgesRes.data ?? []) as EventOfficial[];
-  const cards = (scorecardsRes.data ?? []) as BoutScorecard[];
-  const officialIds = judgeRows.map((j) => j.official_id);
-  const officialsRes = officialIds.length
-    ? await supabase
-        .from("officials")
-        .select("id, full_name")
-        .in("id", officialIds)
-    : { data: [] as Pick<Official, "id" | "full_name">[] };
-  const officialMap = new Map<string, Pick<Official, "id" | "full_name">>();
-  for (const o of (officialsRes.data ?? []) as Pick<Official, "id" | "full_name">[]) {
-    officialMap.set(o.id, o);
-  }
+  const judgeRows = (judgeData ?? []) as unknown as {
+    official_id: string;
+    official: Pick<Official, "full_name"> | null;
+  }[];
+  const cards = (scorecardsRes.data ?? []) as Pick<
+    BoutScorecard,
+    "judge_official_id" | "red_score" | "blue_score"
+  >[];
 
   const judges: ControlRoomJudge[] = judgeRows.map((j) => {
     const jc = cards.filter((c) => c.judge_official_id === j.official_id);
     return {
       official_id: j.official_id,
-      full_name: officialMap.get(j.official_id)?.full_name ?? "Judge",
+      full_name: j.official?.full_name ?? "Judge",
       totalRed: jc.reduce((s, c) => s + c.red_score, 0),
       totalBlue: jc.reduce((s, c) => s + c.blue_score, 0),
       roundsScored: jc.length,

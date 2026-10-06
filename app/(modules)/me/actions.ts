@@ -23,7 +23,7 @@ async function requirePersonId(): Promise<{ userId: string; personId: string }> 
 }
 
 export async function updateMyPerson(fd: FormData) {
-  const { personId } = await requirePersonId();
+  const { userId, personId } = await requirePersonId();
   const admin = createAdminClient();
 
   const full_name = fd.get("full_name")?.toString().trim();
@@ -47,7 +47,6 @@ export async function updateMyPerson(fd: FormData) {
   if (error) dbErr(error);
 
   // Mirror name/avatar onto the profile so header widgets stay in sync.
-  const { userId } = await requirePersonId();
   await admin
     .from("profiles")
     .update({

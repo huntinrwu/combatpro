@@ -23,7 +23,9 @@ export const dynamic = "force-dynamic";
 
 type OfficialLite = Pick<Official, "id" | "full_name" | "roles" | "home_state">;
 
-type EnrichedRosterRow = EventOfficial & {
+type RosterRow = Pick<EventOfficial, "id" | "official_id" | "event_role">;
+
+type EnrichedRosterRow = RosterRow & {
   official: OfficialLite | null;
 };
 
@@ -33,11 +35,10 @@ export default async function EventOfficialsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const detail = await loadEventDetail(id);
+  const [detail, session] = await Promise.all([loadEventDetail(id), getSessionUser()]);
   if (!detail) notFound();
   const { event } = detail;
 
-  const session = await getSessionUser();
   const canEdit = session ? canEditEvent(event, session) : false;
 
   const supabase = db();
@@ -46,7 +47,7 @@ export default async function EventOfficialsPage({
     await Promise.all([
       supabase
         .from("event_officials")
-        .select("*")
+        .select("id, official_id, event_role")
         .eq("event_id", id)
         .order("created_at"),
       supabase
@@ -65,7 +66,7 @@ export default async function EventOfficialsPage({
     officialMap.set(o.id, o);
   }
 
-  const enriched: EnrichedRosterRow[] = ((roster ?? []) as EventOfficial[])
+  const enriched: EnrichedRosterRow[] = ((roster ?? []) as RosterRow[])
     .map((a) => ({ ...a, official: officialMap.get(a.official_id) ?? null }))
     .sort(
       (a, b) =>

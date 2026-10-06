@@ -9,15 +9,15 @@ import { createAdminClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 export default async function SignupPage() {
-  const user = await getSessionUser();
+  const [user, { data: gyms }] = await Promise.all([
+    getSessionUser(),
+    createAdminClient()
+      .from("gyms")
+      .select("id, name, city, state")
+      .eq("approval_status", "approved")
+      .order("name"),
+  ]);
   if (user) redirect("/");
-
-  const admin = createAdminClient();
-  const { data: gyms } = await admin
-    .from("gyms")
-    .select("id, name, city, state")
-    .eq("approval_status", "approved")
-    .order("name");
 
   return (
     <div className="mx-auto flex min-h-[80vh] w-full max-w-xl flex-col justify-center px-6 py-10">

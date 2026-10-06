@@ -3,14 +3,9 @@
 import { revalidatePath } from "next/cache";
 
 import { db, dbErr } from "@/lib/db/client";
+import { orNull } from "@/lib/form-utils";
 import { requireStaff } from "@/lib/auth/session";
 import type { EventStatus } from "@/lib/db/types";
-
-function str(raw: FormDataEntryValue | null): string | null {
-  if (typeof raw !== "string") return null;
-  const t = raw.trim();
-  return t.length ? t : null;
-}
 
 function revalidate(event_id: string) {
   revalidatePath(`/events/${event_id}`);
@@ -27,7 +22,7 @@ function revalidate(event_id: string) {
 // filed_with so the audit trail has something meaningful.
 export async function fileAllFightReports(formData: FormData) {
   await requireStaff();
-  const event_id = str(formData.get("event_id"));
+  const event_id = orNull(formData.get("event_id"));
   if (!event_id) throw new Error("event is required.");
 
   const supabase = db();
@@ -53,21 +48,21 @@ export async function fileAllFightReports(formData: FormData) {
     return;
   }
 
-  let filed_with: string | null = null;
-  if (event?.sanctioning_body_id) {
-    const { data: sb } = await supabase
-      .from("sanctioning_bodies")
-      .select("name")
-      .eq("id", event.sanctioning_body_id)
-      .maybeSingle<{ name: string }>();
-    filed_with = sb?.name ?? null;
-  }
-
-  const { data: existingDocs } = await supabase
-    .from("bout_documents")
-    .select("bout_id")
-    .eq("kind", "fight_report")
-    .in("bout_id", declaredBouts);
+  const [{ data: sb }, { data: existingDocs }] = await Promise.all([
+    event?.sanctioning_body_id
+      ? supabase
+          .from("sanctioning_bodies")
+          .select("name")
+          .eq("id", event.sanctioning_body_id)
+          .maybeSingle<{ name: string }>()
+      : Promise.resolve({ data: null }),
+    supabase
+      .from("bout_documents")
+      .select("bout_id")
+      .eq("kind", "fight_report")
+      .in("bout_id", declaredBouts),
+  ]);
+  const filed_with: string | null = sb?.name ?? null;
 
   const alreadyFiled = new Set(
     ((existingDocs ?? []) as { bout_id: string }[]).map((d) => d.bout_id),
@@ -93,8 +88,8 @@ export async function fileAllFightReports(formData: FormData) {
 // an event to complete with un-declared bouts.
 export async function setEventStatus(formData: FormData) {
   await requireStaff();
-  const event_id = str(formData.get("event_id"));
-  const status = str(formData.get("status")) as EventStatus | null;
+  const event_id = orNull(formData.get("event_id"));
+  const status = orNull(formData.get("status")) as EventStatus | null;
   if (!event_id || !status) throw new Error("event + status required.");
   if (!["draft", "scheduled", "complete", "canceled"].includes(status)) {
     throw new Error("invalid status");
@@ -105,7 +100,7 @@ export async function setEventStatus(formData: FormData) {
   if (status === "complete") {
     const { data: bouts } = await supabase
       .from("bouts")
-      .select("id, result")
+      .select("result")
       .eq("event_id", event_id);
     const undeclared = ((bouts ?? []) as { result: string | null }[]).filter(
       (b) => b.result == null,

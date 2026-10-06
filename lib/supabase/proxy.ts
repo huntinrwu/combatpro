@@ -35,12 +35,12 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims still refreshes an expiring session (via getSession) but verifies
+  // the JWT locally, so the proxy no longer costs an Auth round-trip per request.
+  const { data } = await supabase.auth.getClaims();
 
   const { pathname } = request.nextUrl;
-  if (!user && !isPublicPath(pathname)) {
+  if (!data?.claims && !isPublicPath(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", pathname);

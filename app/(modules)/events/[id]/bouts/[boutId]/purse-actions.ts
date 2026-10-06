@@ -41,24 +41,11 @@ export async function upsertPurse(formData: FormData) {
     notes: orNull(formData.get("notes")),
   };
 
-  const supabase = db();
-  const { data: existing } = await supabase
+  // One row per (bout, corner) — unique constraint makes this a single upsert.
+  const { error } = await db()
     .from("bout_purses")
-    .select("id")
-    .eq("bout_id", bout_id)
-    .eq("corner", corner)
-    .maybeSingle();
-
-  if (existing) {
-    const { error } = await supabase
-      .from("bout_purses")
-      .update(payload)
-      .eq("id", existing.id);
-    if (error) dbErr(error);
-  } else {
-    const { error } = await supabase.from("bout_purses").insert(payload);
-    if (error) dbErr(error);
-  }
+    .upsert(payload, { onConflict: "bout_id,corner" });
+  if (error) dbErr(error);
 
   for (const p of pathsFor(event_id, bout_id)) revalidatePath(p);
 }

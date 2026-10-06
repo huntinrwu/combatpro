@@ -14,6 +14,7 @@ import type {
   FighterMedicalRecord,
   Gym,
 } from "@/lib/db/types";
+import { fileSlug } from "@/app/api/_lib/slug";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,26 +27,18 @@ export async function GET(
   const { id } = await params;
   const supabase = db();
 
-  const { data: fighter } = await supabase
-    .from("fighters")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle<Fighter>();
-  if (!fighter) return new Response("Fighter not found", { status: 404 });
-
-  const [{ data: medicals }, gymRes, { data: bouts }] = await Promise.all([
+  // Medical records and bouts only need the fighter id; gym is embedded.
+  const [{ data: fighter }, { data: medicals }, { data: bouts }] = await Promise.all([
+    supabase
+      .from("fighters")
+      .select("*, gym_ref:gyms(id, name)")
+      .eq("id", id)
+      .maybeSingle<Fighter & { gym_ref: Pick<Gym, "id" | "name"> | null }>(),
     supabase
       .from("fighter_medical_records")
       .select("*")
       .eq("fighter_id", id)
       .order("issued_on", { ascending: false }),
-    fighter.gym_id
-      ? supabase
-          .from("gyms")
-          .select("id, name")
-          .eq("id", fighter.gym_id)
-          .maybeSingle<Pick<Gym, "id" | "name">>()
-      : Promise.resolve({ data: null as Pick<Gym, "id" | "name"> | null }),
     supabase
       .from("bouts")
       .select(
@@ -53,6 +46,8 @@ export async function GET(
       )
       .or(`red_corner_fighter_id.eq.${id},blue_corner_fighter_id.eq.${id}`),
   ]);
+  if (!fighter) return new Response("Fighter not found", { status: 404 });
+  const { gym_ref: gym, ...fighterRow } = fighter;
 
   type BoutSlim = Pick<
     Bout,
@@ -143,15 +138,14 @@ export async function GET(
 
   const buffer = await renderToBuffer(
     <FighterPassportPdf
-      fighter={fighter}
-      gym={gymRes.data ?? null}
+      fighter={fighterRow}
+      gym={fighter.gym_id ? gym : null}
       medicals={(medicals ?? []) as FighterMedicalRecord[]}
       recentBouts={rows}
     />,
   );
 
-  const slug = fighter.full_name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-");
-  const filename = `passport-${slug}.pdf`;
+  const filename = `passport-${fileSlug(fighter.full_name)}.pdf`;
 
   return new Response(new Uint8Array(buffer), {
     status: 200,

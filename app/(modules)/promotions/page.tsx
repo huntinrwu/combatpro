@@ -44,17 +44,25 @@ export default async function PromotionsListPage({
   const view = pickView(rawView, VIEWS);
 
   const supabase = db();
-  const session = await getSessionUser();
 
-  const [{ data: rawPromos, error }, { data: rawEvents }] = await Promise.all([
-    supabase.from("promotions").select("*").order("name"),
-    supabase.from("events").select("id, promotion_id, event_date, status"),
+  // Rejected promotions are never rendered, so don't fetch them.
+  const [session, { data: rawPromos, error }, { data: rawEvents }] = await Promise.all([
+    getSessionUser(),
+    supabase
+      .from("promotions")
+      .select("*")
+      .in("status", ["approved", "pending"])
+      .order("name"),
+    supabase
+      .from("events")
+      .select("promotion_id, event_date, status")
+      .not("promotion_id", "is", null),
   ]);
 
   const all = (rawPromos ?? []) as Promotion[];
   const events = (rawEvents ?? []) as Pick<
     EventRow,
-    "id" | "promotion_id" | "event_date" | "status"
+    "promotion_id" | "event_date" | "status"
   >[];
 
   const today = new Date().toISOString().slice(0, 10);

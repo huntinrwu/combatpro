@@ -4,12 +4,9 @@ import { db } from "@/lib/db/client";
 import { requireStaff } from "@/lib/auth/session";
 import { FinancialsReportPdf } from "@/lib/pdf/financials-report";
 import { purseBreakdown } from "@/lib/db/types";
-import type {
-  BoutPurse,
-  EventRow,
-  LedgerEntry,
-  Vendor,
-} from "@/lib/db/types";
+import type { BoutPurse, EventRow } from "@/lib/db/types";
+import { loadLedger } from "@/app/api/_lib/ledger";
+import { fileSlug } from "@/app/api/_lib/slug";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,47 +19,30 @@ export async function GET(
   const { id } = await params;
   const supabase = db();
 
-  const { data: event } = await supabase
-    .from("events")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle<EventRow>();
+  // Purses are joined through bouts so we don't need the bout ids first.
+  const [{ data: event }, { rows: ledgerRows, vendorNameMap }, { data: purses }] =
+    await Promise.all([
+      supabase
+        .from("events")
+        .select("name, event_date, venue, city, state, primary_sport, promoter")
+        .eq("id", id)
+        .maybeSingle<
+          Pick<
+            EventRow,
+            "name" | "event_date" | "venue" | "city" | "state" | "primary_sport" | "promoter"
+          >
+        >(),
+      loadLedger(id),
+      supabase
+        .from("bout_purses")
+        .select("*, bouts!inner(event_id)")
+        .eq("bouts.event_id", id),
+    ]);
   if (!event) return new Response("Event not found", { status: 404 });
-
-  const [{ data: entries }, { data: bouts }] = await Promise.all([
-    supabase
-      .from("event_ledger")
-      .select("*")
-      .eq("event_id", id)
-      .order("entry_type", { ascending: true })
-      .order("received_at", { ascending: true, nullsFirst: false })
-      .order("created_at"),
-    supabase.from("bouts").select("id").eq("event_id", id),
-  ]);
-
-  const boutIds = ((bouts ?? []) as { id: string }[]).map((b) => b.id);
-  const { data: purses } = boutIds.length
-    ? await supabase.from("bout_purses").select("*").in("bout_id", boutIds)
-    : { data: [] as BoutPurse[] };
 
   let purseNet = 0;
   for (const p of (purses ?? []) as BoutPurse[]) {
     purseNet += purseBreakdown(p).net;
-  }
-
-  const ledgerRows = (entries ?? []) as LedgerEntry[];
-  const vendorIds = Array.from(
-    new Set(ledgerRows.map((r) => r.vendor_id).filter((x): x is string => Boolean(x))),
-  );
-  const vendorNameMap = new Map<string, string>();
-  if (vendorIds.length) {
-    const { data: vendors } = await supabase
-      .from("vendors")
-      .select("id, name")
-      .in("id", vendorIds);
-    for (const v of ((vendors ?? []) as Pick<Vendor, "id" | "name">[])) {
-      vendorNameMap.set(v.id, v.name);
-    }
   }
 
   const buffer = await renderToBuffer(
@@ -82,8 +62,7 @@ export async function GET(
     />,
   );
 
-  const slug = event.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-");
-  const filename = `financials-${slug}-${event.event_date}.pdf`;
+  const filename = `financials-${fileSlug(event.name)}-${event.event_date}.pdf`;
 
   return new Response(new Uint8Array(buffer), {
     status: 200,

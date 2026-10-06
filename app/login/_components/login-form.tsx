@@ -1,6 +1,7 @@
 "use client";
 
-import { useFormState, useFormStatus } from "react-dom";
+import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
 
 import { loginAction } from "../actions";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,7 @@ import { FormField } from "@/components/form-field";
 import { Input } from "@/components/ui/input";
 
 export function LoginForm({ next }: { next: string }) {
-  const [state, formAction] = useFormState(loginAction, { ok: true });
+  const [state, formAction] = useActionState(loginAction, { ok: true });
 
   return (
     <form action={formAction} className="space-y-4">

@@ -8,12 +8,22 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 // Subscribes to bout + event changes for this event and calls router.refresh()
 // on any DB change so the server re-renders with the latest state. Also shows
 // a small connection indicator so fans know the page is auto-updating.
+// Refreshes are debounced: a result declaration touches the bout row and then
+// the event row (advance), and every fan tab re-renders the whole page per
+// refresh, so a burst of changes collapses into one server render.
+const REFRESH_DEBOUNCE_MS = 500;
+
 export function RealtimeRefresher({ eventId }: { eventId: string }) {
   const router = useRouter();
   const [status, setStatus] = useState<"connecting" | "live" | "offline">("connecting");
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const scheduleRefresh = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => router.refresh(), REFRESH_DEBOUNCE_MS);
+    };
     const channel = supabase
       .channel(`public-event:${eventId}`)
       .on(
@@ -24,7 +34,7 @@ export function RealtimeRefresher({ eventId }: { eventId: string }) {
           table: "bouts",
           filter: `event_id=eq.${eventId}`,
         },
-        () => router.refresh(),
+        scheduleRefresh,
       )
       .on(
         "postgres_changes",
@@ -34,7 +44,7 @@ export function RealtimeRefresher({ eventId }: { eventId: string }) {
           table: "events",
           filter: `id=eq.${eventId}`,
         },
-        () => router.refresh(),
+        scheduleRefresh,
       )
       .subscribe((s) => {
         if (s === "SUBSCRIBED") setStatus("live");
@@ -44,6 +54,7 @@ export function RealtimeRefresher({ eventId }: { eventId: string }) {
       });
 
     return () => {
+      clearTimeout(timer);
       supabase.removeChannel(channel);
     };
   }, [eventId, router]);

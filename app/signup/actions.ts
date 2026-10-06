@@ -33,6 +33,7 @@ export async function signupAction(_prev: SignupResult, fd: FormData): Promise<S
 
   const needsGym = roles.some((r) => ROLES_REQUIRING_GYM.includes(r));
   let gymIdForGrants: string | null = null;
+  let createdGym = false;
 
   const supabase = await createClient();
   const admin = createAdminClient();
@@ -59,6 +60,7 @@ export async function signupAction(_prev: SignupResult, fd: FormData): Promise<S
         return { ok: false, error: "Failed to submit gym. Please try again." };
       }
       gymIdForGrants = newGym.id;
+      createdGym = true;
     } else {
       gymIdForGrants = gymChoice;
     }
@@ -82,11 +84,8 @@ export async function signupAction(_prev: SignupResult, fd: FormData): Promise<S
 
   // Attach submitted_by to the new gym if we created one — couldn't do it
   // before the auth user existed.
-  if (gymIdForGrants) {
-    const gymChoice = fd.get("gym_choice")?.toString();
-    if (gymChoice === "__new__") {
-      await admin.from("gyms").update({ submitted_by: userId }).eq("id", gymIdForGrants);
-    }
+  if (createdGym && gymIdForGrants) {
+    await admin.from("gyms").update({ submitted_by: userId }).eq("id", gymIdForGrants);
   }
 
   const grantRows = roles.map((role) => ({

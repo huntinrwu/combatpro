@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { BookOpen, ExternalLink } from "lucide-react";
 
+import { loadEventDetail } from "../_lib/event-detail";
 import { db } from "@/lib/db/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { Commission, EventRow, SanctioningBody } from "@/lib/db/types";
+import type { Commission, SanctioningBody } from "@/lib/db/types";
 
 export const dynamic = "force-dynamic";
 
@@ -15,13 +16,8 @@ export default async function EventRegulatoryTabPage({
   const { id } = await params;
   const supabase = db();
 
-  const { data: event } = await supabase
-    .from("events")
-    .select("id, promoter, notes, commission_id, sanctioning_body_id")
-    .eq("id", id)
-    .maybeSingle<
-      Pick<EventRow, "id" | "promoter" | "notes" | "commission_id" | "sanctioning_body_id">
-    >();
+  // Event comes from the per-request cache the [id] layout already populated.
+  const event = (await loadEventDetail(id))?.event;
 
   const [commissionRes, bodyRes] = await Promise.all([
     event?.commission_id

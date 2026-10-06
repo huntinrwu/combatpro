@@ -138,17 +138,19 @@ export const MODULE_SECTIONS: {
   },
 ];
 
-export function modulesBySection(): Record<ModuleSectionKey, Module[]> {
+// Bucket a (possibly filtered) module list by section, preserving MODULES
+// order within each bucket. Shared by the sidebar and dashboard strip.
+export function groupModulesBySection(
+  modules: readonly Module[],
+): Record<ModuleSectionKey, Module[]> {
   const out: Record<ModuleSectionKey, Module[]> = {
     operations: [],
     regulatory: [],
     business: [],
   };
-  for (const m of MODULES) out[m.section].push(m);
+  for (const m of modules) out[m.section].push(m);
   return out;
 }
-
-export const PINNED_MODULES = MODULES.filter((m) => m.pinned);
 
 // Filter the module list to just what a user with these roles can access.
 // Staff sees everything.

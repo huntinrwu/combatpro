@@ -128,8 +128,10 @@ export async function createFighter(formData: FormData) {
     .select("id")
     .single();
   if (error) dbErr(error);
-  await maybeLogWalkingWeight(data.id, formData);
-  await seedDeclaredFightRecords(data.id, formData);
+  await Promise.all([
+    maybeLogWalkingWeight(data.id, formData),
+    seedDeclaredFightRecords(data.id, formData),
+  ]);
   revalidatePath("/fighters");
   redirect(`/fighters/${data.id}`);
 }
@@ -228,7 +230,7 @@ export async function backfillDeclaredFightRecords(formData: FormData) {
     }
   }
   if (rows.length > 0) {
-    const { error } = await db().from("fight_records").insert(rows);
+    const { error } = await supabase.from("fight_records").insert(rows);
     if (error) dbErr(error);
   }
   revalidatePath(`/fighters/${fighter_id}`);

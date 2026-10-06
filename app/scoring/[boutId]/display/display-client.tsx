@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Radio } from "lucide-react";
 
-import { createClient } from "@/lib/supabase/client";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { BoutScorecard } from "@/lib/db/types";
 
 import type { JudgeSummary } from "./page";
@@ -29,7 +29,7 @@ export function DisplayClient({
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    const supabase = createClient();
+    const supabase = createSupabaseBrowserClient();
     const channel = supabase
       .channel(`scorecards:${boutId}`)
       .on(

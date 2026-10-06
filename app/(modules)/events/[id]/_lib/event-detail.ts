@@ -11,12 +11,11 @@ import type {
   EventSponsorTarget,
   Fighter,
   LedgerEntry,
-  SanctioningBody,
   Sponsor,
 } from "@/lib/db/types";
 
-// Superset of everything the event layout + its child tabs need. Loaded once
-// per request via React's cache() — the layout and any child page can call
+// Everything the event layout + its child tabs share. Loaded once per request
+// via React's cache() — the layout and any child page can call
 // loadEventDetail(id) and share the same in-memory result. Cuts the "layout
 // fetches X, child page re-fetches X" waste on every event detail page load.
 export type EventDetail = {
@@ -28,14 +27,20 @@ export type EventDetail = {
   purses: BoutPurse[];
   ledger: LedgerEntry[];
   sponsorSlots: EventSponsor[];
-  sponsorTargets: EventSponsorTarget[];
-  sponsorableItems: EventSponsorableItem[];
-  sponsorRegistry: Pick<Sponsor, "id" | "name">[];
-  sanctioningBody: Pick<
-    SanctioningBody,
-    "id" | "name" | "abbreviation" | "website"
-  > | null;
 };
+
+// Distinct red/blue fighter ids across a card.
+export function fighterIdsOf(
+  bouts: Pick<Bout, "red_corner_fighter_id" | "blue_corner_fighter_id">[],
+): string[] {
+  return Array.from(
+    new Set(
+      bouts
+        .flatMap((b) => [b.red_corner_fighter_id, b.blue_corner_fighter_id])
+        .filter((x): x is string => Boolean(x)),
+    ),
+  );
+}
 
 export const loadEventDetail = cache(async (id: string): Promise<EventDetail | null> => {
   const supabase = db();
@@ -47,15 +52,7 @@ export const loadEventDetail = cache(async (id: string): Promise<EventDetail | n
     .maybeSingle<EventRow>();
   if (!event) return null;
 
-  const [
-    { data: bouts },
-    { data: ledger },
-    { data: sponsorSlots },
-    { data: sponsorTargets },
-    { data: sponsorableItems },
-    { data: sponsorRegistry },
-    sanctioningRes,
-  ] = await Promise.all([
+  const [{ data: bouts }, { data: ledger }, { data: sponsorSlots }] = await Promise.all([
     supabase
       .from("bouts")
       .select("*")
@@ -63,51 +60,27 @@ export const loadEventDetail = cache(async (id: string): Promise<EventDetail | n
       .order("bout_order", { ascending: true, nullsFirst: false }),
     supabase.from("event_ledger").select("*").eq("event_id", id).order("created_at"),
     supabase.from("event_sponsors").select("*").eq("event_id", id),
-    supabase.from("event_sponsor_targets").select("*").eq("event_id", id),
-    supabase
-      .from("event_sponsorable_items")
-      .select("*")
-      .eq("event_id", id)
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true }),
-    supabase.from("sponsors").select("id, name").order("name"),
-    event.sanctioning_body_id
-      ? supabase
-          .from("sanctioning_bodies")
-          .select("id, name, abbreviation, website")
-          .eq("id", event.sanctioning_body_id)
-          .maybeSingle<
-            Pick<SanctioningBody, "id" | "name" | "abbreviation" | "website">
-          >()
-      : Promise.resolve({ data: null }),
   ]);
 
   const boutList = (bouts ?? []) as Bout[];
   const boutIds = boutList.map((b) => b.id);
+  const fighterIds = fighterIdsOf(boutList);
 
-  const [{ data: checks }, { data: purses }] = boutIds.length
-    ? await Promise.all([
-        supabase.from("bout_fighter_checks").select("*").in("bout_id", boutIds),
-        supabase.from("bout_purses").select("*").in("bout_id", boutIds),
-      ])
-    : [{ data: [] }, { data: [] }];
+  const [{ data: checks }, { data: purses }, { data: fighters }] = await Promise.all([
+    boutIds.length
+      ? supabase.from("bout_fighter_checks").select("*").in("bout_id", boutIds)
+      : Promise.resolve({ data: [] }),
+    boutIds.length
+      ? supabase.from("bout_purses").select("*").in("bout_id", boutIds)
+      : Promise.resolve({ data: [] }),
+    fighterIds.length
+      ? supabase.from("fighters").select("id, full_name").in("id", fighterIds)
+      : Promise.resolve({ data: [] }),
+  ]);
 
-  const fighterIds = Array.from(
-    new Set(
-      boutList
-        .flatMap((b) => [b.red_corner_fighter_id, b.blue_corner_fighter_id])
-        .filter((x): x is string => Boolean(x)),
-    ),
-  );
   const fighterMap = new Map<string, Pick<Fighter, "id" | "full_name">>();
-  if (fighterIds.length) {
-    const { data: fighters } = await supabase
-      .from("fighters")
-      .select("id, full_name")
-      .in("id", fighterIds);
-    for (const f of (fighters ?? []) as Pick<Fighter, "id" | "full_name">[]) {
-      fighterMap.set(f.id, f);
-    }
+  for (const f of (fighters ?? []) as Pick<Fighter, "id" | "full_name">[]) {
+    fighterMap.set(f.id, f);
   }
 
   const checkList = (checks ?? []) as BoutFighterCheck[];
@@ -130,9 +103,34 @@ export const loadEventDetail = cache(async (id: string): Promise<EventDetail | n
     purses: (purses ?? []) as BoutPurse[],
     ledger: (ledger ?? []) as LedgerEntry[],
     sponsorSlots: (sponsorSlots ?? []) as EventSponsor[],
+  };
+});
+
+// Sponsors-tab-only data. Kept out of loadEventDetail so the layout (which
+// renders on every tab) doesn't pull the whole sponsor registry each time.
+export type EventSponsorExtras = {
+  sponsorTargets: EventSponsorTarget[];
+  sponsorableItems: EventSponsorableItem[];
+  sponsorRegistry: Pick<Sponsor, "id" | "name">[];
+};
+
+export async function loadEventSponsorExtras(id: string): Promise<EventSponsorExtras> {
+  const supabase = db();
+  const [{ data: sponsorTargets }, { data: sponsorableItems }, { data: sponsorRegistry }] =
+    await Promise.all([
+      supabase.from("event_sponsor_targets").select("*").eq("event_id", id),
+      supabase
+        .from("event_sponsorable_items")
+        .select("*")
+        .eq("event_id", id)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true }),
+      supabase.from("sponsors").select("id, name").order("name"),
+    ]);
+
+  return {
     sponsorTargets: (sponsorTargets ?? []) as EventSponsorTarget[],
     sponsorableItems: (sponsorableItems ?? []) as EventSponsorableItem[],
     sponsorRegistry: (sponsorRegistry ?? []) as Pick<Sponsor, "id" | "name">[],
-    sanctioningBody: sanctioningRes.data,
   };
-});
+}

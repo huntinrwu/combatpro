@@ -11,7 +11,6 @@ import { Textarea } from "@/components/ui/textarea";
 import type {
   Bout,
   BoutScorecard,
-  EventOfficial,
   Fighter,
   Official,
 } from "@/lib/db/types";
@@ -40,65 +39,60 @@ export default async function JudgeScoringPage({
 
   const { data: bout } = await supabase
     .from("bouts")
-    .select("*")
+    .select("event_id, red_corner_fighter_id, blue_corner_fighter_id, rounds")
     .eq("id", boutId)
-    .maybeSingle<Bout>();
+    .maybeSingle<
+      Pick<Bout, "event_id" | "red_corner_fighter_id" | "blue_corner_fighter_id" | "rounds">
+    >();
 
   if (!bout) notFound();
 
-  // Load judges from the event roster — same pool for every bout on the card.
-  const { data: rosterJudges } = await supabase
-    .from("event_officials")
-    .select("*")
-    .eq("event_id", bout.event_id)
-    .eq("event_role", "judge");
-
-  const judgeIds = ((rosterJudges ?? []) as EventOfficial[]).map(
-    (r) => r.official_id,
+  const fighterIds = [bout.red_corner_fighter_id, bout.blue_corner_fighter_id].filter(
+    (x): x is string => Boolean(x),
   );
-  const { data: judges } = judgeIds.length
-    ? await supabase
-        .from("officials")
-        .select("id, full_name")
-        .in("id", judgeIds)
-    : { data: [] as Pick<Official, "id" | "full_name">[] };
+
+  // Load judges from the event roster — same pool for every bout on the card.
+  // Fighters and the requested judge's cards are fetched alongside; they're
+  // only used once judgeParam is confirmed to be on the roster.
+  const [{ data: rosterJudges }, { data: fs }, { data: myCards }] = await Promise.all([
+    supabase
+      .from("event_officials")
+      .select("official:officials(id, full_name)")
+      .eq("event_id", bout.event_id)
+      .eq("event_role", "judge"),
+    judgeParam && fighterIds.length
+      ? supabase.from("fighters").select("id, full_name").in("id", fighterIds)
+      : Promise.resolve({ data: [] as Pick<Fighter, "id" | "full_name">[] }),
+    judgeParam
+      ? supabase
+          .from("bout_scorecards")
+          .select("*")
+          .eq("bout_id", boutId)
+          .eq("judge_official_id", judgeParam)
+          .order("round_number")
+      : Promise.resolve({ data: [] as BoutScorecard[] }),
+  ]);
+
+  const judges = (
+    (rosterJudges ?? []) as unknown as { official: Pick<Official, "id" | "full_name"> | null }[]
+  )
+    .map((r) => r.official)
+    .filter((o): o is Pick<Official, "id" | "full_name"> => Boolean(o));
+  const judgeIds = judges.map((j) => j.id);
 
   // Judge picker if none selected
   const activeJudgeId = judgeParam && judgeIds.includes(judgeParam) ? judgeParam : null;
 
   if (!activeJudgeId) {
-    return (
-      <JudgePicker
-        boutId={boutId}
-        judges={(judges ?? []) as Pick<Official, "id" | "full_name">[]}
-      />
-    );
+    return <JudgePicker boutId={boutId} judges={judges} />;
   }
 
   // Fighter names
-  const fighterIds = [bout.red_corner_fighter_id, bout.blue_corner_fighter_id].filter(
-    (x): x is string => Boolean(x),
-  );
   const fighterMap = new Map<string, Pick<Fighter, "id" | "full_name">>();
-  if (fighterIds.length) {
-    const { data: fs } = await supabase
-      .from("fighters")
-      .select("id, full_name")
-      .in("id", fighterIds);
-    for (const f of fs ?? []) fighterMap.set(f.id, f);
-  }
+  for (const f of fs ?? []) fighterMap.set(f.id, f);
   const red = bout.red_corner_fighter_id ? fighterMap.get(bout.red_corner_fighter_id) : null;
   const blue = bout.blue_corner_fighter_id ? fighterMap.get(bout.blue_corner_fighter_id) : null;
-  const judgeName =
-    (judges ?? []).find((j) => j.id === activeJudgeId)?.full_name ?? "Judge";
-
-  // This judge's cards
-  const { data: myCards } = await supabase
-    .from("bout_scorecards")
-    .select("*")
-    .eq("bout_id", boutId)
-    .eq("judge_official_id", activeJudgeId)
-    .order("round_number");
+  const judgeName = judges.find((j) => j.id === activeJudgeId)?.full_name ?? "Judge";
 
   const cards = (myCards ?? []) as BoutScorecard[];
   const totalRounds = bout.rounds ?? 10;

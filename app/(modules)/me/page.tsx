@@ -26,6 +26,37 @@ import { SPORTS, STANCES } from "@/lib/db/types";
 
 export const dynamic = "force-dynamic";
 
+// Only the columns the self-serve cards render / prefill.
+type MyFighter = Pick<
+  Fighter,
+  | "id"
+  | "nickname"
+  | "primary_sport"
+  | "gym_id"
+  | "weight_class"
+  | "stance"
+  | "height_cm"
+  | "reach_cm"
+  | "walking_weight_lbs"
+  | "contact_email"
+  | "contact_phone"
+  | "hometown"
+  | "nationality"
+  | "photo_url"
+>;
+type MyOfficial = Pick<
+  Official,
+  | "id"
+  | "roles"
+  | "home_state"
+  | "is_active"
+  | "contact_email"
+  | "contact_phone"
+  | "sports"
+  | "certifications"
+  | "photo_url"
+>;
+
 export default async function MyProfilePage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
@@ -57,14 +88,18 @@ export default async function MyProfilePage() {
       .maybeSingle<Person>(),
     admin
       .from("fighters")
-      .select("*")
+      .select(
+        "id, nickname, primary_sport, gym_id, weight_class, stance, height_cm, reach_cm, walking_weight_lbs, contact_email, contact_phone, hometown, nationality, photo_url",
+      )
       .eq("person_id", user.personId)
-      .maybeSingle<Fighter>(),
+      .maybeSingle<MyFighter>(),
     admin
       .from("officials")
-      .select("*")
+      .select(
+        "id, roles, home_state, is_active, contact_email, contact_phone, sports, certifications, photo_url",
+      )
       .eq("person_id", user.personId)
-      .maybeSingle<Official>(),
+      .maybeSingle<MyOfficial>(),
     admin
       .from("gyms")
       .select("id, name, city, state")
@@ -145,7 +180,7 @@ function FighterCard({
   fighter,
   gymList,
 }: {
-  fighter: Fighter;
+  fighter: MyFighter;
   gymList: Pick<Gym, "id" | "name" | "city" | "state">[];
 }) {
   const heightParts = cmToFeetIn(fighter.height_cm);
@@ -317,7 +352,7 @@ function FighterCard({
   );
 }
 
-function OfficialCard({ official }: { official: Official }) {
+function OfficialCard({ official }: { official: MyOfficial }) {
   return (
     <Card>
       <CardHeader>

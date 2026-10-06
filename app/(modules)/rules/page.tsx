@@ -20,6 +20,21 @@ type Search = { q?: string; sport?: string; sb?: string; view?: string };
 
 type SbLite = Pick<SanctioningBody, "id" | "name" | "abbreviation">;
 
+type RulesetRow = Pick<
+  Ruleset,
+  | "id"
+  | "name"
+  | "sport"
+  | "is_default"
+  | "sanctioning_body_id"
+  | "rounds_championship"
+  | "rounds_non_championship"
+  | "round_length_minutes"
+  | "scoring_mode"
+  | "notes"
+  | "glove_specs"
+>;
+
 export default async function RulesListPage({
   searchParams,
 }: {
@@ -31,14 +46,19 @@ export default async function RulesListPage({
   const supabase = db();
 
   const [{ data: rulesets, error }, { data: sbs }] = await Promise.all([
-    supabase.from("rulesets").select("*").order("name"),
+    supabase
+      .from("rulesets")
+      .select(
+        "id, name, sport, is_default, sanctioning_body_id, rounds_championship, rounds_non_championship, round_length_minutes, scoring_mode, notes, glove_specs",
+      )
+      .order("name"),
     supabase.from("sanctioning_bodies").select("id, name, abbreviation").order("name"),
   ]);
 
   const sbMap = new Map<string, SbLite>();
   for (const s of (sbs ?? []) as SbLite[]) sbMap.set(s.id, s);
 
-  const list = ((rulesets ?? []) as Ruleset[]).filter((r) => {
+  const list = ((rulesets ?? []) as RulesetRow[]).filter((r) => {
     if (sport && r.sport !== sport) return false;
     if (sb) {
       if (sb === "__none__" && r.sanctioning_body_id) return false;
@@ -159,12 +179,12 @@ export default async function RulesListPage({
   );
 }
 
-function sbLabel(r: Ruleset, sbMap: Map<string, SbLite>): string {
+function sbLabel(r: RulesetRow, sbMap: Map<string, SbLite>): string {
   if (!r.sanctioning_body_id) return "house";
   return sbMap.get(r.sanctioning_body_id)?.abbreviation ?? "?";
 }
 
-function ListView({ rulesets, sbMap }: { rulesets: Ruleset[]; sbMap: Map<string, SbLite> }) {
+function ListView({ rulesets, sbMap }: { rulesets: RulesetRow[]; sbMap: Map<string, SbLite> }) {
   return (
     <TableShell
       head={
@@ -210,7 +230,7 @@ function ListView({ rulesets, sbMap }: { rulesets: Ruleset[]; sbMap: Map<string,
   );
 }
 
-function CardView({ rulesets, sbMap }: { rulesets: Ruleset[]; sbMap: Map<string, SbLite> }) {
+function CardView({ rulesets, sbMap }: { rulesets: RulesetRow[]; sbMap: Map<string, SbLite> }) {
   return (
     <CardGrid>
       {rulesets.map((r) => (
@@ -258,7 +278,7 @@ function CardView({ rulesets, sbMap }: { rulesets: Ruleset[]; sbMap: Map<string,
   );
 }
 
-function GridView({ rulesets, sbMap }: { rulesets: Ruleset[]; sbMap: Map<string, SbLite> }) {
+function GridView({ rulesets, sbMap }: { rulesets: RulesetRow[]; sbMap: Map<string, SbLite> }) {
   return (
     <TileGrid>
       {rulesets.map((r) => (
@@ -285,7 +305,7 @@ function GridView({ rulesets, sbMap }: { rulesets: Ruleset[]; sbMap: Map<string,
   );
 }
 
-function CompactView({ rulesets, sbMap }: { rulesets: Ruleset[]; sbMap: Map<string, SbLite> }) {
+function CompactView({ rulesets, sbMap }: { rulesets: RulesetRow[]; sbMap: Map<string, SbLite> }) {
   return (
     <CompactList>
       {rulesets.map((r) => (
@@ -315,8 +335,8 @@ function CompactView({ rulesets, sbMap }: { rulesets: Ruleset[]; sbMap: Map<stri
   );
 }
 
-function KanbanView({ rulesets, sbMap }: { rulesets: Ruleset[]; sbMap: Map<string, SbLite> }) {
-  const buckets = new Map<string, Ruleset[]>();
+function KanbanView({ rulesets, sbMap }: { rulesets: RulesetRow[]; sbMap: Map<string, SbLite> }) {
+  const buckets = new Map<string, RulesetRow[]>();
   for (const s of SPORTS) buckets.set(s, []);
   for (const r of rulesets) {
     if (!buckets.has(r.sport)) buckets.set(r.sport, []);

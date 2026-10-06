@@ -72,26 +72,8 @@ export function lbsToKg(lbs: number | string | null | undefined): number | null 
   return n / LBS_PER_KG;
 }
 
-// `175.5 lbs (79.6 kg)`. When `showMetric` is false, drops the kg suffix.
-export function fmtWeightLbs(
-  lbs: number | string | null | undefined,
-  { showMetric = true }: { showMetric?: boolean } = {},
-): string {
-  const n = toNum(lbs);
-  if (n == null) return "";
-  const lbsPart = `${trimNum(n)} lbs`;
-  if (!showMetric) return lbsPart;
-  const kg = n / LBS_PER_KG;
-  return `${lbsPart} (${trimNum(kg, 1)} kg)`;
-}
-
 function toNum(v: unknown): number | null {
   if (v == null || v === "") return null;
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : null;
-}
-
-function trimNum(n: number, decimals = 1): string {
-  const rounded = Number(n.toFixed(decimals));
-  return Number.isInteger(rounded) ? rounded.toString() : rounded.toString();
 }

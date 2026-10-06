@@ -32,7 +32,6 @@ import {
 
 export const dynamic = "force-dynamic";
 
-
 export default async function EventLayout({
   children,
   params,
@@ -41,10 +40,9 @@ export default async function EventLayout({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const detail = await loadEventDetail(id);
+  const [detail, session] = await Promise.all([loadEventDetail(id), getSessionUser()]);
   if (!detail) notFound();
   const { event, bouts, checks, purses, ledger, sponsorSlots } = detail;
-  const session = await getSessionUser();
   const canEdit = session ? canEditEvent(event, session) : false;
 
   const boutIds = bouts.map((b) => b.id);

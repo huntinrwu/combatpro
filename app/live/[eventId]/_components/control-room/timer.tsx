@@ -1,30 +1,63 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
 import { Pause, Play, RotateCcw, SkipForward } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
-import { fmtClock } from "./format";
+import { fmtClock, type TimerState } from "./format";
 
 export function Timer({
-  remainingMs,
-  round,
+  timer,
+  roundLengthMs,
   totalRounds,
-  isRunning,
-  isEndOfRound,
+  onRoundEnd,
   onStart,
   onPause,
   onReset,
   onNextRound,
 }: {
-  remainingMs: number;
-  round: number;
+  timer: TimerState;
+  roundLengthMs: number;
   totalRounds: number;
-  isRunning: boolean;
-  isEndOfRound: boolean;
+  onRoundEnd: () => void;
   onStart: () => void;
   onPause: () => void;
   onReset: () => void;
   onNextRound: () => void;
 }) {
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    if (timer.startedAt == null) return;
+    const id = window.setInterval(() => setTick((t) => t + 1), 250);
+    return () => window.clearInterval(id);
+  }, [timer.startedAt]);
+
+  // Re-derived every render — `tick` state forces one every 250ms while
+  // running. `Date.now()` during render is intentional here (the tick is the
+  // only reason we re-render), so the react-hooks/purity rule is disabled.
+  void tick;
+  // eslint-disable-next-line react-hooks/purity
+  const nowMs = Date.now();
+  const elapsedMs =
+    timer.startedAt == null ? timer.accumulatedMs : timer.accumulatedMs + (nowMs - timer.startedAt);
+
+  const remainingMs = roundLengthMs - elapsedMs;
+  const isRunning = timer.startedAt != null;
+  const isEndOfRound = remainingMs <= 0;
+  const round = timer.round;
+
+  // Auto-pause at end of round.
+  const endedRef = useRef(false);
+  useEffect(() => {
+    if (isEndOfRound && isRunning && !endedRef.current) {
+      endedRef.current = true;
+      onRoundEnd();
+    }
+    if (!isEndOfRound) endedRef.current = false;
+  }, [isEndOfRound, isRunning, onRoundEnd]);
+
   return (
     <div
       className={`mt-6 rounded-xl border p-6 text-center transition-colors ${

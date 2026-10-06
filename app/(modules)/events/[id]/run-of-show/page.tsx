@@ -2,26 +2,32 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ChevronLeft, Clock, ListOrdered } from "lucide-react";
 
-import { PrintButton } from "./_components/print-button";
+import { PrintButton } from "../_components/print-button";
+import { fighterIdsOf, loadEventDetail } from "../_lib/event-detail";
 import { db } from "@/lib/db/client";
 import { fmtDateLong as fmtEventDate } from "@/lib/format-utils";
 import { OFFICIAL_ROLE_ORDER as OFFICIAL_ORDER } from "@/lib/ui-config";
 import { Badge } from "@/components/ui/badge";
 import { EVENT_ROLE_LABELS } from "@/lib/db/types";
 import type {
-  Bout,
   Commission,
-  EventOfficial,
   EventRole,
-  EventRow,
   Fighter,
-  Gym,
   Official,
   Ruleset,
   SanctioningBody,
 } from "@/lib/db/types";
 
 export const dynamic = "force-dynamic";
+
+type ShowFighter = Pick<Fighter, "id" | "full_name" | "gym" | "gym_id"> & {
+  gym_ref: { name: string } | null;
+};
+
+type ShowAssignment = {
+  event_role: EventRole;
+  official: Pick<Official, "full_name"> | null;
+};
 
 export default async function RunOfShowPage({
   params,
@@ -31,25 +37,23 @@ export default async function RunOfShowPage({
   const { id } = await params;
   const supabase = db();
 
-  const { data: event } = await supabase
-    .from("events")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle<EventRow>();
+  // Event + bouts come from the per-request cache the [id] layout populated.
+  const detail = await loadEventDetail(id);
+  if (!detail) notFound();
+  const { event, bouts } = detail;
 
-  if (!event) notFound();
+  const fighterIds = fighterIdsOf(bouts);
+  const rulesetIds = Array.from(
+    new Set(bouts.map((b) => b.ruleset_id).filter((x): x is string => Boolean(x))),
+  );
 
   const [
-    { data: rawBouts },
     commissionRes,
     bodyRes,
     { data: rulesets },
+    { data: fighters },
+    { data: assignments },
   ] = await Promise.all([
-    supabase
-      .from("bouts")
-      .select("*")
-      .eq("event_id", id)
-      .order("bout_order", { ascending: true, nullsFirst: false }),
     event.commission_id
       ? supabase
           .from("commissions")
@@ -64,55 +68,27 @@ export default async function RunOfShowPage({
           .eq("id", event.sanctioning_body_id)
           .maybeSingle<Pick<SanctioningBody, "id" | "abbreviation" | "name">>()
       : Promise.resolve({ data: null }),
-    supabase.from("rulesets").select("id, name"),
+    rulesetIds.length
+      ? supabase.from("rulesets").select("id, name").in("id", rulesetIds)
+      : Promise.resolve({ data: [] }),
+    // Gym name is embedded via fighters.gym_id → gyms instead of pulling the
+    // whole gyms table.
+    fighterIds.length
+      ? supabase
+          .from("fighters")
+          .select("id, full_name, gym, gym_id, gym_ref:gyms(name)")
+          .in("id", fighterIds)
+      : Promise.resolve({ data: [] }),
+    supabase
+      .from("event_officials")
+      .select("event_role, official:officials(full_name)")
+      .eq("event_id", id)
+      .order("created_at"),
   ]);
 
-  const bouts = (rawBouts ?? []) as Bout[];
-
-  const fighterIds = Array.from(
-    new Set(
-      bouts
-        .flatMap((b) => [b.red_corner_fighter_id, b.blue_corner_fighter_id])
-        .filter((x): x is string => Boolean(x)),
-    ),
-  );
-
-  const [{ data: fighters }, { data: assignments }, { data: officials }, { data: gyms }] =
-    await Promise.all([
-      fighterIds.length
-        ? supabase
-            .from("fighters")
-            .select("id, full_name, nickname, gym, gym_id, hometown")
-            .in("id", fighterIds)
-        : Promise.resolve({ data: [] }),
-      supabase
-        .from("event_officials")
-        .select("*")
-        .eq("event_id", id)
-        .order("created_at"),
-      supabase.from("officials").select("id, full_name, roles"),
-      supabase.from("gyms").select("id, name"),
-    ]);
-
-  const fighterMap = new Map<
-    string,
-    Pick<Fighter, "id" | "full_name" | "nickname" | "gym" | "gym_id" | "hometown">
-  >();
-  for (const f of (fighters ?? []) as Pick<
-    Fighter,
-    "id" | "full_name" | "nickname" | "gym" | "gym_id" | "hometown"
-  >[]) {
+  const fighterMap = new Map<string, ShowFighter>();
+  for (const f of (fighters ?? []) as unknown as ShowFighter[]) {
     fighterMap.set(f.id, f);
-  }
-
-  const officialMap = new Map<string, Pick<Official, "id" | "full_name">>();
-  for (const o of (officials ?? []) as Pick<Official, "id" | "full_name">[]) {
-    officialMap.set(o.id, o);
-  }
-
-  const gymMap = new Map<string, Pick<Gym, "id" | "name">>();
-  for (const g of (gyms ?? []) as Pick<Gym, "id" | "name">[]) {
-    gymMap.set(g.id, g);
   }
 
   const rulesetMap = new Map<string, Pick<Ruleset, "id" | "name">>();
@@ -121,8 +97,8 @@ export default async function RunOfShowPage({
   }
 
   const rosterByRole = new Map<EventRole, string[]>();
-  for (const a of (assignments ?? []) as EventOfficial[]) {
-    const name = officialMap.get(a.official_id)?.full_name ?? "(unassigned)";
+  for (const a of (assignments ?? []) as unknown as ShowAssignment[]) {
+    const name = a.official?.full_name ?? "(unassigned)";
     const arr = rosterByRole.get(a.event_role) ?? [];
     arr.push(name);
     rosterByRole.set(a.event_role, arr);
@@ -135,7 +111,7 @@ export default async function RunOfShowPage({
     if (!id) return "TBD";
     const f = fighterMap.get(id);
     if (!f) return "TBD";
-    const gym = f.gym_id ? gymMap.get(f.gym_id)?.name : f.gym;
+    const gym = f.gym_id ? f.gym_ref?.name : f.gym;
     return gym ? `${f.full_name} (${gym})` : f.full_name;
   }
 

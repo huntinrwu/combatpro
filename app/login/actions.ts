@@ -2,18 +2,10 @@
 
 import { redirect } from "next/navigation";
 
+import { safeNext } from "@/lib/auth/safe-next";
 import { createClient } from "@/lib/supabase/server";
 
 export type LoginResult = { ok: true } | { ok: false; error: string };
-
-// Same-origin path only: must start with a single "/", must not start with "//"
-// or "/\" (protocol-relative), must not embed a scheme.
-function safeNext(raw: string | undefined): string {
-  if (!raw) return "/";
-  if (!raw.startsWith("/")) return "/";
-  if (raw.startsWith("//") || raw.startsWith("/\\")) return "/";
-  return raw;
-}
 
 export async function loginAction(_prev: LoginResult, fd: FormData): Promise<LoginResult> {
   const email = fd.get("email")?.toString().trim().toLowerCase();

@@ -52,12 +52,11 @@ export default async function OfficialDetailPage({
 }) {
   const { id } = await params;
   const supabase = db();
-  const session = await getSessionUser();
 
   // Fetch everything scoped by the official id in one round-trip. The person
-  // lookup depends on official.person_id so it comes after — but the SB
-  // queries no longer wait on it.
+  // and event lookups depend on this batch so they come after — together.
   const [
+    session,
     { data: official },
     { data: assignments },
     { data: availability },
@@ -65,6 +64,7 @@ export default async function OfficialDetailPage({
     { data: sbLinks },
     { data: allSbs },
   ] = await Promise.all([
+    getSessionUser(),
     supabase.from("officials").select("*").eq("id", id).maybeSingle<Official>(),
     supabase.from("event_officials").select("*").eq("official_id", id),
     supabase
@@ -86,32 +86,35 @@ export default async function OfficialDetailPage({
 
   if (!official) notFound();
 
-  const { data: person } = official.person_id
-    ? await supabase
-        .from("persons")
-        .select("person_no")
-        .eq("id", official.person_id)
-        .maybeSingle<{ person_no: number }>()
-    : { data: null as { person_no: number } | null };
+  const assignRows = (assignments ?? []) as EventOfficial[];
+  const eventIds = Array.from(new Set(assignRows.map((a) => a.event_id)));
+
+  const [{ data: person }, { data: events }] = await Promise.all([
+    official.person_id
+      ? supabase
+          .from("persons")
+          .select("person_no")
+          .eq("id", official.person_id)
+          .maybeSingle<{ person_no: number }>()
+      : Promise.resolve({ data: null as { person_no: number } | null }),
+    eventIds.length
+      ? supabase
+          .from("events")
+          .select("id, name, event_date, venue, city, state")
+          .in("id", eventIds)
+      : Promise.resolve({ data: [] }),
+  ]);
 
   const links = (sbLinks ?? []) as OfficialSanctioningBody[];
   const sbList = (allSbs ?? []) as Pick<SanctioningBody, "id" | "name" | "abbreviation">[];
   const sbMap = new Map(sbList.map((sb) => [sb.id, sb]));
   const linkedSbIds = new Set(links.map((l) => l.sanctioning_body_id));
 
-  const assignRows = (assignments ?? []) as EventOfficial[];
-  const eventIds = Array.from(new Set(assignRows.map((a) => a.event_id)));
   const eventMap = new Map<
     string,
     Pick<EventRow, "id" | "name" | "event_date" | "venue" | "city" | "state">
   >();
-  if (eventIds.length) {
-    const { data: events } = await supabase
-      .from("events")
-      .select("id, name, event_date, venue, city, state")
-      .in("id", eventIds);
-    for (const e of events ?? []) eventMap.set(e.id, e);
-  }
+  for (const e of events ?? []) eventMap.set(e.id, e);
 
   const enriched: EnrichedAssignment[] = assignRows.map((a) => ({
     ...a,

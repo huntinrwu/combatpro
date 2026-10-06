@@ -5,9 +5,9 @@ import {
   num,
   paymentMethodLabel,
   type EventRow,
-  type LedgerEntry,
-  type Vendor,
 } from "@/lib/db/types";
+import { loadLedger } from "@/app/api/_lib/ledger";
+import { fileSlug } from "@/app/api/_lib/slug";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,35 +29,15 @@ export async function GET(
   const { id } = await params;
   const supabase = db();
 
-  const { data: event } = await supabase
-    .from("events")
-    .select("id, name, event_date")
-    .eq("id", id)
-    .maybeSingle<Pick<EventRow, "id" | "name" | "event_date">>();
+  const [{ data: event }, { rows, vendorNameMap }] = await Promise.all([
+    supabase
+      .from("events")
+      .select("id, name, event_date")
+      .eq("id", id)
+      .maybeSingle<Pick<EventRow, "id" | "name" | "event_date">>(),
+    loadLedger(id),
+  ]);
   if (!event) return new Response("Event not found", { status: 404 });
-
-  const { data: entries } = await supabase
-    .from("event_ledger")
-    .select("*")
-    .eq("event_id", id)
-    .order("entry_type", { ascending: true })
-    .order("received_at", { ascending: true, nullsFirst: false })
-    .order("created_at");
-  const rows = (entries ?? []) as LedgerEntry[];
-
-  const vendorIds = Array.from(
-    new Set(rows.map((r) => r.vendor_id).filter((x): x is string => Boolean(x))),
-  );
-  const vendorNameMap = new Map<string, string>();
-  if (vendorIds.length) {
-    const { data: vendors } = await supabase
-      .from("vendors")
-      .select("id, name")
-      .in("id", vendorIds);
-    for (const v of ((vendors ?? []) as Pick<Vendor, "id" | "name">[])) {
-      vendorNameMap.set(v.id, v.name);
-    }
-  }
 
   const header = [
     "Type",
@@ -96,8 +76,7 @@ export async function GET(
     );
   }
 
-  const slug = event.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-");
-  const filename = `ledger-${slug}-${event.event_date}.csv`;
+  const filename = `ledger-${fileSlug(event.name)}-${event.event_date}.csv`;
 
   return new Response(lines.join("\r\n"), {
     status: 200,

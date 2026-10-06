@@ -3,22 +3,17 @@
 import { revalidatePath } from "next/cache";
 
 import { db, dbErr } from "@/lib/db/client";
+import { orNull } from "@/lib/form-utils";
 import { requireStaff } from "@/lib/auth/session";
 import { CORNERMAN_ROLES, type CornermanRole } from "@/lib/db/types";
 
-function str(raw: FormDataEntryValue | null): string | null {
-  if (typeof raw !== "string") return null;
-  const t = raw.trim();
-  return t.length ? t : null;
-}
-
 export async function addCornerman(formData: FormData) {
   await requireStaff();
-  const bout_id = str(formData.get("bout_id"));
-  const event_id = str(formData.get("event_id"));
-  const corner = str(formData.get("corner"));
-  const name = str(formData.get("name"));
-  const roleRaw = str(formData.get("role"));
+  const bout_id = orNull(formData.get("bout_id"));
+  const event_id = orNull(formData.get("event_id"));
+  const corner = orNull(formData.get("corner"));
+  const name = orNull(formData.get("name"));
+  const roleRaw = orNull(formData.get("role"));
 
   if (!bout_id || !event_id) throw new Error("Missing bout_id / event_id.");
   if (corner !== "red" && corner !== "blue") throw new Error("Invalid corner.");
@@ -33,7 +28,7 @@ export async function addCornerman(formData: FormData) {
     corner,
     name,
     role,
-    notes: str(formData.get("notes")),
+    notes: orNull(formData.get("notes")),
   });
 
   if (error) dbErr(error);
@@ -42,9 +37,9 @@ export async function addCornerman(formData: FormData) {
 
 export async function deleteCornerman(formData: FormData) {
   await requireStaff();
-  const id = str(formData.get("id"));
-  const bout_id = str(formData.get("bout_id"));
-  const event_id = str(formData.get("event_id"));
+  const id = orNull(formData.get("id"));
+  const bout_id = orNull(formData.get("bout_id"));
+  const event_id = orNull(formData.get("event_id"));
   if (!id || !bout_id || !event_id) throw new Error("Missing fields.");
 
   // Scope by bout so a rogue id can't delete a cornerman from another bout.
