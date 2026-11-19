@@ -16,7 +16,7 @@ export function PromotionReviewButtons({
       <form action={setPromotionStatus}>
         <input type="hidden" name="id" value={id} />
         <input type="hidden" name="status" value="approved" />
-        <Button size="sm" variant="outline">
+        <Button type="submit" size="sm" variant="outline">
           <Check className={iconClassName} />
           Approve
         </Button>
@@ -24,7 +24,7 @@ export function PromotionReviewButtons({
       <form action={setPromotionStatus}>
         <input type="hidden" name="id" value={id} />
         <input type="hidden" name="status" value="rejected" />
-        <Button size="sm" variant="ghost">
+        <Button type="submit" size="sm" variant="ghost">
           <X className={iconClassName} />
           Reject
         </Button>
