@@ -51,14 +51,16 @@ export default async function VendorDetailPage({
       .maybeSingle<Vendor>(),
     supabase
       .from("event_ledger")
-      .select("id, event_id, label, amount, subcategory, payment_method, received_at, reference, notes")
+      .select(
+        "id, event_id, label, amount, subcategory, payment_method, received_at, reference, notes, event:events(id, name, event_date)",
+      )
       .eq("vendor_id", id)
       .order("received_at", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false }),
   ]);
   if (!vendor) notFound();
 
-  const entries = (ledger ?? []) as Pick<
+  const entries = (ledger ?? []) as unknown as (Pick<
     LedgerEntry,
     | "id"
     | "event_id"
@@ -69,20 +71,9 @@ export default async function VendorDetailPage({
     | "received_at"
     | "reference"
     | "notes"
-  >[];
+  > & { event: Pick<EventRow, "id" | "name" | "event_date"> | null })[];
 
   const eventIds = Array.from(new Set(entries.map((e) => e.event_id)));
-  const { data: events } = eventIds.length
-    ? await supabase
-        .from("events")
-        .select("id, name, event_date")
-        .in("id", eventIds)
-    : { data: [] as Pick<EventRow, "id" | "name" | "event_date">[] };
-  const eventMap = new Map(
-    ((events ?? []) as Pick<EventRow, "id" | "name" | "event_date">[]).map(
-      (e) => [e.id, e],
-    ),
-  );
 
   const totalSpend = entries.reduce((s, e) => s + num(e.amount), 0);
   const lastPaid = entries.find((e) => e.received_at)?.received_at ?? null;
@@ -319,7 +310,7 @@ export default async function VendorDetailPage({
           empty="No expenses tagged to this vendor yet. On any event's Financials tab, pick this vendor when adding an expense."
         >
           {entries.map((e) => {
-            const evt = eventMap.get(e.event_id);
+            const evt = e.event;
             const pm = paymentMethodLabel(e.payment_method);
             return (
               <LedgerRow

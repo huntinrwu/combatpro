@@ -5,12 +5,14 @@ import type {
   Bout,
   BoutFighterCheck,
   BoutPurse,
+  Commission,
   EventRow,
   EventSponsor,
   EventSponsorableItem,
   EventSponsorTarget,
   Fighter,
   LedgerEntry,
+  SanctioningBody,
   Sponsor,
 } from "@/lib/db/types";
 
@@ -24,8 +26,19 @@ export type EventFighter = Pick<Fighter, "id" | "full_name" | "gym" | "gym_id"> 
 // via React's cache() — the layout and any child page can call
 // loadEventDetail(id) and share the same in-memory result. Cuts the "layout
 // fetches X, child page re-fetches X" waste on every event detail page load.
+export type EventCommission = Pick<
+  Commission,
+  "id" | "abbreviation" | "name" | "jurisdiction" | "website"
+>;
+export type EventSanctioningBody = Pick<
+  SanctioningBody,
+  "id" | "abbreviation" | "name" | "scope" | "website"
+>;
+
 export type EventDetail = {
   event: EventRow;
+  commission: EventCommission | null;
+  sanctioningBody: EventSanctioningBody | null;
   bouts: Bout[];
   fighterMap: Map<string, EventFighter>;
   checks: BoutFighterCheck[];
@@ -58,9 +71,22 @@ export function fighterLabel(f: EventFighter | null | undefined): string {
 export const loadEventDetail = cache(async (id: string): Promise<EventDetail | null> => {
   const supabase = db();
 
-  const [{ data: event }, { data: bouts }, { data: ledger }, { data: sponsorSlots }] =
+  const [{ data: eventRow }, { data: bouts }, { data: ledger }, { data: sponsorSlots }] =
     await Promise.all([
-      supabase.from("events").select("*").eq("id", id).maybeSingle<EventRow>(),
+      // Commission + sanctioning body ride along via events.commission_id and
+      // events.sanctioning_body_id (single FKs, so no embed hint needed).
+      supabase
+        .from("events")
+        .select(
+          "*, commission:commissions(id, abbreviation, name, jurisdiction, website), sanctioning_body:sanctioning_bodies(id, abbreviation, name, scope, website)",
+        )
+        .eq("id", id)
+        .maybeSingle<
+          EventRow & {
+            commission: EventCommission | null;
+            sanctioning_body: EventSanctioningBody | null;
+          }
+        >(),
       supabase
         .from("bouts")
         .select("*")
@@ -69,7 +95,8 @@ export const loadEventDetail = cache(async (id: string): Promise<EventDetail | n
       supabase.from("event_ledger").select("*").eq("event_id", id).order("created_at"),
       supabase.from("event_sponsors").select("*").eq("event_id", id),
     ]);
-  if (!event) return null;
+  if (!eventRow) return null;
+  const { commission, sanctioning_body: sanctioningBody, ...event } = eventRow;
 
   const boutList = (bouts ?? []) as Bout[];
   const boutIds = boutList.map((b) => b.id);
@@ -108,6 +135,8 @@ export const loadEventDetail = cache(async (id: string): Promise<EventDetail | n
 
   return {
     event,
+    commission,
+    sanctioningBody,
     bouts: boutList,
     fighterMap,
     checks: checkList,

@@ -23,7 +23,8 @@ export async function GET(
   const { id } = await params;
   const supabase = db();
 
-  // Medical records and bouts only need the fighter id; gym is embedded.
+  // Medical records and bouts only need the fighter id; the gym, each bout's
+  // event and both corners' names are embedded, so this is one round trip.
   const [{ data: fighter }, { data: medicals }, { data: bouts }] = await Promise.all([
     supabase
       .from("fighters")
@@ -38,7 +39,7 @@ export async function GET(
     supabase
       .from("bouts")
       .select(
-        "id, event_id, red_corner_fighter_id, blue_corner_fighter_id, result, method, round_finished, time_finished, bout_class",
+        "red_corner_fighter_id, result, method, round_finished, time_finished, bout_class, event:events!bouts_event_id_fkey(name, event_date), red:fighters!red_corner_fighter_id(full_name), blue:fighters!blue_corner_fighter_id(full_name)",
       )
       .or(`red_corner_fighter_id.eq.${id},blue_corner_fighter_id.eq.${id}`),
   ]);
@@ -47,62 +48,25 @@ export async function GET(
 
   type BoutSlim = Pick<
     Bout,
-    | "id"
-    | "event_id"
     | "red_corner_fighter_id"
-    | "blue_corner_fighter_id"
     | "result"
     | "method"
     | "round_finished"
     | "time_finished"
     | "bout_class"
-  >;
-  const boutList = (bouts ?? []) as BoutSlim[];
-
-  const eventIds = Array.from(new Set(boutList.map((b) => b.event_id)));
-  const opponentIds = Array.from(
-    new Set(
-      boutList
-        .flatMap((b) =>
-          b.red_corner_fighter_id === id
-            ? [b.blue_corner_fighter_id]
-            : [b.red_corner_fighter_id],
-        )
-        .filter((x): x is string => Boolean(x)),
-    ),
-  );
-
-  const [eventsRes, opponentsRes] = await Promise.all([
-    eventIds.length
-      ? supabase
-          .from("events")
-          .select("id, name, event_date")
-          .in("id", eventIds)
-      : Promise.resolve({ data: [] as Pick<EventRow, "id" | "name" | "event_date">[] }),
-    opponentIds.length
-      ? supabase.from("fighters").select("id, full_name").in("id", opponentIds)
-      : Promise.resolve({ data: [] as Pick<Fighter, "id" | "full_name">[] }),
-  ]);
-
-  const eventMap = new Map(
-    ((eventsRes.data ?? []) as Pick<EventRow, "id" | "name" | "event_date">[]).map(
-      (e) => [e.id, e],
-    ),
-  );
-  const opponentMap = new Map(
-    ((opponentsRes.data ?? []) as Pick<Fighter, "id" | "full_name">[]).map((f) => [
-      f.id,
-      f.full_name,
-    ]),
-  );
+  > & {
+    event: Pick<EventRow, "name" | "event_date"> | null;
+    red: Pick<Fighter, "full_name"> | null;
+    blue: Pick<Fighter, "full_name"> | null;
+  };
+  const boutList = (bouts ?? []) as unknown as BoutSlim[];
 
   const rows: PassportBoutNormalizedRow[] = boutList
     .map((b): PassportBoutNormalizedRow | null => {
-      const evt = eventMap.get(b.event_id);
+      const evt = b.event;
       if (!evt) return null;
       const isRed = b.red_corner_fighter_id === id;
-      const oppId = isRed ? b.blue_corner_fighter_id : b.red_corner_fighter_id;
-      const opponent = oppId ? opponentMap.get(oppId) ?? null : null;
+      const opponent = (isRed ? b.blue : b.red)?.full_name ?? null;
       const outcome = b.result as BoutOutcome | null;
       const normalized =
         outcome == null

@@ -32,6 +32,13 @@ import type {
   SanctioningBody,
 } from "@/lib/db/types";
 
+// Bout with its event and both corners embedded (all to-one: object or null).
+type RulesetBoutRow = Pick<Bout, "id" | "event_id" | "bout_order"> & {
+  event: Pick<EventRow, "id" | "name" | "event_date"> | null;
+  red: Pick<Fighter, "full_name"> | null;
+  blue: Pick<Fighter, "full_name"> | null;
+};
+
 function YesNo({ v }: { v: boolean }) {
   return (
     <Badge
@@ -64,10 +71,25 @@ export default async function RulesetDetailPage({
 
   const [session, { data: ruleset }, { data: usedBy }, { data: versions }] = await Promise.all([
     getSessionUser(),
-    supabase.from("rulesets").select("*").eq("id", id).maybeSingle<Ruleset>(),
+    supabase
+      .from("rulesets")
+      .select(
+        "*, sanctioning_body:sanctioning_bodies(id, name, abbreviation), commission:commissions(id, name, abbreviation)",
+      )
+      .eq("id", id)
+      .maybeSingle<
+        Ruleset & {
+          sanctioning_body: Pick<SanctioningBody, "id" | "name" | "abbreviation"> | null;
+          commission: Pick<Commission, "id" | "name" | "abbreviation"> | null;
+        }
+      >(),
+    // bouts link to events twice (event_id + events.current_bout_id) and to
+    // fighters twice (red + blue corner), so every embed names its FK.
     supabase
       .from("bouts")
-      .select("id, event_id, bout_order, red_corner_fighter_id, blue_corner_fighter_id")
+      .select(
+        "id, event_id, bout_order, event:events!bouts_event_id_fkey(id, name, event_date), red:fighters!red_corner_fighter_id(full_name), blue:fighters!blue_corner_fighter_id(full_name)",
+      )
       .eq("ruleset_id", id),
     supabase
       .from("ruleset_pdf_versions")
@@ -93,56 +115,14 @@ export default async function RulesetDetailPage({
   const currentVersion = versionList.find((v) => v.is_current) ?? null;
   const historyVersions = versionList.filter((v) => !v.is_current);
 
-  const boutList = (usedBy ?? []) as Pick<
-    Bout,
-    "id" | "event_id" | "bout_order" | "red_corner_fighter_id" | "blue_corner_fighter_id"
-  >[];
+  const boutList = (usedBy ?? []) as unknown as RulesetBoutRow[];
+  const sb = ruleset.sanctioning_body;
+  const comm = ruleset.commission;
 
-  const eventIds = Array.from(new Set(boutList.map((b) => b.event_id)));
-  const fighterIds = Array.from(
-    new Set(
-      boutList
-        .flatMap((b) => [b.red_corner_fighter_id, b.blue_corner_fighter_id])
-        .filter((x): x is string => Boolean(x)),
-    ),
+  // Signed PDF URLs (current first, then history), batched into one storage call.
+  const pdfUrls = await signedRulesetPdfUrls(
+    [...(currentVersion ? [currentVersion] : []), ...historyVersions].map((v) => v.storage_path),
   );
-
-  // Signed PDF URLs (current first, then history) are batched into one storage
-  // call and fetched alongside the lookups below.
-  const [{ data: events }, { data: fighters }, { data: sb }, { data: comm }, pdfUrls] = await Promise.all([
-    eventIds.length
-      ? supabase.from("events").select("id, name, event_date").in("id", eventIds)
-      : Promise.resolve({ data: [] as Pick<EventRow, "id" | "name" | "event_date">[] }),
-    fighterIds.length
-      ? supabase.from("fighters").select("id, full_name").in("id", fighterIds)
-      : Promise.resolve({ data: [] as Pick<Fighter, "id" | "full_name">[] }),
-    ruleset.sanctioning_body_id
-      ? supabase
-          .from("sanctioning_bodies")
-          .select("id, name, abbreviation")
-          .eq("id", ruleset.sanctioning_body_id)
-          .maybeSingle<Pick<SanctioningBody, "id" | "name" | "abbreviation">>()
-      : Promise.resolve({ data: null }),
-    ruleset.commission_id
-      ? supabase
-          .from("commissions")
-          .select("id, name, abbreviation")
-          .eq("id", ruleset.commission_id)
-          .maybeSingle<Pick<Commission, "id" | "name" | "abbreviation">>()
-      : Promise.resolve({ data: null }),
-    signedRulesetPdfUrls(
-      [...(currentVersion ? [currentVersion] : []), ...historyVersions].map((v) => v.storage_path),
-    ),
-  ]);
-
-  const eventMap = new Map<string, Pick<EventRow, "id" | "name" | "event_date">>();
-  for (const e of (events ?? []) as Pick<EventRow, "id" | "name" | "event_date">[]) {
-    eventMap.set(e.id, e);
-  }
-  const fighterMap = new Map<string, string>();
-  for (const f of (fighters ?? []) as Pick<Fighter, "id" | "full_name">[]) {
-    fighterMap.set(f.id, f.full_name);
-  }
 
   const currentPdfUrl = currentVersion ? pdfUrls[0] : null;
   const historyUrls = currentVersion ? pdfUrls.slice(1) : pdfUrls;
@@ -459,13 +439,9 @@ export default async function RulesetDetailPage({
           ) : (
             <ul className="divide-y divide-border/60 rounded-lg border border-border/70">
               {boutList.map((b) => {
-                const ev = eventMap.get(b.event_id);
-                const redName = b.red_corner_fighter_id
-                  ? fighterMap.get(b.red_corner_fighter_id) ?? "TBD"
-                  : "TBD";
-                const blueName = b.blue_corner_fighter_id
-                  ? fighterMap.get(b.blue_corner_fighter_id) ?? "TBD"
-                  : "TBD";
+                const ev = b.event;
+                const redName = b.red?.full_name ?? "TBD";
+                const blueName = b.blue?.full_name ?? "TBD";
                 return (
                   <li key={b.id} className="p-3 text-sm hover:bg-muted/40">
                     <Link

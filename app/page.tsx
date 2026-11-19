@@ -38,6 +38,10 @@ import { getSessionUser } from "@/lib/auth/session";
 import { ROLE_LABELS } from "@/lib/auth/roles";
 import type { Bout, EventOfficial, EventRow, Fighter } from "@/lib/db/types";
 
+type EventRef = Pick<EventRow, "id" | "name" | "event_date" | "slug">;
+// Fighter profile with its gym embedded (to-one: object or null).
+type FighterProfileRow = FighterProfile & { gym: GymSummary | null };
+
 // Column lists match exactly what each widget renders — keeps the
 // every-login dashboard from pulling whole rows (notes, contact info, …).
 const UPCOMING_EVENT_COLS = "id, name, event_date, status, slug, city, state";
@@ -48,7 +52,8 @@ const RECENT_FIGHTER_COLS =
 const ROSTER_FIGHTER_COLS = "id, full_name, pro_wins, pro_losses, pro_draws";
 const OFFICIAL_PROFILE_COLS = "id, full_name, roles";
 const FIGHTER_PROFILE_COLS =
-  "id, full_name, photo_url, weight_class, primary_sport, pro_wins, pro_losses, pro_draws, gym_id";
+  "id, full_name, photo_url, weight_class, primary_sport, pro_wins, pro_losses, pro_draws, gym:gyms(id, name, city, state)";
+const EVENT_REF_COLS = "id, name, event_date, slug";
 const GYM_COLS = "id, name, city, state";
 
 export default async function Home() {
@@ -123,13 +128,13 @@ export default async function Home() {
             .select(FIGHTER_PROFILE_COLS)
             .eq("person_id", user.personId)
             .limit(1)
-            .maybeSingle<FighterProfile>()
+            .maybeSingle<FighterProfileRow>()
         : supabase
             .from("fighters")
             .select(FIGHTER_PROFILE_COLS)
             .ilike("contact_email", email)
             .limit(1)
-            .maybeSingle<FighterProfile>())
+            .maybeSingle<FighterProfileRow>())
     : null;
 
   // Regulator widget (SB / commission)
@@ -185,104 +190,62 @@ export default async function Home() {
   ]);
 
   // Follow-up queries that depend on the results above. The three chains
-  // are independent of each other, so run them concurrently.
+  // are independent of each other, so run them concurrently. Each is a single
+  // round trip: the event is inner-joined so the date filter restricts the
+  // parent rows, and the (small) result is ordered in JS.
   const loadOfficialUpcoming = async (): Promise<OfficialUpcoming[]> => {
     if (!officialProfile?.data) return [];
     const { data: assignments } = await supabase
       .from("event_officials")
-      .select("event_id, event_role")
-      .eq("official_id", officialProfile.data.id);
-    const rows = (assignments ?? []) as Pick<
-      EventOfficial,
-      "event_id" | "event_role"
-    >[];
-    if (!rows.length) return [];
-    const eventIds = Array.from(new Set(rows.map((a) => a.event_id)));
-    const { data: events } = await supabase
-      .from("events")
-      .select("id, name, event_date, slug")
-      .in("id", eventIds)
-      .gte("event_date", today)
-      .order("event_date", { ascending: true });
-    const eventMap = new Map(
-      ((events ?? []) as Pick<EventRow, "id" | "name" | "event_date" | "slug">[]).map(
-        (e) => [e.id, e],
-      ),
-    );
-    const out: OfficialUpcoming[] = [];
-    for (const a of rows) {
-      const e = eventMap.get(a.event_id);
-      if (!e) continue;
-      out.push({
-        eventId: e.id,
-        eventName: e.name,
-        eventDate: e.event_date,
-        eventSlug: e.slug,
-        role: a.event_role,
-      });
-    }
+      .select(`event_role, event:events!inner(${EVENT_REF_COLS})`)
+      .eq("official_id", officialProfile.data.id)
+      .gte("event.event_date", today);
+    const rows = (assignments ?? []) as unknown as (Pick<EventOfficial, "event_role"> & {
+      event: EventRef;
+    })[];
+    const out: OfficialUpcoming[] = rows.map((a) => ({
+      eventId: a.event.id,
+      eventName: a.event.name,
+      eventDate: a.event.event_date,
+      eventSlug: a.event.slug,
+      role: a.event_role,
+    }));
     out.sort((a, b) => a.eventDate.localeCompare(b.eventDate));
     return out.slice(0, 5);
-  };
-
-  const loadFighterGym = async (): Promise<GymSummary | null> => {
-    const gymId = fighterProfile?.data?.gym_id;
-    if (!gymId) return null;
-    const { data: g } = await supabase
-      .from("gyms")
-      .select(GYM_COLS)
-      .eq("id", gymId)
-      .maybeSingle<GymSummary>();
-    return g ?? null;
   };
 
   const loadFighterNextBout = async (): Promise<FighterNextBout> => {
     if (!fighterProfile?.data) return null;
     const fid = fighterProfile.data.id;
+    // bouts↔events and bouts↔fighters each have two FKs, hence the hints.
     const { data: bouts } = await supabase
       .from("bouts")
-      .select("event_id, red_corner_fighter_id, blue_corner_fighter_id")
-      .or(`red_corner_fighter_id.eq.${fid},blue_corner_fighter_id.eq.${fid}`);
-    const boutRows = (bouts ?? []) as Pick<
-      Bout,
-      "event_id" | "red_corner_fighter_id" | "blue_corner_fighter_id"
-    >[];
-    if (!boutRows.length) return null;
-    const { data: events } = await supabase
-      .from("events")
-      .select("id, name, event_date, slug")
-      .in(
-        "id",
-        boutRows.map((b) => b.event_id),
+      .select(
+        `red_corner_fighter_id, blue_corner_fighter_id, event:events!bouts_event_id_fkey!inner(${EVENT_REF_COLS}), red:fighters!red_corner_fighter_id(full_name), blue:fighters!blue_corner_fighter_id(full_name)`,
       )
-      .gte("event_date", today)
-      .order("event_date", { ascending: true })
-      .limit(1);
-    const nextEvent = (events ?? [])[0] as
-      | Pick<EventRow, "id" | "name" | "event_date" | "slug">
-      | undefined;
-    if (!nextEvent) return null;
-    const bout = boutRows.find((b) => b.event_id === nextEvent.id);
-    if (!bout) return null;
-    const opponentId =
-      bout.red_corner_fighter_id === fid
-        ? bout.blue_corner_fighter_id
-        : bout.red_corner_fighter_id;
-    let opponentName: string | null = null;
-    if (opponentId) {
-      const { data: opp } = await supabase
-        .from("fighters")
-        .select("full_name")
-        .eq("id", opponentId)
-        .maybeSingle<Pick<Fighter, "full_name">>();
-      opponentName = opp?.full_name ?? null;
+      .or(`red_corner_fighter_id.eq.${fid},blue_corner_fighter_id.eq.${fid}`)
+      .gte("event.event_date", today);
+    const boutRows = (bouts ?? []) as unknown as (Pick<
+      Bout,
+      "red_corner_fighter_id" | "blue_corner_fighter_id"
+    > & {
+      event: EventRef;
+      red: Pick<Fighter, "full_name"> | null;
+      blue: Pick<Fighter, "full_name"> | null;
+    })[];
+    // Soonest upcoming event wins; ties keep the first row returned.
+    let bout: (typeof boutRows)[number] | undefined;
+    for (const b of boutRows) {
+      if (!bout || b.event.event_date < bout.event.event_date) bout = b;
     }
+    if (!bout) return null;
+    const opponent = bout.red_corner_fighter_id === fid ? bout.blue : bout.red;
     return {
-      eventId: nextEvent.id,
-      eventName: nextEvent.name,
-      eventDate: nextEvent.event_date,
-      eventSlug: nextEvent.slug,
-      opponentName,
+      eventId: bout.event.id,
+      eventName: bout.event.name,
+      eventDate: bout.event.event_date,
+      eventSlug: bout.event.slug,
+      opponentName: opponent?.full_name ?? null,
     };
   };
 
@@ -297,13 +260,11 @@ export default async function Home() {
     return (roster ?? []) as RosterFighter[];
   };
 
-  const [officialUpcoming, fighterGym, fighterNextBout, gymRoster] =
-    await Promise.all([
-      loadOfficialUpcoming(),
-      loadFighterGym(),
-      loadFighterNextBout(),
-      loadGymRoster(),
-    ]);
+  const [officialUpcoming, fighterNextBout, gymRoster] = await Promise.all([
+    loadOfficialUpcoming(),
+    loadFighterNextBout(),
+    loadGymRoster(),
+  ]);
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-10">
@@ -359,7 +320,7 @@ export default async function Home() {
               <FighterWidget
                 profile={fighterProfile?.data ?? null}
                 nextBout={fighterNextBout}
-                gym={fighterGym}
+                gym={fighterProfile?.data?.gym ?? null}
               />
             )}
             {(isSb || isCommission) && regulatorData && (

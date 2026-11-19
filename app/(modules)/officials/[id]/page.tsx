@@ -31,7 +31,8 @@ import type {
 } from "@/lib/db/types";
 import { OFFICIAL_SB_STATUSES } from "@/lib/db/types";
 
-type EnrichedAssignment = EventOfficial & {
+// event_officials row with its event embedded (to-one, so object or null).
+type EnrichedAssignment = Pick<EventOfficial, "id" | "event_id" | "event_role"> & {
   event: Pick<EventRow, "id" | "name" | "event_date" | "venue" | "city" | "state"> | null;
 };
 
@@ -43,8 +44,8 @@ export default async function OfficialDetailPage({
   const { id } = await params;
   const supabase = db();
 
-  // Fetch everything scoped by the official id in one round-trip. The person
-  // and event lookups depend on this batch so they come after — together.
+  // Everything in one round-trip: the person number and each assignment's
+  // event ride along as embeds.
   const [
     session,
     { data: official },
@@ -55,8 +56,15 @@ export default async function OfficialDetailPage({
     { data: allSbs },
   ] = await Promise.all([
     getSessionUser(),
-    supabase.from("officials").select("*").eq("id", id).maybeSingle<Official>(),
-    supabase.from("event_officials").select("*").eq("official_id", id),
+    supabase
+      .from("officials")
+      .select("*, person:persons(person_no)")
+      .eq("id", id)
+      .maybeSingle<Official & { person: { person_no: number } | null }>(),
+    supabase
+      .from("event_officials")
+      .select("id, event_id, event_role, event:events(id, name, event_date, venue, city, state)")
+      .eq("official_id", id),
     supabase
       .from("official_availability")
       .select("*")
@@ -76,40 +84,13 @@ export default async function OfficialDetailPage({
 
   if (!official) notFound();
 
-  const assignRows = (assignments ?? []) as EventOfficial[];
-  const eventIds = Array.from(new Set(assignRows.map((a) => a.event_id)));
-
-  const [{ data: person }, { data: events }] = await Promise.all([
-    official.person_id
-      ? supabase
-          .from("persons")
-          .select("person_no")
-          .eq("id", official.person_id)
-          .maybeSingle<{ person_no: number }>()
-      : Promise.resolve({ data: null as { person_no: number } | null }),
-    eventIds.length
-      ? supabase
-          .from("events")
-          .select("id, name, event_date, venue, city, state")
-          .in("id", eventIds)
-      : Promise.resolve({ data: [] }),
-  ]);
+  const person = official.person;
+  const enriched = (assignments ?? []) as unknown as EnrichedAssignment[];
 
   const links = (sbLinks ?? []) as OfficialSanctioningBody[];
   const sbList = (allSbs ?? []) as Pick<SanctioningBody, "id" | "name" | "abbreviation">[];
   const sbMap = new Map(sbList.map((sb) => [sb.id, sb]));
   const linkedSbIds = new Set(links.map((l) => l.sanctioning_body_id));
-
-  const eventMap = new Map<
-    string,
-    Pick<EventRow, "id" | "name" | "event_date" | "venue" | "city" | "state">
-  >();
-  for (const e of events ?? []) eventMap.set(e.id, e);
-
-  const enriched: EnrichedAssignment[] = assignRows.map((a) => ({
-    ...a,
-    event: eventMap.get(a.event_id) ?? null,
-  }));
 
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = enriched

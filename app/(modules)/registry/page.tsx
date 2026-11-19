@@ -21,6 +21,8 @@ type BodyLite = Pick<
   "id" | "name" | "abbreviation" | "scope" | "sports" | "headquarters" | "status"
 >;
 
+type RuleCount = { rulesets: { count: number }[] };
+
 export default async function RegistryPage({
   searchParams,
 }: {
@@ -32,37 +34,30 @@ export default async function RegistryPage({
   const supabase = db();
 
   // Rejected bodies are never shown, so they're filtered out in the DB.
-  const [session, { data: commissions }, { data: bodies }, { data: rulesets }] = await Promise.all([
+  // Ruleset counts come back as an embedded aggregate: rulesets: [{ count }].
+  const [session, { data: commissions }, { data: bodies }] = await Promise.all([
     getSessionUser(),
     supabase
       .from("commissions")
-      .select("id, name, abbreviation, jurisdiction, state")
+      .select("id, name, abbreviation, jurisdiction, state, rulesets(count)")
       .order("state", { ascending: true }),
     supabase
       .from("sanctioning_bodies")
-      .select("id, name, abbreviation, scope, sports, headquarters, status")
+      .select("id, name, abbreviation, scope, sports, headquarters, status, rulesets(count)")
       .in("status", ["approved", "pending"])
       .order("status")
       .order("abbreviation"),
-    supabase.from("rulesets").select("commission_id, sanctioning_body_id"),
   ]);
 
-  const commissionList = (commissions ?? []) as CommissionLite[];
-  const allBodies = (bodies ?? []) as BodyLite[];
+  const commissionList = (commissions ?? []) as unknown as (CommissionLite & RuleCount)[];
+  const allBodies = (bodies ?? []) as unknown as (BodyLite & RuleCount)[];
   const approved = allBodies.filter((b) => b.status === "approved");
   const pending = allBodies.filter((b) => b.status === "pending");
 
   const ruleCountByCommission = new Map<string, number>();
   const ruleCountByBody = new Map<string, number>();
-  for (const r of (rulesets ?? []) as {
-    commission_id: string | null;
-    sanctioning_body_id: string | null;
-  }[]) {
-    if (r.commission_id)
-      ruleCountByCommission.set(r.commission_id, (ruleCountByCommission.get(r.commission_id) ?? 0) + 1);
-    if (r.sanctioning_body_id)
-      ruleCountByBody.set(r.sanctioning_body_id, (ruleCountByBody.get(r.sanctioning_body_id) ?? 0) + 1);
-  }
+  for (const c of commissionList) ruleCountByCommission.set(c.id, c.rulesets[0]?.count ?? 0);
+  for (const b of allBodies) ruleCountByBody.set(b.id, b.rulesets[0]?.count ?? 0);
 
   return (
     <>

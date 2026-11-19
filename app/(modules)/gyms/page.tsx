@@ -28,18 +28,17 @@ export default async function GymsListPage({
 
   const supabase = db();
 
-  const [{ data: gyms, error }, { data: fighters }] = await Promise.all([
-    supabase.from("gyms").select("id, name, city, state, head_coach, notes").order("name"),
-    // Unaffiliated fighters never count toward a roster — skip them in SQL.
-    supabase.from("fighters").select("gym_id").not("gym_id", "is", null),
-  ]);
+  // Roster size comes back as an embedded aggregate: fighters: [{ count }].
+  const { data: gyms, error } = await supabase
+    .from("gyms")
+    .select("id, name, city, state, head_coach, notes, fighters(count)")
+    .order("name");
+  const gymRows = (gyms ?? []) as unknown as (GymRow & { fighters: { count: number }[] })[];
 
   const rosterCount = new Map<string, number>();
-  for (const f of ((fighters ?? []) as { gym_id: string }[])) {
-    rosterCount.set(f.gym_id, (rosterCount.get(f.gym_id) ?? 0) + 1);
-  }
+  for (const g of gymRows) rosterCount.set(g.id, g.fighters[0]?.count ?? 0);
 
-  const list = ((gyms ?? []) as GymRow[]).filter((g) => {
+  const list = gymRows.filter((g) => {
     if (state && (g.state ?? "").toLowerCase() !== state.toLowerCase()) return false;
     if (q) {
       const needle = q.toLowerCase();
@@ -55,7 +54,7 @@ export default async function GymsListPage({
   });
 
   const uniqueStates = Array.from(
-    new Set(((gyms ?? []) as GymRow[]).map((g) => g.state).filter((s): s is string => Boolean(s))),
+    new Set(gymRows.map((g) => g.state).filter((s): s is string => Boolean(s))),
   ).sort();
 
   const anyFilter = Boolean(q || state);

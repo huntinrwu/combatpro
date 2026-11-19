@@ -66,7 +66,6 @@ export default async function BoutDetailPage({
     { data: scorecards },
     { data: documents },
     { data: cornermen },
-    { data: sanctioningBody },
     { data: allRulesets },
     { data: med },
   ] = await Promise.all([
@@ -79,13 +78,6 @@ export default async function BoutDetailPage({
     supabase.from("bout_scorecards").select("*").eq("bout_id", boutId).order("round_number"),
     supabase.from("bout_documents").select("*").eq("bout_id", boutId),
     supabase.from("bout_cornermen").select("*").eq("bout_id", boutId).order("created_at"),
-    event.sanctioning_body_id
-      ? supabase
-          .from("sanctioning_bodies")
-          .select("name")
-          .eq("id", event.sanctioning_body_id)
-          .maybeSingle<{ name: string }>()
-      : Promise.resolve({ data: null as { name: string } | null }),
     supabase
       .from("rulesets")
       .select("id, name, sport, sanctioning_body_id, is_default")
@@ -400,7 +392,7 @@ export default async function BoutDetailPage({
             boutId={bout.id}
             eventId={event.id}
             documents={(documents ?? []) as BoutDocument[]}
-            sanctioningBodyName={sanctioningBody?.name ?? null}
+            sanctioningBodyName={detail.sanctioningBody?.name ?? null}
             resultDeclared={isDone}
           />
         </CardContent>

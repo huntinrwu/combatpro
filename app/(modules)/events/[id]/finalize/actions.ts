@@ -35,13 +35,12 @@ export async function fileAllFightReports(formData: FormData) {
       .maybeSingle<{ sanctioning_body_id: string | null }>(),
     supabase
       .from("bouts")
-      .select("id, result")
-      .eq("event_id", event_id),
+      .select("id")
+      .eq("event_id", event_id)
+      .not("result", "is", null),
   ]);
 
-  const declaredBouts = ((bouts ?? []) as { id: string; result: string | null }[])
-    .filter((b) => b.result != null)
-    .map((b) => b.id);
+  const declaredBouts = ((bouts ?? []) as { id: string }[]).map((b) => b.id);
 
   if (declaredBouts.length === 0) return;
 

@@ -31,14 +31,15 @@ export default async function AdminPersonDetailPage({
   const { id } = await params;
   const admin = createAdminClient();
 
-  // Linked records + gym options only need the id, so they load with the person.
-  const [{ data: person }, { data: fighter }, { data: official }, { data: gyms }] =
+  // Linked records + gym options only need the id, so they load with the
+  // person. The merge target's CP-number is embedded (to-one self reference).
+  const [{ data: personRow }, { data: fighter }, { data: official }, { data: gyms }] =
     await Promise.all([
       admin
         .from("persons")
-        .select("*")
+        .select("*, merged_into:merged_into_person_id(person_no)")
         .eq("id", id)
-        .maybeSingle<Person>(),
+        .maybeSingle<Person & { merged_into: Pick<Person, "person_no"> | null }>(),
       admin
         .from("fighters")
         .select("*")
@@ -54,19 +55,12 @@ export default async function AdminPersonDetailPage({
         .select("id, name, city, state")
         .order("name", { ascending: true }),
     ]);
-  if (!person) notFound();
-
-  const mergedInto = person.merged_into_person_id
-    ? await admin
-        .from("persons")
-        .select("person_no")
-        .eq("id", person.merged_into_person_id)
-        .maybeSingle<{ person_no: number }>()
-    : { data: null as { person_no: number } | null };
+  if (!personRow) notFound();
+  const { merged_into: mergedInto, ...person } = personRow;
 
   const gymList = (gyms ?? []) as Pick<Gym, "id" | "name" | "city" | "state">[];
   const isMerged = Boolean(person.merged_into_person_id);
-  const mergedIntoNo = mergedInto?.data?.person_no ?? null;
+  const mergedIntoNo = mergedInto?.person_no ?? null;
 
   return (
     <>

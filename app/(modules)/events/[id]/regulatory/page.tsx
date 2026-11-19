@@ -3,9 +3,7 @@ import { notFound } from "next/navigation";
 import { BookOpen, ExternalLink } from "lucide-react";
 
 import { loadEventDetail } from "../_lib/event-detail";
-import { db } from "@/lib/db/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { Commission, SanctioningBody } from "@/lib/db/types";
 
 export default async function EventRegulatoryTabPage({
   params,
@@ -13,35 +11,9 @@ export default async function EventRegulatoryTabPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = db();
-
   const detail = await loadEventDetail(id);
   if (!detail) notFound();
-  const { event } = detail;
-
-  const [commissionRes, bodyRes] = await Promise.all([
-    event.commission_id
-      ? supabase
-          .from("commissions")
-          .select("id, abbreviation, name, jurisdiction, website")
-          .eq("id", event.commission_id)
-          .maybeSingle<
-            Pick<Commission, "id" | "abbreviation" | "name" | "jurisdiction" | "website">
-          >()
-      : Promise.resolve({ data: null }),
-    event.sanctioning_body_id
-      ? supabase
-          .from("sanctioning_bodies")
-          .select("id, abbreviation, name, scope, website")
-          .eq("id", event.sanctioning_body_id)
-          .maybeSingle<
-            Pick<SanctioningBody, "id" | "abbreviation" | "name" | "scope" | "website">
-          >()
-      : Promise.resolve({ data: null }),
-  ]);
-
-  const commission = commissionRes.data;
-  const body = bodyRes.data;
+  const { event, commission, sanctioningBody: body } = detail;
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">

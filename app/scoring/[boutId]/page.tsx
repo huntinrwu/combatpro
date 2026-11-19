@@ -3,17 +3,13 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Tv } from "lucide-react";
 
 import { submitScorecard } from "./actions";
+import { loadScoringBout, type ScoringJudge } from "./load-scoring-bout";
 import { db } from "@/lib/db/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
-import type {
-  Bout,
-  BoutScorecard,
-  Fighter,
-  Official,
-} from "@/lib/db/types";
+import type { BoutScorecard } from "@/lib/db/types";
 
 const SCORE_OPTIONS = [10, 9, 8, 7, 6];
 
@@ -33,36 +29,13 @@ export default async function JudgeScoringPage({
 }) {
   const { boutId } = await params;
   const { judge: judgeParam, round: roundParam } = await searchParams;
-  const supabase = db();
 
-  const { data: bout } = await supabase
-    .from("bouts")
-    .select("event_id, red_corner_fighter_id, blue_corner_fighter_id, rounds")
-    .eq("id", boutId)
-    .maybeSingle<
-      Pick<Bout, "event_id" | "red_corner_fighter_id" | "blue_corner_fighter_id" | "rounds">
-    >();
-
-  if (!bout) notFound();
-
-  const fighterIds = [bout.red_corner_fighter_id, bout.blue_corner_fighter_id].filter(
-    (x): x is string => Boolean(x),
-  );
-
-  // Load judges from the event roster — same pool for every bout on the card.
-  // Fighters and the requested judge's cards are fetched alongside; they're
-  // only used once judgeParam is confirmed to be on the roster.
-  const [{ data: rosterJudges }, { data: fs }, { data: myCards }] = await Promise.all([
-    supabase
-      .from("event_officials")
-      .select("official:officials(id, full_name)")
-      .eq("event_id", bout.event_id)
-      .eq("event_role", "judge"),
-    judgeParam && fighterIds.length
-      ? supabase.from("fighters").select("id, full_name").in("id", fighterIds)
-      : Promise.resolve({ data: [] as Pick<Fighter, "id" | "full_name">[] }),
+  // The requested judge's cards are fetched alongside the bout; they're only
+  // used once judgeParam is confirmed to be on the roster.
+  const [bout, { data: myCards }] = await Promise.all([
+    loadScoringBout(boutId),
     judgeParam
-      ? supabase
+      ? db()
           .from("bout_scorecards")
           .select("*")
           .eq("bout_id", boutId)
@@ -71,11 +44,9 @@ export default async function JudgeScoringPage({
       : Promise.resolve({ data: [] as BoutScorecard[] }),
   ]);
 
-  const judges = (
-    (rosterJudges ?? []) as unknown as { official: Pick<Official, "id" | "full_name"> | null }[]
-  )
-    .map((r) => r.official)
-    .filter((o): o is Pick<Official, "id" | "full_name"> => Boolean(o));
+  if (!bout) notFound();
+
+  const { judges } = bout;
   const judgeIds = judges.map((j) => j.id);
 
   // Judge picker if none selected
@@ -85,11 +56,6 @@ export default async function JudgeScoringPage({
     return <JudgePicker boutId={boutId} judges={judges} />;
   }
 
-  // Fighter names
-  const fighterMap = new Map<string, Pick<Fighter, "id" | "full_name">>();
-  for (const f of fs ?? []) fighterMap.set(f.id, f);
-  const red = bout.red_corner_fighter_id ? fighterMap.get(bout.red_corner_fighter_id) : null;
-  const blue = bout.blue_corner_fighter_id ? fighterMap.get(bout.blue_corner_fighter_id) : null;
   const judgeName = judges.find((j) => j.id === activeJudgeId)?.full_name ?? "Judge";
 
   const cards = (myCards ?? []) as BoutScorecard[];
@@ -109,7 +75,7 @@ export default async function JudgeScoringPage({
     <div className="mx-auto w-full max-w-4xl px-4 py-6">
       <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
         <Link
-          href={`/events/${bout.event_id}/bouts/${boutId}`}
+          href={`/events/${bout.eventId}/bouts/${boutId}`}
           className="inline-flex items-center gap-1 hover:text-foreground"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
@@ -131,11 +97,11 @@ export default async function JudgeScoringPage({
         </div>
         <h1 className="font-heading text-xl font-semibold tracking-tight sm:text-2xl">
           <span className="block text-red-600 sm:inline">
-            {red?.full_name ?? "Red"}
+            {bout.redName ?? "Red"}
           </span>
           <span className="mx-2 hidden text-muted-foreground sm:inline">vs</span>
           <span className="block text-blue-600 sm:inline">
-            {blue?.full_name ?? "Blue"}
+            {bout.blueName ?? "Blue"}
           </span>
         </h1>
         <div className="mt-1 text-sm text-muted-foreground">
@@ -166,7 +132,7 @@ export default async function JudgeScoringPage({
             <div className="grid gap-4 sm:grid-cols-2">
               <CornerBlock
                 corner="red"
-                fighterName={red?.full_name ?? "Red corner"}
+                fighterName={bout.redName ?? "Red corner"}
                 defaultScore={existingCard?.red_score ?? 10}
                 defaultKds={existingCard?.knockdowns_red ?? 0}
                 scoreName="red_score"
@@ -174,7 +140,7 @@ export default async function JudgeScoringPage({
               />
               <CornerBlock
                 corner="blue"
-                fighterName={blue?.full_name ?? "Blue corner"}
+                fighterName={bout.blueName ?? "Blue corner"}
                 defaultScore={existingCard?.blue_score ?? 10}
                 defaultKds={existingCard?.knockdowns_blue ?? 0}
                 scoreName="blue_score"
@@ -332,7 +298,7 @@ function JudgePicker({
   judges,
 }: {
   boutId: string;
-  judges: Pick<Official, "id" | "full_name">[];
+  judges: ScoringJudge[];
 }) {
   if (judges.length === 0) {
     return (

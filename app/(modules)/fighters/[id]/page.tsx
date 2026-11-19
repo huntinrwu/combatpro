@@ -18,8 +18,6 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { PersonNoBadge } from "@/components/person-no-badge";
 import { Textarea } from "@/components/ui/textarea";
 import type {
-  Bout,
-  EventRow,
   Fighter,
   FighterClassPreference,
   FighterMedicalRecord,
@@ -29,6 +27,15 @@ import type {
   Promotion,
 } from "@/lib/db/types";
 import { cmToFeetIn, cmToIn } from "@/lib/units";
+
+// Shape of the bouts → event → promotion embed below (both to-one).
+type FighterBoutRow = {
+  event_id: string;
+  event: {
+    event_date: string;
+    promotion: Pick<Promotion, "id" | "name" | "abbreviation"> | null;
+  } | null;
+};
 
 export default async function FighterDetailPage({
   params,
@@ -48,7 +55,11 @@ export default async function FighterDetailPage({
     { data: rawBouts },
   ] = await Promise.all([
     getSessionUser(),
-    supabase.from("fighters").select("*").eq("id", id).maybeSingle<Fighter>(),
+    supabase
+      .from("fighters")
+      .select("*, person:persons(person_no)")
+      .eq("id", id)
+      .maybeSingle<Fighter & { person: { person_no: number } | null }>(),
     supabase
       .from("fighter_medical_records")
       .select("*")
@@ -73,9 +84,13 @@ export default async function FighterDetailPage({
     // Promotions this fighter has appeared on — derived from CombatPro-tracked
     // bouts. Doesn't include historical fights on other platforms; those live
     // in fight_records under event_name (free-text).
+    // bouts and events are linked twice (bouts.event_id + events.current_bout_id),
+    // so the embed has to name the FK.
     supabase
       .from("bouts")
-      .select("id, event_id, red_corner_fighter_id, blue_corner_fighter_id")
+      .select(
+        "event_id, event:events!bouts_event_id_fkey(event_date, promotion:promotions(id, name, abbreviation))",
+      )
       .or(`red_corner_fighter_id.eq.${id},blue_corner_fighter_id.eq.${id}`),
   ]);
 
@@ -87,63 +102,24 @@ export default async function FighterDetailPage({
     ? gymList.find((g) => g.id === fighter.gym_id) ?? null
     : null;
 
-  const fighterBouts = (rawBouts ?? []) as Pick<
-    Bout,
-    "id" | "event_id" | "red_corner_fighter_id" | "blue_corner_fighter_id"
-  >[];
-  const boutEventIds = Array.from(new Set(fighterBouts.map((b) => b.event_id)));
+  const person = fighter.person;
 
-  // Person lookup and the bout events are independent — fetch together.
-  const [{ data: person }, { data: rawFighterEvents }] = await Promise.all([
-    fighter.person_id
-      ? supabase
-          .from("persons")
-          .select("person_no")
-          .eq("id", fighter.person_id)
-          .maybeSingle<{ person_no: number }>()
-      : Promise.resolve({ data: null as { person_no: number } | null }),
-    boutEventIds.length
-      ? supabase
-          .from("events")
-          .select("id, name, event_date, promotion_id")
-          .in("id", boutEventIds)
-      : Promise.resolve({ data: [] }),
-  ]);
-  const fighterEvents = (rawFighterEvents ?? []) as Pick<
-    EventRow,
-    "id" | "name" | "event_date" | "promotion_id"
-  >[];
-
-  const promotionEventIds = fighterEvents
-    .map((e) => e.promotion_id)
-    .filter((x): x is string => Boolean(x));
-  const uniquePromotionIds = Array.from(new Set(promotionEventIds));
-
-  const { data: rawFighterPromotions } = uniquePromotionIds.length
-    ? await supabase
-        .from("promotions")
-        .select("id, name, abbreviation")
-        .in("id", uniquePromotionIds)
-    : { data: [] };
-  const fighterPromotions = (rawFighterPromotions ?? []) as Pick<
-    Promotion,
-    "id" | "name" | "abbreviation"
-  >[];
-
-  const promotionCounts = new Map<string, { count: number; lastDate: string }>();
-  const boutsByEvent = new Map<string, number>();
-  for (const b of fighterBouts) boutsByEvent.set(b.event_id, (boutsByEvent.get(b.event_id) ?? 0) + 1);
-  for (const e of fighterEvents) {
-    if (!e.promotion_id) continue;
-    const nBouts = boutsByEvent.get(e.id) ?? 0;
-    const entry = promotionCounts.get(e.promotion_id) ?? { count: 0, lastDate: "" };
-    entry.count += nBouts;
-    if (e.event_date > entry.lastDate) entry.lastDate = e.event_date;
-    promotionCounts.set(e.promotion_id, entry);
+  // One entry per promotion: how many of this fighter's bouts ran under it
+  // and the latest event date.
+  const promotionStats = new Map<
+    string,
+    { promotion: Pick<Promotion, "id" | "name" | "abbreviation">; count: number; lastDate: string }
+  >();
+  for (const b of (rawBouts ?? []) as unknown as FighterBoutRow[]) {
+    const promotion = b.event?.promotion;
+    if (!b.event || !promotion) continue;
+    const entry = promotionStats.get(promotion.id) ?? { promotion, count: 0, lastDate: "" };
+    entry.count += 1;
+    if (b.event.event_date > entry.lastDate) entry.lastDate = b.event.event_date;
+    promotionStats.set(promotion.id, entry);
   }
 
-  const promotionsFought = fighterPromotions
-    .map((p) => ({ promotion: p, ...(promotionCounts.get(p.id) ?? { count: 0, lastDate: "" }) }))
+  const promotionsFought = Array.from(promotionStats.values())
     .sort((a, b) => b.count - a.count || b.lastDate.localeCompare(a.lastDate));
 
   return (

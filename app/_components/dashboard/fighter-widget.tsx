@@ -19,7 +19,6 @@ export type FighterProfile = Pick<
   | "pro_wins"
   | "pro_losses"
   | "pro_draws"
-  | "gym_id"
 >;
 
 export type FighterNextBout = {

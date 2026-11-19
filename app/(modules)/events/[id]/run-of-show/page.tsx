@@ -9,13 +9,7 @@ import { fmtDateLong as fmtEventDate } from "@/lib/format-utils";
 import { OFFICIAL_ROLE_ORDER as OFFICIAL_ORDER } from "@/lib/ui-config";
 import { Badge } from "@/components/ui/badge";
 import { EVENT_ROLE_LABELS } from "@/lib/db/types";
-import type {
-  Commission,
-  EventRole,
-  Official,
-  Ruleset,
-  SanctioningBody,
-} from "@/lib/db/types";
+import type { EventRole, Official, Ruleset } from "@/lib/db/types";
 
 type ShowAssignment = {
   event_role: EventRole;
@@ -32,32 +26,14 @@ export default async function RunOfShowPage({
 
   const detail = await loadEventDetail(id);
   if (!detail) notFound();
-  const { event, bouts, fighterMap } = detail;
+  const { event, bouts, fighterMap, commission: commissionRow, sanctioningBody: bodyRow } =
+    detail;
 
   const rulesetIds = Array.from(
     new Set(bouts.map((b) => b.ruleset_id).filter((x): x is string => Boolean(x))),
   );
 
-  const [
-    commissionRes,
-    bodyRes,
-    { data: rulesets },
-    { data: assignments },
-  ] = await Promise.all([
-    event.commission_id
-      ? supabase
-          .from("commissions")
-          .select("id, abbreviation, name")
-          .eq("id", event.commission_id)
-          .maybeSingle<Pick<Commission, "id" | "abbreviation" | "name">>()
-      : Promise.resolve({ data: null }),
-    event.sanctioning_body_id
-      ? supabase
-          .from("sanctioning_bodies")
-          .select("id, abbreviation, name")
-          .eq("id", event.sanctioning_body_id)
-          .maybeSingle<Pick<SanctioningBody, "id" | "abbreviation" | "name">>()
-      : Promise.resolve({ data: null }),
+  const [{ data: rulesets }, { data: assignments }] = await Promise.all([
     rulesetIds.length
       ? supabase.from("rulesets").select("id, name").in("id", rulesetIds)
       : Promise.resolve({ data: [] }),
@@ -86,9 +62,6 @@ export default async function RunOfShowPage({
 
   const labelOf = (fighterId: string | null) =>
     fighterLabel(fighterId ? fighterMap.get(fighterId) : null);
-
-  const commissionRow = commissionRes.data;
-  const bodyRow = bodyRes.data;
 
   return (
     <>

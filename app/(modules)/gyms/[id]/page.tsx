@@ -13,7 +13,7 @@ import type { Bout, EventRow, Fighter, Gym } from "@/lib/db/types";
 
 type UpcomingRow = {
   bout_id: string;
-  event: Pick<EventRow, "id" | "name" | "event_date" | "venue" | "city" | "state">;
+  event: Pick<EventRow, "id" | "name" | "event_date" | "venue">;
   bout_order: number | null;
   fighter_name: string;
   corner: "red" | "blue";
@@ -49,47 +49,44 @@ export default async function GymDetailPage({
   const upcoming: UpcomingRow[] = [];
   const rosterIds = rosterList.map((f) => f.id);
   if (rosterIds.length) {
+    // Inner-join the event so past events are filtered out in SQL. bouts and
+    // events are linked twice (bouts.event_id + events.current_bout_id), so the
+    // embed has to name the FK.
     const { data: bouts } = await supabase
       .from("bouts")
-      .select("id, event_id, bout_order, red_corner_fighter_id, blue_corner_fighter_id")
+      .select(
+        "id, bout_order, red_corner_fighter_id, blue_corner_fighter_id, event:events!bouts_event_id_fkey!inner(id, name, event_date, venue)",
+      )
+      .gte("event.event_date", today)
       .or(
         `red_corner_fighter_id.in.(${rosterIds.join(",")}),blue_corner_fighter_id.in.(${rosterIds.join(",")})`,
       );
-    const boutList = (bouts ?? []) as Pick<Bout, "id" | "event_id" | "bout_order" | "red_corner_fighter_id" | "blue_corner_fighter_id">[];
-    if (boutList.length) {
-      const eventIds = Array.from(new Set(boutList.map((b) => b.event_id)));
-      const { data: events } = await supabase
-        .from("events")
-        .select("id, name, event_date, venue, city, state")
-        .in("id", eventIds)
-        .gte("event_date", today);
-      const evMap = new Map<string, Pick<EventRow, "id" | "name" | "event_date" | "venue" | "city" | "state">>();
-      for (const e of events ?? []) evMap.set(e.id, e);
-      const rosterMap = new Map(rosterList.map((f) => [f.id, f.full_name]));
-      for (const b of boutList) {
-        const ev = evMap.get(b.event_id);
-        if (!ev) continue;
-        if (b.red_corner_fighter_id && rosterMap.has(b.red_corner_fighter_id)) {
-          upcoming.push({
-            bout_id: b.id,
-            event: ev,
-            bout_order: b.bout_order,
-            fighter_name: rosterMap.get(b.red_corner_fighter_id)!,
-            corner: "red",
-          });
-        }
-        if (b.blue_corner_fighter_id && rosterMap.has(b.blue_corner_fighter_id)) {
-          upcoming.push({
-            bout_id: b.id,
-            event: ev,
-            bout_order: b.bout_order,
-            fighter_name: rosterMap.get(b.blue_corner_fighter_id)!,
-            corner: "blue",
-          });
-        }
+    const boutList = (bouts ?? []) as unknown as (Pick<
+      Bout,
+      "id" | "bout_order" | "red_corner_fighter_id" | "blue_corner_fighter_id"
+    > & { event: UpcomingRow["event"] })[];
+    const rosterMap = new Map(rosterList.map((f) => [f.id, f.full_name]));
+    for (const b of boutList) {
+      if (b.red_corner_fighter_id && rosterMap.has(b.red_corner_fighter_id)) {
+        upcoming.push({
+          bout_id: b.id,
+          event: b.event,
+          bout_order: b.bout_order,
+          fighter_name: rosterMap.get(b.red_corner_fighter_id)!,
+          corner: "red",
+        });
       }
-      upcoming.sort((a, b) => a.event.event_date.localeCompare(b.event.event_date));
+      if (b.blue_corner_fighter_id && rosterMap.has(b.blue_corner_fighter_id)) {
+        upcoming.push({
+          bout_id: b.id,
+          event: b.event,
+          bout_order: b.bout_order,
+          fighter_name: rosterMap.get(b.blue_corner_fighter_id)!,
+          corner: "blue",
+        });
+      }
     }
+    upcoming.sort((a, b) => a.event.event_date.localeCompare(b.event.event_date));
   }
 
   return (

@@ -227,7 +227,9 @@ export async function declareBoutResult(formData: FormData) {
       bout_class,
       round_finished: toIntOrNull(formData.get("round_finished")),
       time_finished: orNull(formData.get("time_finished")),
-      notes: orNull(formData.get("notes")),
+      // Only the full result form has a notes field; the quick forms
+      // (finalize, apply suggestion) must not wipe existing notes.
+      ...(formData.has("notes") ? { notes: orNull(formData.get("notes")) } : {}),
       records_applied: true,
     })
     .eq("id", bout_id);

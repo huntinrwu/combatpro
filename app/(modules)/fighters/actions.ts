@@ -89,11 +89,15 @@ async function maybeLogWalkingWeight(
   fighterId: string,
   formData: FormData,
   userId: string | null,
+  currentLbs: number | string | null = null,
 ) {
   const raw = formData.get("walking_weight_lbs")?.toString().trim();
   if (!raw) return;
   const n = Number(raw);
   if (!Number.isFinite(n) || n < 60 || n > 500) return;
+  // The edit form prefills the current weight; an unchanged value is not a
+  // new reading.
+  if (currentLbs != null && Number(currentLbs) === n) return;
   await db().from("fighter_weight_log").insert({
     fighter_id: fighterId,
     weight_lbs: n,
@@ -166,12 +170,14 @@ export async function updateFighter(formData: FormData) {
   const id = formData.get("id")?.toString();
   if (!id) throw new Error("Missing fighter id.");
 
-  const { error } = await db()
+  const { data, error } = await db()
     .from("fighters")
     .update(fighterPayload(formData))
-    .eq("id", id);
+    .eq("id", id)
+    .select("walking_weight_lbs")
+    .maybeSingle<{ walking_weight_lbs: number | string | null }>();
   if (error) dbErr(error);
-  await maybeLogWalkingWeight(id, formData, staff.id);
+  await maybeLogWalkingWeight(id, formData, staff.id, data?.walking_weight_lbs);
 
   revalidatePath(`/fighters/${id}`);
   revalidatePath("/fighters");
