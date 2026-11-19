@@ -223,7 +223,7 @@ export default async function PromotionsListPage({
                     <form action={setPromotionStatus}>
                       <input type="hidden" name="id" value={p.id} />
                       <input type="hidden" name="status" value="approved" />
-                      <Button size="sm" variant="outline">
+                      <Button type="submit" size="sm" variant="outline">
                         <Check className="h-3 w-3" />
                         Approve
                       </Button>
@@ -231,7 +231,7 @@ export default async function PromotionsListPage({
                     <form action={setPromotionStatus}>
                       <input type="hidden" name="id" value={p.id} />
                       <input type="hidden" name="status" value="rejected" />
-                      <Button size="sm" variant="ghost">
+                      <Button type="submit" size="sm" variant="ghost">
                         <X className="h-3 w-3" />
                         Reject
                       </Button>
