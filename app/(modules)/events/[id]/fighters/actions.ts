@@ -4,8 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { db, dbErr } from "@/lib/db/client";
 import { syncFighterWeightClass } from "@/lib/db/fighter-weight-class";
-import { requireUser } from "@/lib/auth/session";
-import { canEditEvent } from "@/lib/auth/roles";
+import { requireEventEditor, type EditableEvent } from "../_lib/require-editor";
 import { idOrNull, orNull, toNum } from "@/lib/form-utils";
 import { defaultCompetingAs, parseMatchmaking, type MatchmakingSettings } from "@/lib/matchmaking";
 import { weightClassFor } from "@/lib/weight-classes";
@@ -14,24 +13,8 @@ import {
   SPORTS,
   type BoutClass,
   type EventFighterStatus,
-  type EventRow,
   type Fighter,
 } from "@/lib/db/types";
-
-type EditableEvent = Pick<EventRow, "created_by" | "primary_sport" | "event_type">;
-
-// Staff, or the promoter who created the event.
-async function requireEventEditor(eventId: string) {
-  const user = await requireUser();
-  const { data: event } = await db()
-    .from("events")
-    .select("created_by, primary_sport, event_type")
-    .eq("id", eventId)
-    .maybeSingle<EditableEvent>();
-  if (!event) throw new Error("Event not found.");
-  if (!canEditEvent(event, user)) throw new Error("Not authorized to edit this event.");
-  return { user, event };
-}
 
 function parseStatus(raw: FormDataEntryValue | null): EventFighterStatus {
   const status = EVENT_FIGHTER_STATUSES.find((s) => s === raw);

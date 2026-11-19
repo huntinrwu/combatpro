@@ -7,6 +7,7 @@ import {
   Gavel,
   Handshake,
   ListOrdered,
+  Paperclip,
   Pencil,
   Radio,
   Scale,
@@ -67,6 +68,7 @@ export default async function EventLayout({
     { slug: "financials", label: "Financials", icon: <DollarSign className={iconClass} />, href: `${basePath}/financials` },
     { slug: "sponsors", label: "Sponsors", icon: <Handshake className={iconClass} />, href: `${basePath}/sponsors` },
     { slug: "weigh-ins", label: "Weigh-ins", icon: <Scale className={iconClass} />, href: `${basePath}/weigh-ins` },
+    { slug: "files", label: "Files", icon: <Paperclip className={iconClass} />, href: `${basePath}/files` },
     { slug: "regulatory", label: "Regulatory", icon: <BookOpen className={iconClass} />, href: `${basePath}/regulatory` },
   ];
 
