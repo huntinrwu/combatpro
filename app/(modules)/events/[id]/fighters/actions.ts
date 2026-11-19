@@ -13,6 +13,7 @@ import {
   SPORTS,
   type BoutClass,
   type EventFighterStatus,
+  type EventRegistration,
   type Fighter,
 } from "@/lib/db/types";
 
@@ -240,10 +241,15 @@ export async function acceptRegistration(formData: FormData) {
   const supabase = db();
   const { data: reg } = await supabase
     .from("event_registrations")
-    .select("full_name, status")
+    .select("full_name, status, email, phone, gym_name, weight_class, wins, losses, draws")
     .eq("id", registration_id)
     .eq("event_id", event_id)
-    .maybeSingle<{ full_name: string; status: string }>();
+    .maybeSingle<
+      Pick<
+        EventRegistration,
+        "full_name" | "status" | "email" | "phone" | "gym_name" | "weight_class" | "wins" | "losses" | "draws"
+      >
+    >();
   if (!reg) throw new Error("That sign-up no longer exists.");
   if (reg.status !== "pending") return;
 
@@ -258,21 +264,56 @@ export async function acceptRegistration(formData: FormData) {
     if (!fighter) throw new Error("That fighter no longer exists.");
     competing_as = competingAsFor(event, fighter);
   } else {
+    competing_as = event.event_type === "pro_card" ? "pro" : "amateur";
+    // Link to a registry gym when the name they typed matches one exactly;
+    // otherwise keep what they typed as free text.
+    let gym_id: string | null = null;
+    if (reg.gym_name) {
+      const { data: gym } = await supabase
+        .from("gyms")
+        .select("id")
+        .ilike("name", reg.gym_name.replace(/[%_\\]/g, "\\$&"))
+        .limit(1)
+        .maybeSingle<{ id: string }>();
+      gym_id = gym?.id ?? null;
+    }
+    // Their stated record goes on the side they're competing as here.
+    const prefix = competing_as === "pro" ? "pro" : "am";
     const { data: created, error } = await supabase
       .from("fighters")
-      .insert({ full_name: reg.full_name, primary_sport: event.primary_sport })
+      .insert({
+        full_name: reg.full_name,
+        primary_sport: event.primary_sport,
+        weight_class: reg.weight_class,
+        contact_email: reg.email,
+        contact_phone: reg.phone,
+        gym_id,
+        gym: gym_id ? null : reg.gym_name,
+        [`${prefix}_wins`]: reg.wins ?? 0,
+        [`${prefix}_losses`]: reg.losses ?? 0,
+        [`${prefix}_draws`]: reg.draws ?? 0,
+      })
       .select("id")
       .single<{ id: string }>();
     if (error) dbErr(error);
     fighter_id = created!.id;
-    competing_as = event.event_type === "pro_card" ? "pro" : "amateur";
     revalidatePath("/fighters");
   }
 
   const { error: rosterErr } = await supabase
     .from("event_fighters")
     .upsert(
-      [{ event_id, fighter_id, status: "pending", competing_as, added_by: user.id }],
+      [
+        {
+          event_id,
+          fighter_id,
+          status: "pending",
+          competing_as,
+          // What they asked to fight at; staff confirm or change it on the roster.
+          weight_class: reg.weight_class,
+          added_by: user.id,
+        },
+      ],
       { onConflict: "event_id,fighter_id", ignoreDuplicates: true },
     );
   if (rosterErr) dbErr(rosterErr);

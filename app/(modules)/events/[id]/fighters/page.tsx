@@ -110,7 +110,7 @@ export default async function EventFightersPage({
     supabase.from("gyms").select("id, name").order("name"),
     supabase
       .from("event_registrations")
-      .select("id, full_name, contact, created_at")
+      .select("id, full_name, email, phone, gym_name, weight_class, wins, losses, draws, created_at")
       .eq("event_id", id)
       .eq("status", "pending")
       .order("created_at"),
@@ -173,7 +173,16 @@ export default async function EventFightersPage({
     : (
         (signupRes.data ?? []) as Pick<
           EventRegistration,
-          "id" | "full_name" | "contact" | "created_at"
+          | "id"
+          | "full_name"
+          | "email"
+          | "phone"
+          | "gym_name"
+          | "weight_class"
+          | "wins"
+          | "losses"
+          | "draws"
+          | "created_at"
         >[]
       ).map((s) => ({
         ...s,
@@ -458,8 +467,31 @@ export default async function EventFightersPage({
                         <li key={s.id} className="space-y-2 px-3 py-2">
                           <div>
                             <div className="text-sm font-medium">{s.full_name}</div>
+                            <div className="text-xs capitalize text-muted-foreground">
+                              {[
+                                s.weight_class,
+                                s.gym_name,
+                                s.wins != null ? `${s.wins}-${s.losses ?? 0}-${s.draws ?? 0}` : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ") || "No details given"}
+                            </div>
                             <div className="text-xs text-muted-foreground">
-                              {s.contact ?? "No contact given"}
+                              {s.email ? (
+                                <a href={`mailto:${s.email}`} className="hover:underline">
+                                  {s.email}
+                                </a>
+                              ) : (
+                                "No email"
+                              )}
+                              {s.phone && (
+                                <>
+                                  {" · "}
+                                  <a href={`tel:${s.phone}`} className="hover:underline">
+                                    {s.phone}
+                                  </a>
+                                </>
+                              )}
                             </div>
                           </div>
                           <div className="flex flex-wrap gap-1.5">

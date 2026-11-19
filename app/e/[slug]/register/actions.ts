@@ -24,12 +24,36 @@ export async function registerForEvent(
 
   const slug = formData.get("slug")?.toString() ?? "";
   const full_name = (formData.get("full_name")?.toString() ?? "").replace(/\s+/g, " ").trim();
-  const contact = (formData.get("contact")?.toString() ?? "").trim() || null;
+  const text = (name: string) => (formData.get(name)?.toString() ?? "").replace(/\s+/g, " ").trim();
+  const email = text("email").toLowerCase();
+  const phone = text("phone") || null;
+  const gym_name = text("gym_name");
+  const weight_class = text("weight_class");
+  const count = (name: string) => {
+    const raw = text(name);
+    const n = raw === "" ? Number.NaN : Number(raw);
+    return Number.isInteger(n) && n >= 0 && n <= 500 ? n : null;
+  };
+  const wins = count("wins");
+  const losses = count("losses");
+  const draws = count("draws");
 
   if (full_name.length < 2) return { status: "error", message: "Please enter your full name." };
   if (full_name.length > 80) return { status: "error", message: "That name is too long." };
-  if (contact && contact.length > 120) {
-    return { status: "error", message: "That contact detail is too long." };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 120) {
+    return { status: "error", message: "Please enter a valid email address." };
+  }
+  if (phone && phone.length > 40) {
+    return { status: "error", message: "That phone number is too long." };
+  }
+  if (gym_name.length < 2 || gym_name.length > 80) {
+    return { status: "error", message: "Please enter your gym (or \"Independent\")." };
+  }
+  if (!weight_class || weight_class.length > 60) {
+    return { status: "error", message: "Please choose the weight class you want to fight at." };
+  }
+  if (wins == null || losses == null || draws == null) {
+    return { status: "error", message: "Please enter your record as whole numbers (use 0 if none)." };
   }
 
   const supabase = db();
@@ -45,15 +69,20 @@ export async function registerForEvent(
 
   const { data: existing, error: readErr } = await supabase
     .from("event_registrations")
-    .select("full_name")
+    .select("full_name, email")
     .eq("event_id", event.id);
   if (readErr) {
     console.error("[register]", readErr.code, readErr.message);
     return { status: "error", message: "Registration isn't available right now." };
   }
-  const names = (existing ?? []) as { full_name: string }[];
+  const names = (existing ?? []) as { full_name: string; email: string | null }[];
   // Submitting twice is harmless: tell them they're in rather than add a duplicate.
-  if (names.some((r) => r.full_name.toLowerCase() === full_name.toLowerCase())) {
+  // Two different people can share a name, so the email has to match too.
+  if (
+    names.some(
+      (r) => r.full_name.toLowerCase() === full_name.toLowerCase() && (r.email ?? email) === email,
+    )
+  ) {
     return { status: "done", name: full_name };
   }
   if (names.length >= MAX_PER_EVENT) {
@@ -62,7 +91,17 @@ export async function registerForEvent(
 
   const { error } = await supabase
     .from("event_registrations")
-    .insert({ event_id: event.id, full_name, contact });
+    .insert({
+      event_id: event.id,
+      full_name,
+      email,
+      phone,
+      gym_name,
+      weight_class,
+      wins,
+      losses,
+      draws,
+    });
   if (error) {
     console.error("[register]", error.code, error.message);
     return { status: "error", message: "Something went wrong. Please try again." };

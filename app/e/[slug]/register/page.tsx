@@ -6,17 +6,26 @@ import { ArrowLeft, CalendarDays, MapPin } from "lucide-react";
 import { RegisterForm } from "./_components/register-form";
 import { db } from "@/lib/db/client";
 import { fmtDateLong } from "@/lib/format-utils";
+import { weightClassesForSport } from "@/lib/weight-classes";
 import type { EventRow } from "@/lib/db/types";
 
 type RegisterEvent = Pick<
   EventRow,
-  "id" | "name" | "event_date" | "venue" | "city" | "state" | "status" | "registration_open"
+  | "id"
+  | "name"
+  | "event_date"
+  | "venue"
+  | "city"
+  | "state"
+  | "status"
+  | "primary_sport"
+  | "registration_open"
 >;
 
 async function loadEvent(slug: string) {
   const { data } = await db()
     .from("events")
-    .select("id, name, event_date, venue, city, state, status, registration_open")
+    .select("id, name, event_date, venue, city, state, status, primary_sport, registration_open")
     .eq("slug", slug)
     .in("status", ["scheduled", "complete"])
     .maybeSingle<RegisterEvent>();
@@ -76,10 +85,13 @@ export default async function RegisterPage({
           {open ? (
             <>
               <p className="mb-4 text-sm text-muted-foreground">
-                Submit your name and the organizers will follow up. This is a request to be
+                Fill this in and the organizers will follow up. This is a request to be
                 considered, not a confirmed spot on the card.
               </p>
-              <RegisterForm slug={slug} />
+              <RegisterForm
+                slug={slug}
+                weightClasses={(weightClassesForSport(event.primary_sport) ?? []).map((c) => c.name)}
+              />
             </>
           ) : (
             <div className="rounded-lg border border-border p-5 text-sm text-muted-foreground">

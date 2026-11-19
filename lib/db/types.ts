@@ -309,7 +309,13 @@ export type EventRegistration = {
   id: string;
   event_id: string;
   full_name: string;
-  contact: string | null;
+  email: string | null;
+  phone: string | null;
+  gym_name: string | null;
+  weight_class: string | null;
+  wins: number | null;
+  losses: number | null;
+  draws: number | null;
   status: "pending" | "added" | "dismissed";
   fighter_id: string | null;
   created_at: string;

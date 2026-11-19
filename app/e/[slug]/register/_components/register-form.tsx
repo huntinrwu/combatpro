@@ -8,10 +8,18 @@ import { registerForEvent, type RegisterResult } from "../actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/form-field";
 import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 
 const INITIAL: RegisterResult = { status: "idle" };
 
-export function RegisterForm({ slug }: { slug: string }) {
+export function RegisterForm({
+  slug,
+  weightClasses,
+}: {
+  slug: string;
+  // Class names for this event's sport; empty when the sport has no table.
+  weightClasses: string[];
+}) {
   const [state, formAction] = useActionState(registerForEvent, INITIAL);
 
   if (state.status === "done") {
@@ -41,13 +49,73 @@ export function RegisterForm({ slug }: { slug: string }) {
       <FormField label="Full name" htmlFor="reg_name" required>
         <Input id="reg_name" name="full_name" required maxLength={80} autoComplete="name" autoFocus />
       </FormField>
-      <FormField
-        label="Phone or email"
-        htmlFor="reg_contact"
-        hint="Optional. So the organizers can reach you."
-      >
-        <Input id="reg_contact" name="contact" maxLength={120} />
+      <FormField label="Email" htmlFor="reg_email" required>
+        <Input
+          id="reg_email"
+          name="email"
+          type="email"
+          required
+          maxLength={120}
+          autoComplete="email"
+        />
       </FormField>
+      <FormField label="Phone" htmlFor="reg_phone" hint="Optional.">
+        <Input id="reg_phone" name="phone" type="tel" maxLength={40} autoComplete="tel" />
+      </FormField>
+      <FormField
+        label="Gym"
+        htmlFor="reg_gym"
+        required
+        hint='Write "Independent" if you train without a gym.'
+      >
+        <Input id="reg_gym" name="gym_name" required maxLength={80} />
+      </FormField>
+      <FormField label="Desired weight class" htmlFor="reg_class" required>
+        {weightClasses.length > 0 ? (
+          <NativeSelect id="reg_class" name="weight_class" required defaultValue="">
+            <option value="" disabled>
+              Choose…
+            </option>
+            {weightClasses.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </NativeSelect>
+        ) : (
+          <Input id="reg_class" name="weight_class" required maxLength={60} placeholder="e.g. 155 lbs" />
+        )}
+      </FormField>
+      <fieldset>
+        <legend className="text-xs font-medium text-muted-foreground">
+          Fight record<span className="ml-0.5 text-destructive">*</span>
+        </legend>
+        <div className="mt-1.5 grid grid-cols-3 gap-2">
+          {(
+            [
+              ["wins", "Wins"],
+              ["losses", "Losses"],
+              ["draws", "Draws"],
+            ] as const
+          ).map(([name, label]) => (
+            <label key={name} className="text-xs text-muted-foreground">
+              {label}
+              <Input
+                name={name}
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={500}
+                step={1}
+                required
+                defaultValue={0}
+                className="mt-1"
+              />
+            </label>
+          ))}
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground/80">Leave at 0 if this is your first fight.</p>
+      </fieldset>
       {state.status === "error" && (
         <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {state.message}
