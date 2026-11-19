@@ -65,11 +65,11 @@ export async function GET(
     supabase
       .from("events")
       .select(
-        "name, event_date, venue, city, state, sanctioning_body:sanctioning_bodies(name), commission:commissions(name)",
+        "name, event_date, venue, city, state, medicals_required, sanctioning_body:sanctioning_bodies(name), commission:commissions(name)",
       )
       .eq("id", bout.event_id)
       .maybeSingle<
-        Pick<EventRow, "name" | "event_date" | "venue" | "city" | "state"> & {
+        Pick<EventRow, "name" | "event_date" | "venue" | "city" | "state" | "medicals_required"> & {
           sanctioning_body: Pick<SanctioningBody, "name"> | null;
           commission: Pick<Commission, "name"> | null;
         }
@@ -113,8 +113,9 @@ export async function GET(
   const red = bout.red_corner_fighter_id ? fighterMap.get(bout.red_corner_fighter_id) ?? null : null;
   const blue = bout.blue_corner_fighter_id ? fighterMap.get(bout.blue_corner_fighter_id) ?? null : null;
   const asOfEventDate = `${event.event_date}T23:59:59`;
+  const medicalsRequired = event.medicals_required !== false;
   const clearanceFor = (fighterId: string | null) =>
-    isAgreement && fighterId
+    isAgreement && medicalsRequired && fighterId
       ? fighterClearanceSummary(medicalByFighter.get(fighterId) ?? [], undefined, asOfEventDate)
       : null;
 
@@ -154,6 +155,7 @@ export async function GET(
     <BoutAgreementPdf
       {...shared}
       ruleset={rulesetData}
+      medicalsRequired={medicalsRequired}
       redClearance={clearanceFor(bout.red_corner_fighter_id)}
       blueClearance={clearanceFor(bout.blue_corner_fighter_id)}
     />

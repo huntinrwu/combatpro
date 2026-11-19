@@ -176,6 +176,21 @@ export function EventForm({
           <CardTitle className="text-base">Regulatory</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
+          <label className="flex items-start gap-2 text-sm md:col-span-2">
+            <input
+              type="checkbox"
+              name="medicals_required"
+              className="mt-1"
+              defaultChecked={defaults?.medicals_required ?? true}
+            />
+            <span>
+              Medicals required for this event
+              <span className="block text-xs text-muted-foreground">
+                Untick for smokers and other events that don&apos;t need them. Medical warnings
+                and the medical check-in step are then hidden for this event.
+              </span>
+            </span>
+          </label>
           <FormField label="Commission" htmlFor="commission_id">
             <NativeSelect
               id="commission_id"

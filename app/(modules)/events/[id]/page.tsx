@@ -29,6 +29,7 @@ export default async function EventBoutsTabPage({
   const detail = await loadEventDetail(id);
   if (!detail) notFound();
   const { event, bouts: rawBouts, fighterMap, checksByBout } = detail;
+  const showMedical = event.medicals_required !== false;
 
   const bouts: BoutWithFighters[] = rawBouts.map((b) => ({
     ...b,
@@ -99,6 +100,7 @@ export default async function EventBoutsTabPage({
                       fighter={b.red}
                       check={b.checks?.red}
                       winner={b.result === "red"}
+                      showMedical={showMedical}
                     />
                     <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       vs
@@ -109,6 +111,7 @@ export default async function EventBoutsTabPage({
                       check={b.checks?.blue}
                       align="right"
                       winner={b.result === "blue"}
+                      showMedical={showMedical}
                     />
                   </div>
                   {b.result && (
@@ -147,10 +150,12 @@ function FighterSide({
   check,
   align = "left",
   winner = false,
+  showMedical,
 }: {
   corner: "red" | "blue";
   fighter?: Pick<Fighter, "id" | "full_name"> | null;
   check?: BoutFighterCheck | null;
+  showMedical: boolean;
   align?: "left" | "right";
   winner?: boolean;
 }) {
@@ -179,11 +184,13 @@ function FighterSide({
         className={`flex items-center gap-0.5 ${
           align === "right" ? "flex-row-reverse" : ""
         }`}
-        title="Check-in · Weigh-in · Medical · Cleared"
+        title={showMedical ? "Check-in · Weigh-in · Medical · Cleared" : "Check-in · Weigh-in · Cleared"}
       >
         <span className={`h-1.5 w-1.5 rounded-full ${progress.checkedIn ? "bg-emerald-500/70" : "bg-muted-foreground/20"}`} />
         <span className={`h-1.5 w-1.5 rounded-full ${progress.weighedIn ? "bg-emerald-500/70" : "bg-muted-foreground/20"}`} />
-        <span className={`h-1.5 w-1.5 rounded-full ${progress.medicalCleared ? "bg-emerald-500/70" : "bg-muted-foreground/20"}`} />
+        {showMedical && (
+          <span className={`h-1.5 w-1.5 rounded-full ${progress.medicalCleared ? "bg-emerald-500/70" : "bg-muted-foreground/20"}`} />
+        )}
         <span className={`h-1.5 w-1.5 rounded-full ${progress.clearedToFight ? "bg-emerald-500" : "bg-muted-foreground/20"}`} />
       </span>
     </div>

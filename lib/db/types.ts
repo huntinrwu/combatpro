@@ -149,6 +149,8 @@ export type EventRow = {
   promotion_id: string | null;
   primary_sport: string;
   event_type: EventType | null;
+  // False for events (smokers etc.) that don't require fighter medicals.
+  medicals_required: boolean;
   // Per-event matchmaking rules; read through parseMatchmaking().
   matchmaking: unknown;
   commission_id: string | null;

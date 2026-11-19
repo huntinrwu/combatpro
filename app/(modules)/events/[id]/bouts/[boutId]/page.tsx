@@ -140,14 +140,16 @@ export default async function BoutDetailPage({
   // Compute clearance as of fight night, not today — a bloodwork panel that
   // expires two weeks before the bout is disqualifying even if it's valid now.
   const asOfEventDate = `${event.event_date}T23:59:59`;
-  const redClearance = bout.red_corner_fighter_id
+  // Events that don't require medicals show no clearance warnings or gate.
+  const medicalsRequired = event.medicals_required !== false;
+  const redClearance = medicalsRequired && bout.red_corner_fighter_id
     ? fighterClearanceSummary(
         medicalByFighter.get(bout.red_corner_fighter_id) ?? [],
         undefined,
         asOfEventDate,
       )
     : null;
-  const blueClearance = bout.blue_corner_fighter_id
+  const blueClearance = medicalsRequired && bout.blue_corner_fighter_id
     ? fighterClearanceSummary(
         medicalByFighter.get(bout.blue_corner_fighter_id) ?? [],
         undefined,
@@ -321,6 +323,7 @@ export default async function BoutDetailPage({
             boutId={bout.id}
             eventId={event.id}
             clearance={redClearance}
+            medicalsRequired={medicalsRequired}
           />
           <CheckinCorner
             corner="blue"
@@ -330,6 +333,7 @@ export default async function BoutDetailPage({
             boutId={bout.id}
             eventId={event.id}
             clearance={blueClearance}
+            medicalsRequired={medicalsRequired}
           />
         </CardContent>
       </Card>

@@ -138,9 +138,10 @@ export default async function EventFightersPage({
     if (blue && !matchups.has(blue)) matchups.set(blue, { bout, number, opponent: nameOf(red) });
   });
 
+  const medicalsRequired = event.medicals_required !== false;
   const asOf = `${event.event_date}T23:59:59`;
   const rows = roster.map((entry) => {
-    const clearance = entry.fighter
+    const clearance = medicalsRequired && entry.fighter
       ? fighterClearanceSummary(entry.fighter.medical as FighterMedicalRecord[], undefined, asOf)
       : null;
     return { entry, clearance, matchup: matchups.get(entry.fighter_id) ?? null };
@@ -175,9 +176,9 @@ export default async function EventFightersPage({
         />
         <SummaryTile
           label="Medical issues"
-          value={String(medicalIssues)}
+          value={medicalsRequired ? String(medicalIssues) : "—"}
           valueClassName={medicalIssues > 0 ? "text-red-700 dark:text-red-300" : ""}
-          hint="As of fight night"
+          hint={medicalsRequired ? "As of fight night" : "Not required for this event"}
         />
       </div>
 

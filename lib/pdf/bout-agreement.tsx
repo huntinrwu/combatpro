@@ -24,6 +24,7 @@ export type BoutAgreementProps = {
   sanctioningBody: string | null;
   commission: string | null;
   ruleset?: Ruleset | null;
+  medicalsRequired?: boolean;
   redClearance?: ClearanceSummary | null;
   blueClearance?: ClearanceSummary | null;
 };
@@ -61,11 +62,13 @@ function CornerCard({
   fighter,
   boutClass,
   medical,
+  medicalsRequired,
 }: {
   corner: Corner;
   fighter: Fighter | null;
   boutClass: string;
   medical: ReturnType<typeof medicalLine>;
+  medicalsRequired: boolean;
 }) {
   const color = corner === "red" ? colors.red : colors.blue;
   return (
@@ -89,7 +92,11 @@ function CornerCard({
         k="Medical"
         vStyle={medical ? { color: medical.color, fontFamily: "Helvetica-Bold" } : undefined}
       >
-        {medical ? medical.text : "All clear on event date"}
+        {!medicalsRequired
+          ? "Not required for this event"
+          : medical
+            ? medical.text
+            : "All clear on event date"}
       </KV>
     </View>
   );
@@ -104,6 +111,7 @@ export function BoutAgreementPdf({
   sanctioningBody,
   commission,
   ruleset,
+  medicalsRequired = true,
   redClearance,
   blueClearance,
 }: BoutAgreementProps) {
@@ -183,8 +191,20 @@ export function BoutAgreementPdf({
 
         <Text style={styles.sectionTitle}>Corners</Text>
         <View style={styles.grid2}>
-          <CornerCard corner="red" fighter={red} boutClass={bout.bout_class} medical={redMedical} />
-          <CornerCard corner="blue" fighter={blue} boutClass={bout.bout_class} medical={blueMedical} />
+          <CornerCard
+            corner="red"
+            fighter={red}
+            boutClass={bout.bout_class}
+            medical={redMedical}
+            medicalsRequired={medicalsRequired}
+          />
+          <CornerCard
+            corner="blue"
+            fighter={blue}
+            boutClass={bout.bout_class}
+            medical={blueMedical}
+            medicalsRequired={medicalsRequired}
+          />
         </View>
 
         {ruleset && (

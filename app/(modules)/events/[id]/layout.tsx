@@ -86,6 +86,9 @@ export default async function EventLayout({
           {event.event_type && (
             <Badge variant="outline">{EVENT_TYPE_LABELS[event.event_type]}</Badge>
           )}
+          {event.medicals_required === false && (
+            <Badge variant="outline">No medicals required</Badge>
+          )}
           <div className="ml-auto flex items-center gap-2">
             {canEdit && (
               <Button

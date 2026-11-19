@@ -45,6 +45,7 @@ export function CheckinCorner({
   boutId,
   eventId,
   clearance,
+  medicalsRequired,
 }: {
   corner: Corner;
   fighter: Pick<Fighter, "id" | "full_name"> | null | undefined;
@@ -53,6 +54,7 @@ export function CheckinCorner({
   boutId: string;
   eventId: string;
   clearance: ReturnType<typeof fighterClearanceSummary> | null;
+  medicalsRequired: boolean;
 }) {
   const progress = checkinProgress(check);
   const status = weighInStatus(contractedLbs, check?.weigh_in_lbs ?? null);
@@ -74,7 +76,7 @@ export function CheckinCorner({
         <div className="ml-auto flex items-center gap-1">
           <ProgressDot on={progress.checkedIn} label="Check-in" />
           <ProgressDot on={progress.weighedIn} label="Weigh-in" />
-          <ProgressDot on={progress.medicalCleared} label="Medical" />
+          {medicalsRequired && <ProgressDot on={progress.medicalCleared} label="Medical" />}
           <ProgressDot on={progress.clearedToFight} label="Cleared" strong />
         </div>
       </header>
@@ -185,6 +187,7 @@ export function CheckinCorner({
       </div>
 
       {/* Medical */}
+      {medicalsRequired && (
       <form action={toggleMedicalClearance} className="flex items-center gap-3">
         <input type="hidden" name="bout_id" value={boutId} />
         <input type="hidden" name="event_id" value={eventId} />
@@ -218,6 +221,7 @@ export function CheckinCorner({
           {progress.medicalCleared ? "Unclear" : "Clear"}
         </Button>
       </form>
+      )}
 
       {/* Cleared to fight */}
       <form action={toggleClearedToFight} className="flex items-center gap-3 border-t border-border/60 pt-3">
@@ -234,7 +238,7 @@ export function CheckinCorner({
           <div className="text-xs text-muted-foreground">
             {progress.clearedToFight
               ? `Signed off at ${fmtTime(check!.cleared_to_fight_at!)}`
-              : allGatesReady(progress, status)
+              : allGatesReady(progress, status, medicalsRequired)
                 ? "All gates passed — ready to sign off"
                 : "Gates pending"}
           </div>
@@ -244,7 +248,7 @@ export function CheckinCorner({
             </div>
           )}
         </div>
-        {!progress.clearedToFight && !allGatesReady(progress, status) && (
+        {!progress.clearedToFight && !allGatesReady(progress, status, medicalsRequired) && (
           <Input
             name="override_reason"
             placeholder="Override reason (optional)"
@@ -268,8 +272,11 @@ export function CheckinCorner({
 function allGatesReady(
   p: ReturnType<typeof checkinProgress>,
   status: ReturnType<typeof weighInStatus>,
+  medicalsRequired: boolean,
 ): boolean {
-  return p.checkedIn && p.weighedIn && p.medicalCleared && status !== "over";
+  return (
+    p.checkedIn && p.weighedIn && (p.medicalCleared || !medicalsRequired) && status !== "over"
+  );
 }
 
 function ClearanceBanner({
