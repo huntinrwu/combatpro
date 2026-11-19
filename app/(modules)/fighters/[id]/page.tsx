@@ -18,6 +18,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { PersonNoBadge } from "@/components/person-no-badge";
 import { Textarea } from "@/components/ui/textarea";
 import type {
+  EventRosterEntry,
   Fighter,
   FighterClassPreference,
   FighterMedicalRecord,
@@ -26,6 +27,7 @@ import type {
   Gym,
   Promotion,
 } from "@/lib/db/types";
+import { fmtDateShort } from "@/lib/format-utils";
 import { cmToFeetIn, cmToIn } from "@/lib/units";
 
 // Shape of the bouts → event → promotion embed below (both to-one).
@@ -36,6 +38,11 @@ type FighterBoutRow = {
     promotion: Pick<Promotion, "id" | "name" | "abbreviation"> | null;
   } | null;
 };
+
+type EventClassRow = Pick<
+  EventRosterEntry,
+  "id" | "weight_class" | "competing_as" | "target_weight_lbs" | "status"
+> & { event: { id: string; name: string; event_date: string } | null };
 
 export default async function FighterDetailPage({
   params,
@@ -53,6 +60,7 @@ export default async function FighterDetailPage({
     { data: weightLog },
     { data: classPrefs },
     { data: rawBouts },
+    { data: rawEventClasses },
   ] = await Promise.all([
     getSessionUser(),
     supabase
@@ -92,9 +100,20 @@ export default async function FighterDetailPage({
         "event_id, event:events!bouts_event_id_fkey(event_date, promotion:promotions(id, name, abbreviation))",
       )
       .or(`red_corner_fighter_id.eq.${id},blue_corner_fighter_id.eq.${id}`),
+    // The class this fighter was entered at on each event.
+    supabase
+      .from("event_fighters")
+      .select(
+        "id, weight_class, competing_as, target_weight_lbs, status, event:events(id, name, event_date)",
+      )
+      .eq("fighter_id", id),
   ]);
 
   if (!fighter) notFound();
+
+  const eventClasses = ((rawEventClasses ?? []) as unknown as EventClassRow[])
+    .filter((r) => r.event)
+    .sort((a, b) => b.event!.event_date.localeCompare(a.event!.event_date));
 
   const heightParts = cmToFeetIn(fighter.height_cm);
   const gymList = (gyms ?? []) as Pick<Gym, "id" | "name">[];
@@ -219,7 +238,7 @@ export default async function FighterDetailPage({
                 </Button>
               </form>
             </div>
-            <DetailRow label="Weight class" value={fighter.weight_class} />
+            <DetailRow label="Current weight class" value={fighter.weight_class} />
             <DetailRow
               label="Stance"
               value={fighter.stance ? <span className="capitalize">{fighter.stance}</span> : null}
@@ -287,6 +306,56 @@ export default async function FighterDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      {eventClasses.length > 0 && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Scale className="h-4 w-4" />
+              Weight class by event
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Weight class is recorded per event. The class on this profile follows the most
+              recent one.
+            </p>
+            <div className="overflow-x-auto rounded-lg border border-border/70">
+              <table className="w-full min-w-[520px] text-sm">
+                <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Event</th>
+                    <th className="px-3 py-2 font-medium">Date</th>
+                    <th className="px-3 py-2 font-medium">Weight class</th>
+                    <th className="px-3 py-2 font-medium">Target</th>
+                    <th className="px-3 py-2 font-medium">As</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {eventClasses.map((r) => (
+                    <tr key={r.id} className={r.status === "withdrawn" ? "text-muted-foreground" : ""}>
+                      <td className="px-3 py-2">
+                        <Link href={`/events/${r.event!.id}/fighters`} className="hover:underline">
+                          {r.event!.name}
+                        </Link>
+                        {r.status === "withdrawn" && <span className="ml-2 text-xs">(withdrawn)</span>}
+                      </td>
+                      <td className="px-3 py-2 text-xs">{fmtDateShort(r.event!.event_date)}</td>
+                      <td className="px-3 py-2 capitalize">{r.weight_class ?? "—"}</td>
+                      <td className="px-3 py-2 text-xs">
+                        {r.target_weight_lbs != null ? `${Number(r.target_weight_lbs)} lbs` : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-xs">
+                        {r.competing_as === "pro" ? "Pro" : r.competing_as === "amateur" ? "Amateur" : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="mt-6">
         <CardHeader>

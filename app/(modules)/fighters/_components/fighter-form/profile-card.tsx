@@ -35,9 +35,9 @@ export function ProfileCard({ defaults }: { defaults?: Partial<Fighter> }) {
           </NativeSelect>
         </FormField>
         <FormField
-          label="Primary weight class"
+          label="Usual weight class"
           htmlFor="weight_class"
-          hint="Pick from any sport — set more per-sport preferences on the fighter profile."
+          hint="A starting point only. Once they are entered on an event, this follows the class recorded for their most recent event."
         >
           <WeightClassSelect
             id="weight_class"

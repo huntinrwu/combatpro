@@ -149,6 +149,8 @@ export type EventRow = {
   promotion_id: string | null;
   primary_sport: string;
   event_type: EventType | null;
+  // Per-event matchmaking rules; read through parseMatchmaking().
+  matchmaking: unknown;
   commission_id: string | null;
   sanctioning_body_id: string | null;
   status: EventStatus;
@@ -288,6 +290,10 @@ export type EventRosterEntry = {
   event_id: string;
   fighter_id: string;
   status: EventFighterStatus;
+  // Weight class and pro/amateur are per event: fighters move between
+  // classes, so this is the record of what they fought at here.
+  weight_class: string | null;
+  competing_as: BoutClass | null;
   target_weight_lbs: number | string | null;
   notes: string | null;
   added_by: string | null;

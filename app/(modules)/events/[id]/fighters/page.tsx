@@ -60,7 +60,7 @@ type RosterFighter = Pick<
 
 type RosterRow = Pick<
   EventRosterEntry,
-  "id" | "fighter_id" | "status" | "target_weight_lbs" | "notes"
+  "id" | "fighter_id" | "status" | "weight_class" | "competing_as" | "target_weight_lbs" | "notes"
 > & { fighter: RosterFighter | null };
 
 type RegistryFighter = Pick<
@@ -69,7 +69,7 @@ type RegistryFighter = Pick<
 > & { gym_ref: Pick<Gym, "name"> | null };
 
 const ROSTER_SELECT =
-  "id, fighter_id, status, target_weight_lbs, notes, fighter:fighters(id, full_name, nickname, primary_sport, weight_class, walking_weight_lbs, pro_wins, pro_losses, pro_draws, am_wins, am_losses, am_draws, gym, gym_id, gym_ref:gyms(name), medical:fighter_medical_records(kind, issued_on, expires_on))";
+  "id, fighter_id, status, weight_class, competing_as, target_weight_lbs, notes, fighter:fighters(id, full_name, nickname, primary_sport, weight_class, walking_weight_lbs, pro_wins, pro_losses, pro_draws, am_wins, am_losses, am_draws, gym, gym_id, gym_ref:gyms(name), medical:fighter_medical_records(kind, issued_on, expires_on))";
 
 const STATUS_ORDER: Record<EventFighterStatus, number> = {
   confirmed: 0,
@@ -114,8 +114,8 @@ export default async function EventFightersPage({
     return (
       <Card collapsible={false}>
         <CardContent className="text-sm text-muted-foreground">
-          The fighter roster isn&apos;t available yet. The database migration{" "}
-          <code>0039_event_fighters.sql</code> needs to be applied.
+          The fighter roster isn&apos;t available yet. The latest database migration{" "}
+          (<code>0041_event_weight_class_matchmaking.sql</code>) needs to be applied.
         </CardContent>
       </Card>
     );
@@ -190,6 +190,12 @@ export default async function EventFightersPage({
             </CardTitle>
           </CardHeader>
           <CardContent>
+            {canEdit && rows.length > 0 && (
+              <p className="mb-3 text-xs text-muted-foreground">
+                Weight class is set per event. Enter a target weight and leave the class on
+                &quot;none&quot; to have it worked out for you, or pick a class to override.
+              </p>
+            )}
             {rows.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No fighters on this event yet.
@@ -236,7 +242,6 @@ export default async function EventFightersPage({
                             <div className="mt-0.5 text-xs capitalize text-muted-foreground">
                               {[
                                 f.primary_sport,
-                                f.weight_class,
                                 gym,
                                 `${fighterProRecord(f)} pro`,
                                 f.am_wins + f.am_losses + f.am_draws > 0
@@ -250,6 +255,20 @@ export default async function EventFightersPage({
                                 .join(" · ")}
                             </div>
                           )}
+                          <div className="mt-1 text-xs">
+                            <span className="font-medium capitalize">
+                              {entry.weight_class ?? "Weight class not set"}
+                            </span>
+                            <span className="text-muted-foreground">
+                              {" · "}
+                              {entry.competing_as === "pro" ? "Pro" : "Amateur"}
+                              {entry.target_weight_lbs != null &&
+                                ` · target ${num(entry.target_weight_lbs)} lbs`}
+                              {!entry.weight_class && f?.weight_class && (
+                                <span className="capitalize"> · last fought at {f.weight_class}</span>
+                              )}
+                            </span>
+                          </div>
                           <div className="mt-1 text-xs">
                             {matchup ? (
                               <Link
@@ -339,6 +358,22 @@ export default async function EventFightersPage({
                             aria-label="Target weight in pounds"
                             className="h-7 w-28 text-xs"
                           />
+                          <WeightClassSelect
+                            name="weight_class"
+                            id={`wc_${entry.id}`}
+                            sport={event.primary_sport}
+                            defaultValue={entry.weight_class}
+                            className="h-7 w-44 text-xs"
+                          />
+                          <NativeSelect
+                            name="competing_as"
+                            defaultValue={entry.competing_as ?? "amateur"}
+                            aria-label="Competing as"
+                            className="h-7 w-28 text-xs"
+                          >
+                            <option value="amateur">Amateur</option>
+                            <option value="pro">Pro</option>
+                          </NativeSelect>
                           <Input
                             name="notes"
                             defaultValue={entry.notes ?? ""}
@@ -411,7 +446,7 @@ export default async function EventFightersPage({
                     </NativeSelect>
                   </FormField>
                   <FormField label="Weight class" htmlFor="nf_class">
-                    <WeightClassSelect id="nf_class" name="weight_class" />
+                    <WeightClassSelect id="nf_class" name="weight_class" sport={event.primary_sport} />
                   </FormField>
                   <FormField label="Gym" htmlFor="nf_gym">
                     <NativeSelect id="nf_gym" name="gym_id" defaultValue="__none__">

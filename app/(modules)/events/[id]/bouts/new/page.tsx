@@ -21,7 +21,13 @@ export default async function NewBoutPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ red?: string; blue?: string }>;
+  searchParams: Promise<{
+    red?: string;
+    blue?: string;
+    wc?: string;
+    lbs?: string;
+    cls?: string;
+  }>;
 }) {
   const [{ id }, preselect] = await Promise.all([params, searchParams]);
   const supabase = db();
@@ -168,7 +174,11 @@ export default async function NewBoutPage({
               </NativeSelect>
             </FormField>
             <FormField label="Weight class" htmlFor="weight_class">
-              <WeightClassSelect id="weight_class" name="weight_class" />
+              <WeightClassSelect
+                id="weight_class"
+                name="weight_class"
+                defaultValue={preselect.wc}
+              />
             </FormField>
             <FormField label="Contracted weight (lbs)" htmlFor="contracted_weight_lbs">
               <Input
@@ -177,6 +187,9 @@ export default async function NewBoutPage({
                 type="number"
                 step="0.5"
                 min={0}
+                defaultValue={
+                  preselect.lbs && Number.isFinite(Number(preselect.lbs)) ? preselect.lbs : undefined
+                }
               />
             </FormField>
             <FormField label="Rounds" htmlFor="rounds">
@@ -212,9 +225,11 @@ export default async function NewBoutPage({
                 id="bout_class"
                 name="bout_class"
                 defaultValue={
-                  event.event_type === "smoker" || event.event_type === "amateur_card"
-                    ? "amateur"
-                    : "pro"
+                  preselect.cls === "pro" || preselect.cls === "amateur"
+                    ? preselect.cls
+                    : event.event_type === "smoker" || event.event_type === "amateur_card"
+                      ? "amateur"
+                      : "pro"
                 }
               >
                 {BOUT_CLASSES.map((c) => (

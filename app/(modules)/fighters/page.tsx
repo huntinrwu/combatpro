@@ -10,12 +10,39 @@ import { KanbanBoard } from "@/components/views/kanban";
 import { CardGrid, CompactList, TableShell, TileGrid } from "@/components/views/containers";
 import { pickView } from "@/lib/view-mode";
 import { fighterProRecord, initials } from "@/lib/text-utils";
+import {
+  EXPERIENCE_TIERS,
+  defaultCompetingAs,
+  experienceTier,
+  totalFights,
+} from "@/lib/matchmaking";
+import { weightClassesForSport } from "@/lib/weight-classes";
+import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import type { Fighter, Gym } from "@/lib/db/types";
 import { SPORTS } from "@/lib/db/types";
 
 const VIEWS = ["list", "card", "grid", "compact", "kanban", "gallery"] as const;
 
-type Search = { view?: string };
+type Search = {
+  view?: string;
+  q?: string;
+  sport?: string;
+  gym?: string;
+  level?: string;
+  exp?: string;
+  group?: string;
+};
+
+const GROUPS = [
+  { key: "none", label: "No grouping" },
+  { key: "weight_class", label: "Weight class" },
+  { key: "experience", label: "Experience" },
+  { key: "gym", label: "Gym" },
+  { key: "sport", label: "Sport" },
+  { key: "level", label: "Pro / amateur" },
+] as const;
+type GroupKey = (typeof GROUPS)[number]["key"];
 
 // Only the columns the list views render — the full row carries contact
 // info, notes, licenses etc. that this page never shows.
@@ -50,8 +77,10 @@ export default async function FightersListPage({
 }: {
   searchParams: Promise<Search>;
 }) {
-  const { view: rawView } = await searchParams;
-  const view = pickView(rawView, VIEWS);
+  const sp = await searchParams;
+  const view = pickView(sp.view, VIEWS);
+  const q = (sp.q ?? "").trim().toLowerCase();
+  const group: GroupKey = GROUPS.find((g) => g.key === sp.group)?.key ?? "none";
 
   const supabase = db();
   const [{ data: fighters, error }, { data: gyms }] = await Promise.all([
@@ -61,7 +90,24 @@ export default async function FightersListPage({
   const gymMap = new Map<string, string>();
   for (const g of ((gyms ?? []) as Pick<Gym, "id" | "name">[])) gymMap.set(g.id, g.name);
 
-  const list = (fighters ?? []) as FighterRow[];
+  const all = (fighters ?? []) as FighterRow[];
+  const list = all.filter((f) => {
+    if (sp.sport && f.primary_sport !== sp.sport) return false;
+    if (sp.gym && (sp.gym === "__none__" ? gymName(f, gymMap) != null : f.gym_id !== sp.gym)) return false;
+    if (sp.level && defaultCompetingAs(f) !== sp.level) return false;
+    if (sp.exp && experienceTier(totalFights(f)).key !== sp.exp) return false;
+    if (q) {
+      const haystack = [f.full_name, f.nickname, f.weight_class, gymName(f, gymMap), f.primary_sport]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+  const filtered = Boolean(q || sp.sport || sp.gym || sp.level || sp.exp);
+  const sections = groupFighters(list, group, gymMap);
+  const gymOptions = [...gymMap.entries()].sort((a, b) => a[1].localeCompare(b[1]));
 
   return (
     <>
@@ -91,7 +137,95 @@ export default async function FightersListPage({
         </div>
       )}
 
-      {list.length === 0 && !error ? (
+      {all.length > 0 && (
+        <form className="mb-6 flex flex-wrap items-end gap-2" action="/fighters">
+          {view !== VIEWS[0] && <input type="hidden" name="view" value={view} />}
+          <label className="min-w-48 flex-1 text-xs text-muted-foreground">
+            Search
+            <Input
+              name="q"
+              defaultValue={sp.q ?? ""}
+              placeholder="Name, gym, weight class…"
+              className="mt-1"
+            />
+          </label>
+          <label className="text-xs text-muted-foreground">
+            Sport
+            <NativeSelect name="sport" defaultValue={sp.sport ?? ""} className="mt-1 capitalize">
+              <option value="">All</option>
+              {SPORTS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </NativeSelect>
+          </label>
+          <label className="text-xs text-muted-foreground">
+            Gym
+            <NativeSelect name="gym" defaultValue={sp.gym ?? ""} className="mt-1">
+              <option value="">All</option>
+              <option value="__none__">Unaffiliated</option>
+              {gymOptions.map(([id, name]) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </NativeSelect>
+          </label>
+          <label className="text-xs text-muted-foreground">
+            Level
+            <NativeSelect name="level" defaultValue={sp.level ?? ""} className="mt-1">
+              <option value="">All</option>
+              <option value="amateur">Amateur</option>
+              <option value="pro">Pro</option>
+            </NativeSelect>
+          </label>
+          <label className="text-xs text-muted-foreground">
+            Experience
+            <NativeSelect name="exp" defaultValue={sp.exp ?? ""} className="mt-1">
+              <option value="">All</option>
+              {EXPERIENCE_TIERS.map((t) => (
+                <option key={t.key} value={t.key}>
+                  {t.label}
+                </option>
+              ))}
+            </NativeSelect>
+          </label>
+          <label className="text-xs text-muted-foreground">
+            Group by
+            <NativeSelect name="group" defaultValue={group} className="mt-1">
+              {GROUPS.map((g) => (
+                <option key={g.key} value={g.key}>
+                  {g.label}
+                </option>
+              ))}
+            </NativeSelect>
+          </label>
+          <Button type="submit" size="sm">
+            Apply
+          </Button>
+          {(filtered || group !== "none") && (
+            <Button
+              size="sm"
+              variant="ghost"
+              render={
+                <Link href={view === VIEWS[0] ? "/fighters" : `/fighters?view=${view}`}>Reset</Link>
+              }
+            />
+          )}
+          <span className="ml-auto text-xs text-muted-foreground">
+            {filtered ? `${list.length} of ${all.length}` : `${all.length} fighters`}
+          </span>
+        </form>
+      )}
+
+      {all.length > 0 && list.length === 0 && (
+        <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+          No fighters match those filters.
+        </div>
+      )}
+
+      {all.length === 0 && !error ? (
         <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
           No fighters yet.
           <div className="mt-2">
@@ -108,15 +242,86 @@ export default async function FightersListPage({
         </div>
       ) : (
         <>
-          {view === "list" && <ListView fighters={list} gymMap={gymMap} />}
-          {view === "card" && <CardView fighters={list} gymMap={gymMap} />}
-          {view === "grid" && <GridView fighters={list} gymMap={gymMap} />}
-          {view === "compact" && <CompactView fighters={list} gymMap={gymMap} />}
-          {view === "kanban" && <KanbanView fighters={list} gymMap={gymMap} />}
-          {view === "gallery" && <GalleryView fighters={list} />}
+          {view === "kanban" ? (
+            <KanbanView sections={groupFighters(list, group === "none" ? "sport" : group, gymMap)} gymMap={gymMap} />
+          ) : (
+            <div className="space-y-8">
+              {sections.map((section) => (
+                <section key={section.title}>
+                  {group !== "none" && (
+                    <h2 className="mb-3 flex items-baseline gap-2 font-heading text-lg font-semibold capitalize">
+                      {section.title}
+                      <span className="text-sm font-normal text-muted-foreground">
+                        {section.fighters.length}
+                      </span>
+                    </h2>
+                  )}
+                  {view === "list" && <ListView fighters={section.fighters} gymMap={gymMap} />}
+                  {view === "card" && <CardView fighters={section.fighters} gymMap={gymMap} />}
+                  {view === "grid" && <GridView fighters={section.fighters} gymMap={gymMap} />}
+                  {view === "compact" && <CompactView fighters={section.fighters} gymMap={gymMap} />}
+                  {view === "gallery" && <GalleryView fighters={section.fighters} />}
+                </section>
+              ))}
+            </div>
+          )}
         </>
       )}
     </>
+  );
+}
+
+type FighterSection = { title: string; fighters: FighterRow[] };
+
+// Bucket fighters for the "Group by" control. Each bucket carries a sort
+// order so classes run light to heavy and experience runs debut to veteran.
+function groupFighters(
+  fighters: FighterRow[],
+  group: GroupKey,
+  gymMap: Map<string, string>,
+): FighterSection[] {
+  if (group === "none") return fighters.length ? [{ title: "All", fighters }] : [];
+
+  const LAST = Number.MAX_SAFE_INTEGER;
+  const keyOf = (f: FighterRow): { title: string; order: number } => {
+    switch (group) {
+      case "weight_class": {
+        if (!f.weight_class) return { title: "No weight class", order: LAST };
+        const cls = weightClassesForSport(f.primary_sport)?.find(
+          (c) => c.name.toLowerCase() === f.weight_class!.toLowerCase(),
+        );
+        return {
+          title: f.weight_class,
+          order: cls && Number.isFinite(cls.upper_lbs) ? cls.upper_lbs : LAST - 1,
+        };
+      }
+      case "experience": {
+        const tier = experienceTier(totalFights(f));
+        return { title: tier.label, order: tier.min };
+      }
+      case "gym": {
+        const name = gymName(f, gymMap);
+        return name ? { title: name, order: 0 } : { title: "Unaffiliated", order: LAST };
+      }
+      case "level":
+        return defaultCompetingAs(f) === "pro"
+          ? { title: "Pro", order: 0 }
+          : { title: "Amateur", order: 1 };
+      default:
+        return { title: f.primary_sport, order: 0 };
+    }
+  };
+
+  const buckets = new Map<string, FighterSection & { order: number }>();
+  for (const f of fighters) {
+    const { title, order } = keyOf(f);
+    const key = title.toLowerCase();
+    const bucket = buckets.get(key) ?? { title, order, fighters: [] };
+    bucket.fighters.push(f);
+    buckets.set(key, bucket);
+  }
+  return [...buckets.values()].sort(
+    (a, b) => a.order - b.order || a.title.localeCompare(b.title),
   );
 }
 
@@ -288,23 +493,18 @@ function CompactView({ fighters, gymMap }: { fighters: FighterRow[]; gymMap: Map
   );
 }
 
-function KanbanView({ fighters, gymMap }: { fighters: FighterRow[]; gymMap: Map<string, string> }) {
-  const buckets = new Map<string, FighterRow[]>();
-  for (const s of SPORTS) buckets.set(s, []);
-  for (const f of fighters) {
-    const key = (SPORTS as readonly string[]).includes(f.primary_sport)
-      ? f.primary_sport
-      : "other";
-    if (!buckets.has(key)) buckets.set(key, []);
-    buckets.get(key)!.push(f);
-  }
-  const columns = Array.from(buckets.entries())
-    .filter(([, arr]) => arr.length > 0)
-    .map(([sport, items]) => ({
-      key: sport,
-      header: <span className="text-xs font-medium capitalize">{sport}</span>,
-      items,
-    }));
+function KanbanView({
+  sections,
+  gymMap,
+}: {
+  sections: FighterSection[];
+  gymMap: Map<string, string>;
+}) {
+  const columns = sections.map((section) => ({
+    key: section.title,
+    header: <span className="text-xs font-medium capitalize">{section.title}</span>,
+    items: section.fighters,
+  }));
 
   return (
     <KanbanBoard
