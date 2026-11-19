@@ -1,0 +1,451 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { Plus, Swords, UserPlus, Users, X } from "lucide-react";
+
+import {
+  createAndAddFighter,
+  removeEventFighter,
+  updateEventFighter,
+} from "./actions";
+import { AddFightersPanel, type FighterCandidate } from "./_components/add-fighters-panel";
+import { loadEventDetail } from "../_lib/event-detail";
+import { db } from "@/lib/db/client";
+import { getSessionUser } from "@/lib/auth/session";
+import { canEditEvent } from "@/lib/auth/roles";
+import { CLEARANCE_STATUS_META } from "@/lib/ui-config";
+import { fighterProRecord } from "@/lib/text-utils";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FormField } from "@/components/form-field";
+import { ToastedForm } from "@/components/forms/toasted-form";
+import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
+import { SummaryTile } from "@/components/summary-tile";
+import { WeightClassSelect } from "@/components/weight-class-select";
+import {
+  EVENT_FIGHTER_STATUSES,
+  EVENT_FIGHTER_STATUS_LABELS,
+  SPORTS,
+  fighterClearanceSummary,
+  num,
+  type Bout,
+  type EventFighterStatus,
+  type EventRosterEntry,
+  type Fighter,
+  type FighterMedicalRecord,
+  type Gym,
+} from "@/lib/db/types";
+
+type RosterFighter = Pick<
+  Fighter,
+  | "id"
+  | "full_name"
+  | "nickname"
+  | "primary_sport"
+  | "weight_class"
+  | "walking_weight_lbs"
+  | "pro_wins"
+  | "pro_losses"
+  | "pro_draws"
+  | "am_wins"
+  | "am_losses"
+  | "am_draws"
+  | "gym"
+  | "gym_id"
+> & {
+  gym_ref: Pick<Gym, "name"> | null;
+  medical: Pick<FighterMedicalRecord, "kind" | "issued_on" | "expires_on">[];
+};
+
+type RosterRow = Pick<
+  EventRosterEntry,
+  "id" | "fighter_id" | "status" | "target_weight_lbs" | "notes"
+> & { fighter: RosterFighter | null };
+
+type RegistryFighter = Pick<
+  Fighter,
+  "id" | "full_name" | "nickname" | "primary_sport" | "weight_class" | "gym" | "gym_id"
+> & { gym_ref: Pick<Gym, "name"> | null };
+
+const ROSTER_SELECT =
+  "id, fighter_id, status, target_weight_lbs, notes, fighter:fighters(id, full_name, nickname, primary_sport, weight_class, walking_weight_lbs, pro_wins, pro_losses, pro_draws, am_wins, am_losses, am_draws, gym, gym_id, gym_ref:gyms(name), medical:fighter_medical_records(kind, issued_on, expires_on))";
+
+const STATUS_ORDER: Record<EventFighterStatus, number> = {
+  confirmed: 0,
+  pending: 1,
+  withdrawn: 2,
+};
+
+const STATUS_BADGE: Record<EventFighterStatus, "default" | "outline" | "destructive"> = {
+  confirmed: "default",
+  pending: "outline",
+  withdrawn: "destructive",
+};
+
+function gymName(f: { gym: string | null; gym_id: string | null; gym_ref: { name: string } | null }) {
+  return (f.gym_id ? f.gym_ref?.name : f.gym) ?? null;
+}
+
+export default async function EventFightersPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const supabase = db();
+
+  const [detail, session, rosterRes, { data: registry }, { data: gyms }] = await Promise.all([
+    loadEventDetail(id),
+    getSessionUser(),
+    supabase.from("event_fighters").select(ROSTER_SELECT).eq("event_id", id).order("created_at"),
+    supabase
+      .from("fighters")
+      .select("id, full_name, nickname, primary_sport, weight_class, gym, gym_id, gym_ref:gyms(name)")
+      .order("full_name"),
+    supabase.from("gyms").select("id, name").order("name"),
+  ]);
+  if (!detail) notFound();
+  const { event, bouts, fighterMap } = detail;
+  const canEdit = session ? canEditEvent(event, session) : false;
+
+  if (rosterRes.error) {
+    console.error("[event_fighters]", rosterRes.error.code, rosterRes.error.message);
+    return (
+      <Card collapsible={false}>
+        <CardContent className="text-sm text-muted-foreground">
+          The fighter roster isn&apos;t available yet. The database migration{" "}
+          <code>0039_event_fighters.sql</code> needs to be applied.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const roster = ((rosterRes.data ?? []) as unknown as RosterRow[]).sort(
+    (a, b) =>
+      STATUS_ORDER[a.status] - STATUS_ORDER[b.status] ||
+      (a.fighter?.full_name ?? "").localeCompare(b.fighter?.full_name ?? ""),
+  );
+
+  // fighter id → the bout they are on, with card position and opponent.
+  const matchups = new Map<string, { bout: Bout; number: number; opponent: string }>();
+  bouts.forEach((bout, idx) => {
+    const number = bout.bout_order ?? idx + 1;
+    const red = bout.red_corner_fighter_id;
+    const blue = bout.blue_corner_fighter_id;
+    const nameOf = (fid: string | null) => (fid ? fighterMap.get(fid)?.full_name : null) ?? "TBD";
+    if (red && !matchups.has(red)) matchups.set(red, { bout, number, opponent: nameOf(blue) });
+    if (blue && !matchups.has(blue)) matchups.set(blue, { bout, number, opponent: nameOf(red) });
+  });
+
+  const asOf = `${event.event_date}T23:59:59`;
+  const rows = roster.map((entry) => {
+    const clearance = entry.fighter
+      ? fighterClearanceSummary(entry.fighter.medical as FighterMedicalRecord[], undefined, asOf)
+      : null;
+    return { entry, clearance, matchup: matchups.get(entry.fighter_id) ?? null };
+  });
+
+  const active = rows.filter((r) => r.entry.status !== "withdrawn");
+  const confirmed = rows.filter((r) => r.entry.status === "confirmed").length;
+  const matched = active.filter((r) => r.matchup).length;
+  const medicalIssues = active.filter(
+    (r) => r.clearance && r.clearance.worstStatus !== "active",
+  ).length;
+
+  const onRoster = new Set(roster.map((r) => r.fighter_id));
+  const candidates: FighterCandidate[] = ((registry ?? []) as unknown as RegistryFighter[])
+    .filter((f) => !onRoster.has(f.id))
+    .map((f) => ({
+      id: f.id,
+      name: f.nickname ? `${f.full_name} "${f.nickname}"` : f.full_name,
+      detail: [f.primary_sport, f.weight_class, gymName(f)].filter(Boolean).join(" · "),
+      sport: f.primary_sport,
+    }));
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <SummaryTile label="On roster" value={String(active.length)} hint={`${confirmed} confirmed`} />
+        <SummaryTile label="Matched" value={`${matched}/${active.length}`} />
+        <SummaryTile
+          label="Need opponent"
+          value={String(active.length - matched)}
+          valueClassName={active.length - matched > 0 ? "text-amber-700 dark:text-amber-300" : ""}
+        />
+        <SummaryTile
+          label="Medical issues"
+          value={String(medicalIssues)}
+          valueClassName={medicalIssues > 0 ? "text-red-700 dark:text-red-300" : ""}
+          hint="As of fight night"
+        />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-2" collapsible={false}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Users className="h-4 w-4" />
+              Fighter roster ({roster.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {rows.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No fighters on this event yet.
+                {canEdit ? " Add them from the registry, then build the card from this roster." : ""}
+              </p>
+            ) : (
+              <ul className="divide-y divide-border rounded-md border border-border/70">
+                {rows.map(({ entry, clearance, matchup }) => {
+                  const f = entry.fighter;
+                  const gym = f ? gymName(f) : null;
+                  const meta = clearance ? CLEARANCE_STATUS_META[clearance.worstStatus] : null;
+                  return (
+                    <li key={entry.id} className="space-y-2 px-3 py-3">
+                      <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {f ? (
+                              <Link
+                                href={`/fighters/${f.id}`}
+                                className="text-sm font-medium hover:underline"
+                              >
+                                {f.full_name}
+                              </Link>
+                            ) : (
+                              <span className="text-sm font-medium">(missing fighter)</span>
+                            )}
+                            {f?.nickname && (
+                              <span className="text-xs italic text-muted-foreground">
+                                &quot;{f.nickname}&quot;
+                              </span>
+                            )}
+                            <Badge variant={STATUS_BADGE[entry.status]}>
+                              {EVENT_FIGHTER_STATUS_LABELS[entry.status]}
+                            </Badge>
+                            {meta && f && (
+                              <Link href={`/fighters/${f.id}#medical`}>
+                                <Badge variant="outline" className={meta.className}>
+                                  Medical: {meta.label}
+                                </Badge>
+                              </Link>
+                            )}
+                          </div>
+                          {f && (
+                            <div className="mt-0.5 text-xs capitalize text-muted-foreground">
+                              {[
+                                f.primary_sport,
+                                f.weight_class,
+                                gym,
+                                `${fighterProRecord(f)} pro`,
+                                f.am_wins + f.am_losses + f.am_draws > 0
+                                  ? `${f.am_wins}-${f.am_losses}-${f.am_draws} am`
+                                  : null,
+                                f.walking_weight_lbs != null
+                                  ? `walks ${num(f.walking_weight_lbs)} lbs`
+                                  : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </div>
+                          )}
+                          <div className="mt-1 text-xs">
+                            {matchup ? (
+                              <Link
+                                href={`/events/${event.id}/bouts/${matchup.bout.id}`}
+                                className="inline-flex items-center gap-1 hover:underline"
+                              >
+                                <Swords className="h-3 w-3" />
+                                Bout {matchup.number} vs {matchup.opponent}
+                                {entry.status === "withdrawn" && (
+                                  <span className="font-medium text-red-700 dark:text-red-300">
+                                    — withdrawn but still on the card
+                                  </span>
+                                )}
+                              </Link>
+                            ) : entry.status === "withdrawn" ? (
+                              <span className="text-muted-foreground">Not on the card</span>
+                            ) : (
+                              <span className="inline-flex items-center gap-2 text-amber-700 dark:text-amber-300">
+                                Needs an opponent
+                                {canEdit && (
+                                  <Link
+                                    href={`/events/${event.id}/bouts/new?red=${entry.fighter_id}`}
+                                    className="inline-flex items-center gap-0.5 text-foreground underline-offset-2 hover:underline"
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                    Create bout
+                                  </Link>
+                                )}
+                              </span>
+                            )}
+                          </div>
+                          {!canEdit && entry.notes && (
+                            <p className="mt-1 text-xs text-muted-foreground">{entry.notes}</p>
+                          )}
+                        </div>
+
+                        {canEdit && (
+                          <ToastedForm
+                            action={removeEventFighter}
+                            successMessage="Removed from event"
+                          >
+                            <input type="hidden" name="event_id" value={event.id} />
+                            <input type="hidden" name="entry_id" value={entry.id} />
+                            <Button
+                              type="submit"
+                              size="icon-sm"
+                              variant="ghost"
+                              aria-label="Remove from event"
+                              title="Remove from event"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </ToastedForm>
+                        )}
+                      </div>
+
+                      {canEdit && (
+                        <ToastedForm
+                          action={updateEventFighter}
+                          successMessage="Saved"
+                          className="flex flex-wrap items-center gap-2"
+                        >
+                          <input type="hidden" name="event_id" value={event.id} />
+                          <input type="hidden" name="entry_id" value={entry.id} />
+                          <NativeSelect
+                            name="status"
+                            defaultValue={entry.status}
+                            aria-label="Status"
+                            className="h-7 w-32 text-xs"
+                          >
+                            {EVENT_FIGHTER_STATUSES.map((s) => (
+                              <option key={s} value={s}>
+                                {EVENT_FIGHTER_STATUS_LABELS[s]}
+                              </option>
+                            ))}
+                          </NativeSelect>
+                          <Input
+                            name="target_weight_lbs"
+                            type="number"
+                            step="0.5"
+                            min={60}
+                            max={500}
+                            defaultValue={
+                              entry.target_weight_lbs != null ? num(entry.target_weight_lbs) : ""
+                            }
+                            placeholder="Target lbs"
+                            aria-label="Target weight in pounds"
+                            className="h-7 w-28 text-xs"
+                          />
+                          <Input
+                            name="notes"
+                            defaultValue={entry.notes ?? ""}
+                            placeholder="Notes"
+                            aria-label="Notes"
+                            className="h-7 min-w-32 flex-1 text-xs"
+                          />
+                          <Button type="submit" size="sm" variant="outline">
+                            Save
+                          </Button>
+                        </ToastedForm>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        {canEdit && (
+          <div className="space-y-6">
+            <Card collapsible={false}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <UserPlus className="h-4 w-4" />
+                  Add from registry
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <AddFightersPanel
+                  eventId={event.id}
+                  eventSport={event.primary_sport}
+                  candidates={candidates}
+                />
+              </CardContent>
+            </Card>
+
+            <Card defaultOpen={false}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Plus className="h-4 w-4" />
+                  New fighter
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ToastedForm
+                  action={createAndAddFighter}
+                  successMessage="Fighter created and added"
+                  resetOnSuccess
+                  className="space-y-3"
+                >
+                  <input type="hidden" name="event_id" value={event.id} />
+                  <FormField label="Full name" htmlFor="nf_name" required>
+                    <Input id="nf_name" name="full_name" required />
+                  </FormField>
+                  <FormField label="Sport" htmlFor="nf_sport" required>
+                    <NativeSelect
+                      id="nf_sport"
+                      name="primary_sport"
+                      required
+                      defaultValue={event.primary_sport}
+                      className="capitalize"
+                    >
+                      {SPORTS.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                  </FormField>
+                  <FormField label="Weight class" htmlFor="nf_class">
+                    <WeightClassSelect id="nf_class" name="weight_class" />
+                  </FormField>
+                  <FormField label="Gym" htmlFor="nf_gym">
+                    <NativeSelect id="nf_gym" name="gym_id" defaultValue="__none__">
+                      <option value="__none__">— Unaffiliated —</option>
+                      {((gyms ?? []) as Pick<Gym, "id" | "name">[]).map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.name}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                  </FormField>
+                  <FormField label="Target weight (lbs)" htmlFor="nf_target">
+                    <Input
+                      id="nf_target"
+                      name="target_weight_lbs"
+                      type="number"
+                      step="0.5"
+                      min={60}
+                      max={500}
+                    />
+                  </FormField>
+                  <p className="text-xs text-muted-foreground">
+                    Creates the fighter in the registry and adds them to this event. Fill in
+                    the record, medicals and contact details from their profile afterwards.
+                  </p>
+                  <Button type="submit" size="sm">
+                    Create and add
+                  </Button>
+                </ToastedForm>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

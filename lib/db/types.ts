@@ -259,6 +259,29 @@ export type EventOfficial = {
   created_at: string;
 };
 
+// ── Event fighter roster ──────────────────────────────────────────────────
+
+export const EVENT_FIGHTER_STATUSES = ["pending", "confirmed", "withdrawn"] as const;
+export type EventFighterStatus = (typeof EVENT_FIGHTER_STATUSES)[number];
+
+export const EVENT_FIGHTER_STATUS_LABELS: Record<EventFighterStatus, string> = {
+  pending: "Pending",
+  confirmed: "Confirmed",
+  withdrawn: "Withdrawn",
+};
+
+// One fighter on one event's roster (table event_fighters).
+export type EventRosterEntry = {
+  id: string;
+  event_id: string;
+  fighter_id: string;
+  status: EventFighterStatus;
+  target_weight_lbs: number | string | null;
+  notes: string | null;
+  added_by: string | null;
+  created_at: string;
+};
+
 export type BoutScorecard = {
   id: string;
   bout_id: string;

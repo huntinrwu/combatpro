@@ -13,6 +13,7 @@ import {
   Share2,
   ShieldCheck,
   Trophy,
+  Users,
 } from "lucide-react";
 
 import { EventTabs, type EventTab } from "./_components/event-tabs";
@@ -58,6 +59,7 @@ export default async function EventLayout({
   const iconClass = "h-3.5 w-3.5";
   const tabs: EventTab[] = [
     { slug: "bouts", label: "Bouts", icon: <CalendarDays className={iconClass} />, href: basePath },
+    { slug: "fighters", label: "Fighters", icon: <Users className={iconClass} />, href: `${basePath}/fighters` },
     { slug: "officials", label: "Officials", icon: <Gavel className={iconClass} />, href: `${basePath}/officials` },
     { slug: "financials", label: "Financials", icon: <DollarSign className={iconClass} />, href: `${basePath}/financials` },
     { slug: "sponsors", label: "Sponsors", icon: <Handshake className={iconClass} />, href: `${basePath}/sponsors` },

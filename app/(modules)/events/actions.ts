@@ -123,9 +123,30 @@ export async function createBout(formData: FormData) {
     notes: orNull(formData.get("notes")),
   };
 
-  const { error } = await db().from("bouts").insert(payload);
+  if (
+    payload.red_corner_fighter_id &&
+    payload.red_corner_fighter_id === payload.blue_corner_fighter_id
+  ) {
+    throw new Error("Red and blue corner cannot be the same fighter.");
+  }
+
+  const supabase = db();
+  const { error } = await supabase.from("bouts").insert(payload);
 
   if (error) dbErr(error);
+
+  // Anyone matched on the card belongs on the event roster. Best-effort: a
+  // roster hiccup must not undo a bout that was just created.
+  const corners = [payload.red_corner_fighter_id, payload.blue_corner_fighter_id].filter(
+    (v): v is string => Boolean(v),
+  );
+  if (corners.length > 0) {
+    const { error: rosterErr } = await supabase.from("event_fighters").upsert(
+      corners.map((fighter_id) => ({ event_id, fighter_id })),
+      { onConflict: "event_id,fighter_id", ignoreDuplicates: true },
+    );
+    if (rosterErr) console.error("[event_fighters]", rosterErr.code, rosterErr.message);
+  }
 
   revalidatePath(`/events/${event_id}`);
   redirect(`/events/${event_id}`);

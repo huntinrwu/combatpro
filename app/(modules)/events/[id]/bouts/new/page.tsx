@@ -14,27 +14,60 @@ import { WeightClassSelect } from "@/components/weight-class-select";
 import { BOUT_CLASSES, SCORING_MODES, SPORTS } from "@/lib/db/types";
 import type { Fighter, Ruleset } from "@/lib/db/types";
 
+type PickerFighter = Pick<Fighter, "id" | "full_name" | "primary_sport">;
+
 export default async function NewBoutPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ red?: string; blue?: string }>;
 }) {
-  const { id } = await params;
+  const [{ id }, preselect] = await Promise.all([params, searchParams]);
   const supabase = db();
 
-  const [detail, { data: fighters }, { data: rulesets }] = await Promise.all([
+  const [detail, rosterRes, { data: rulesets }] = await Promise.all([
     loadEventDetail(id),
     supabase
-      .from("fighters")
-      .select("id, full_name, primary_sport")
-      .order("full_name"),
+      .from("event_fighters")
+      .select("status, fighter:fighters(id, full_name, primary_sport)")
+      .eq("event_id", id),
     supabase.from("rulesets").select("id, name, sport, sanctioning_body_id, is_default").order("name"),
   ]);
 
   if (!detail) notFound();
-  const { event } = detail;
+  const { event, bouts } = detail;
 
-  const fighterList = (fighters ?? []) as Pick<Fighter, "id" | "full_name" | "primary_sport">[];
+  // Bouts are built from the event's fighter roster. If the roster table is
+  // not there yet (migration 0039 pending), fall back to the whole registry.
+  const usingRoster = !rosterRes.error;
+  let fighterList: PickerFighter[];
+  if (usingRoster) {
+    fighterList = (
+      (rosterRes.data ?? []) as unknown as { status: string; fighter: PickerFighter | null }[]
+    )
+      .filter((r) => r.status !== "withdrawn" && r.fighter)
+      .map((r) => r.fighter!)
+      .sort((a, b) => a.full_name.localeCompare(b.full_name));
+  } else {
+    const { data: all } = await supabase
+      .from("fighters")
+      .select("id, full_name, primary_sport")
+      .order("full_name");
+    fighterList = (all ?? []) as PickerFighter[];
+  }
+
+  // fighter id -> bout number they are already on, shown next to their name.
+  const alreadyOn = new Map<string, number>();
+  bouts.forEach((b, idx) => {
+    const n = b.bout_order ?? idx + 1;
+    if (b.red_corner_fighter_id) alreadyOn.set(b.red_corner_fighter_id, n);
+    if (b.blue_corner_fighter_id) alreadyOn.set(b.blue_corner_fighter_id, n);
+  });
+  const optionLabel = (f: PickerFighter) =>
+    `${f.full_name} (${f.primary_sport})${alreadyOn.has(f.id) ? ` — on bout ${alreadyOn.get(f.id)}` : ""}`;
+  const pick = (raw: string | undefined) =>
+    raw && fighterList.some((f) => f.id === raw) ? raw : "";
   const rulesetList = (rulesets ?? []) as Pick<
     Ruleset,
     "id" | "name" | "sport" | "sanctioning_body_id" | "is_default"
@@ -75,12 +108,12 @@ export default async function NewBoutPage({
               <NativeSelect
                 id="red_corner_fighter_id"
                 name="red_corner_fighter_id"
-                defaultValue=""
+                defaultValue={pick(preselect.red)}
               >
                 <option value="">TBD</option>
                 {fighterList.map((f) => (
                   <option key={f.id} value={f.id}>
-                    {f.full_name} ({f.primary_sport})
+                    {optionLabel(f)}
                   </option>
                 ))}
               </NativeSelect>
@@ -89,16 +122,29 @@ export default async function NewBoutPage({
               <NativeSelect
                 id="blue_corner_fighter_id"
                 name="blue_corner_fighter_id"
-                defaultValue=""
+                defaultValue={pick(preselect.blue)}
               >
                 <option value="">TBD</option>
                 {fighterList.map((f) => (
                   <option key={f.id} value={f.id}>
-                    {f.full_name} ({f.primary_sport})
+                    {optionLabel(f)}
                   </option>
                 ))}
               </NativeSelect>
             </FormField>
+            {usingRoster && (
+              <p className="text-xs text-muted-foreground md:col-span-2">
+                {fighterList.length === 0
+                  ? "No fighters on this event yet. "
+                  : "Only fighters on this event's roster are listed. "}
+                <Link
+                  href={`/events/${event.id}/fighters`}
+                  className="text-foreground underline underline-offset-2"
+                >
+                  Manage event fighters
+                </Link>
+              </p>
+            )}
           </CardContent>
         </Card>
 
