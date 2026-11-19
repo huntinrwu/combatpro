@@ -1,12 +1,10 @@
 import Link from "next/link";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 
-import {
-  deleteFightRecord,
-  setFightRecordConfidence,
-} from "../records-actions";
+import { saveDeclaredRecord } from "../records-actions";
 import { backfillDeclaredFightRecords } from "../actions";
-import { ConfidenceSelect } from "./confidence-select";
+import { FightRecordsEditor } from "./fight-records-editor";
+import { ToastedForm } from "@/components/forms/toasted-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { fmtDateShort as fmtDate } from "@/lib/format-utils";
@@ -142,7 +140,7 @@ export function FightRecordsCard({
         </div>
       </div>
 
-      {records.length === 0 ? (
+      {records.length === 0 && (
         <div className="rounded-lg border border-dashed border-border p-6 text-center">
           <div className="text-sm text-muted-foreground">
             No bout-by-bout records yet.
@@ -192,7 +190,23 @@ export function FightRecordsCard({
             </>
           )}
         </div>
-      ) : (
+      )}
+
+      {isStaff ? (
+        <>
+          <DeclaredRecordForm fighterId={fighterId} declared={declared} />
+          <FightRecordsEditor
+            // Remount with fresh rows whenever the saved data changes.
+            key={records
+              .map((r) =>
+                [r.id, r.fight_date, r.opponent_name, r.result, r.method, r.round_finished, r.is_pro, r.event_name, r.confidence].join("|"),
+              )
+              .join("~")}
+            fighterId={fighterId}
+            records={records}
+          />
+        </>
+      ) : records.length > 0 ? (
         <div className="overflow-x-auto rounded-lg border border-border/70">
           <table className="w-full min-w-[640px] text-sm">
             <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -202,7 +216,6 @@ export function FightRecordsCard({
                 <th className="px-3 py-2 font-medium">Result</th>
                 <th className="px-3 py-2 font-medium">Method</th>
                 <th className="px-3 py-2 font-medium">Confidence</th>
-                <th className="px-3 py-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -252,44 +265,65 @@ export function FightRecordsCard({
                         </div>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-right">
-                      {isStaff && (
-                        <div className="flex justify-end gap-1">
-                          <form action={setFightRecordConfidence}>
-                            <input type="hidden" name="id" value={r.id} />
-                            <input type="hidden" name="fighter_id" value={fighterId} />
-                            <ConfidenceSelect defaultValue={r.confidence} />
-                          </form>
-                          <Link
-                            href={`/fighters/${fighterId}/records/${r.id}/edit`}
-                            className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                            aria-label="Edit record"
-                            title="Edit"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Link>
-                          <form action={deleteFightRecord}>
-                            <input type="hidden" name="id" value={r.id} />
-                            <input type="hidden" name="fighter_id" value={fighterId} />
-                            <button
-                              type="submit"
-                              className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
-                              aria-label="Delete record"
-                              title="Delete"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </form>
-                        </div>
-                      )}
-                    </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
-      )}
+      ) : null}
     </div>
+  );
+}
+
+const DECLARED_FIELDS = [
+  ["pro", "w", "pro_wins", "Pro W"],
+  ["pro", "l", "pro_losses", "Pro L"],
+  ["pro", "d", "pro_draws", "Pro D"],
+  ["am", "w", "am_wins", "Am W"],
+  ["am", "l", "am_losses", "Am L"],
+  ["am", "d", "am_draws", "Am D"],
+] as const;
+
+// Staff-only: the headline W-L-D shown at the top of the profile.
+function DeclaredRecordForm({
+  fighterId,
+  declared,
+}: {
+  fighterId: string;
+  declared: {
+    pro: { w: number; l: number; d: number };
+    am: { w: number; l: number; d: number };
+  };
+}) {
+  return (
+    <ToastedForm
+      action={saveDeclaredRecord}
+      successMessage="Record saved"
+      className="flex flex-wrap items-end gap-2 rounded-lg border border-border/70 p-3"
+    >
+      <input type="hidden" name="fighter_id" value={fighterId} />
+      <div className="mr-2 text-xs text-muted-foreground">
+        <div className="font-medium text-foreground">Headline record</div>
+        Shown at the top of the profile.
+      </div>
+      {DECLARED_FIELDS.map(([group, key, name, label]) => (
+        <label key={name} className="text-[10px] uppercase tracking-wide text-muted-foreground">
+          {label}
+          <input
+            name={name}
+            type="number"
+            min={0}
+            max={999}
+            required
+            defaultValue={declared[group][key]}
+            className="mt-0.5 block h-7 w-14 rounded-md border border-input bg-transparent px-1.5 text-xs text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 dark:bg-input/30"
+          />
+        </label>
+      ))}
+      <Button type="submit" size="sm" variant="outline">
+        Save record
+      </Button>
+    </ToastedForm>
   );
 }
