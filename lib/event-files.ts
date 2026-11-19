@@ -8,7 +8,7 @@ export const EVENT_FILE_CATEGORIES = ["poster", "photo", "document", "other"] as
 export type EventFileCategory = (typeof EVENT_FILE_CATEGORIES)[number];
 
 export const EVENT_FILE_CATEGORY_LABELS: Record<EventFileCategory, string> = {
-  poster: "Poster",
+  poster: "Event poster",
   photo: "Photo",
   document: "Document",
   other: "Other",

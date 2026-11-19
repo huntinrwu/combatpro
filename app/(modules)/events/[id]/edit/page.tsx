@@ -4,6 +4,7 @@ import { updateEvent } from "../../actions";
 import { EventForm } from "../../_components/event-form";
 import { loadEventFormOptions } from "../../_lib/event-form-options";
 import { loadEventDetail } from "../_lib/event-detail";
+import { EventPostersCard } from "../_components/event-posters-card";
 import { requireUser } from "@/lib/auth/session";
 import { canEditEvent } from "@/lib/auth/roles";
 
@@ -42,6 +43,8 @@ export default async function EditEventPage({
         promotions={promotions}
         hiddenFields={{ id }}
       />
+
+      <EventPostersCard eventId={id} />
     </>
   );
 }

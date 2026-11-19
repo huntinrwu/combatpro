@@ -112,7 +112,7 @@ export default async function PublicEventPage({
 
   // Fighter and sponsor names are embedded so the whole page is one round trip
   // after the event lookup.
-  const [{ data: rawBouts }, sbRes, { data: sponsorSlots }] = await Promise.all([
+  const [{ data: rawBouts }, sbRes, { data: sponsorSlots }, { data: rawPosters }] = await Promise.all([
     supabase
       .from("bouts")
       .select(
@@ -131,7 +131,18 @@ export default async function PublicEventPage({
       .from("event_sponsors")
       .select("tier, sponsor:sponsors(name)")
       .eq("event_id", event.id),
+    // Newest first: the latest upload is the main poster.
+    supabase
+      .from("event_files")
+      .select("id, filename")
+      .eq("event_id", event.id)
+      .eq("category", "poster")
+      .order("created_at", { ascending: false }),
   ]);
+  const posters = ((rawPosters ?? []) as { id: string; filename: string }[]).map((p) => ({
+    ...p,
+    src: `/e/${slug}/poster/${p.id}`,
+  }));
 
   const enriched = (rawBouts ?? []) as unknown as BoutWithFighters[];
 
@@ -193,7 +204,8 @@ export default async function PublicEventPage({
               "radial-gradient(ellipse at 20% 30%, rgba(220,38,38,0.35), transparent 50%), radial-gradient(ellipse at 80% 70%, rgba(30,64,175,0.4), transparent 55%)",
           }}
         />
-        <div className="relative mx-auto w-full max-w-5xl px-6 py-14">
+        <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-14 md:flex-row md:items-center">
+          <div className="min-w-0 flex-1">
           {topBillingSponsors.length > 0 && (
             <p className="mb-3 text-xs uppercase tracking-[0.35em] text-white/70">
               Presented by {topBillingSponsors.join(" · ")}
@@ -234,6 +246,35 @@ export default async function PublicEventPage({
               </span>
             )}
           </div>
+          </div>
+          {posters.length > 0 && (
+            <div className="w-full shrink-0 md:w-72">
+              <a href={posters[0].src} target="_blank" rel="noopener">
+                {/* Served by our own cached route; the storage bucket is private. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={posters[0].src}
+                  alt={`${event.name} poster`}
+                  className="w-full rounded-lg border border-white/15 shadow-2xl"
+                />
+              </a>
+              {posters.length > 1 && (
+                <div className="mt-3 flex gap-2">
+                  {posters.slice(1, 5).map((p) => (
+                    <a key={p.id} href={p.src} target="_blank" rel="noopener" className="w-1/4">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={p.src}
+                        alt={`${event.name} poster`}
+                        loading="lazy"
+                        className="aspect-[3/4] w-full rounded border border-white/15 object-cover"
+                      />
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </section>
 

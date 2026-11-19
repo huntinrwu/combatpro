@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Download, FileText, ImageIcon, Trash2, Upload } from "lucide-react";
+import { Download, FileText, ImageIcon, Megaphone, Trash2, Upload } from "lucide-react";
 
 import { deleteEventFile } from "./actions";
 import { FileUploader } from "./_components/file-uploader";
@@ -72,8 +72,9 @@ export default async function EventFilesPage({
     files = visible.map((f, i) => ({ ...f, url: signed?.[i]?.signedUrl ?? null }));
   }
 
-  const images = files.filter((f) => isImageType(f.content_type));
-  const others = files.filter((f) => !isImageType(f.content_type));
+  const posters = files.filter((f) => f.category === "poster");
+  const images = files.filter((f) => f.category !== "poster" && isImageType(f.content_type));
+  const others = files.filter((f) => f.category !== "poster" && !isImageType(f.content_type));
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
@@ -81,49 +82,39 @@ export default async function EventFilesPage({
         <Card collapsible={false}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
+              <Megaphone className="h-4 w-4" />
+              Event poster{posters.length === 1 ? "" : "s"} ({posters.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Shown on the public event page once the event is scheduled. The most recent
+              upload is the main poster.
+            </p>
+            {posters.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No poster yet.{canEdit ? " Upload one as “Event poster” from the panel on the right." : ""}
+              </p>
+            ) : (
+              <ImageGrid eventId={event.id} files={posters} canEdit={canEdit} markFirst />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card collapsible={false}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
               <ImageIcon className="h-4 w-4" />
-              Posters and photos ({images.length})
+              Photos ({images.length})
             </CardTitle>
           </CardHeader>
           <CardContent>
             {images.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No posters or photos yet.{canEdit ? " Upload them from the panel on the right." : ""}
+                No photos yet.{canEdit ? " Upload them from the panel on the right." : ""}
               </p>
             ) : (
-              <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {images.map((f) => (
-                  <li key={f.id} className="overflow-hidden rounded-lg border border-border/70">
-                    <a href={f.url ?? undefined} target="_blank" rel="noopener" title="Open full size">
-                      {f.url ? (
-                        // Signed URLs change on every load, so next/image caching doesn't apply.
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={f.url}
-                          alt={f.filename}
-                          loading="lazy"
-                          className="aspect-[3/4] w-full bg-muted object-cover"
-                        />
-                      ) : (
-                        <div className="flex aspect-[3/4] items-center justify-center bg-muted text-xs text-muted-foreground">
-                          Preview unavailable
-                        </div>
-                      )}
-                    </a>
-                    <div className="flex items-start gap-2 p-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-xs font-medium" title={f.filename}>
-                          {f.filename}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground">
-                          {EVENT_FILE_CATEGORY_LABELS[f.category]} · {fmtFileSize(f.size_bytes)}
-                        </div>
-                      </div>
-                      {canEdit && <DeleteButton eventId={event.id} file={f} />}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <ImageGrid eventId={event.id} files={images} canEdit={canEdit} />
             )}
           </CardContent>
         </Card>
@@ -188,8 +179,9 @@ export default async function EventFilesPage({
           <CardContent>
             <FileUploader eventId={event.id} />
             <p className="mt-3 text-xs text-muted-foreground">
-              Posters and photos can be seen by anyone signed in who can open this event.
-              Documents and other files are only visible to staff and the event&apos;s promoter.
+              Event posters appear on the public event page. Photos can be seen by anyone
+              signed in who can open this event. Documents and other files are only visible to
+              staff and the event&apos;s promoter.
             </p>
           </CardContent>
         </Card>
@@ -212,5 +204,54 @@ function DeleteButton({ eventId, file }: { eventId: string; file: EventFile }) {
         <Trash2 className="h-4 w-4" />
       </button>
     </ToastedForm>
+  );
+}
+
+function ImageGrid({
+  eventId,
+  files,
+  canEdit,
+  markFirst = false,
+}: {
+  eventId: string;
+  files: FileWithUrl[];
+  canEdit: boolean;
+  markFirst?: boolean;
+}) {
+  return (
+    <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      {files.map((f, i) => (
+        <li key={f.id} className="overflow-hidden rounded-lg border border-border/70">
+          <a href={f.url ?? undefined} target="_blank" rel="noopener" title="Open full size">
+            {f.url ? (
+              // Signed URLs change on every load, so next/image caching doesn't apply.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={f.url}
+                alt={f.filename}
+                loading="lazy"
+                className="aspect-[3/4] w-full bg-muted object-cover"
+              />
+            ) : (
+              <div className="flex aspect-[3/4] items-center justify-center bg-muted text-xs text-muted-foreground">
+                Preview unavailable
+              </div>
+            )}
+          </a>
+          <div className="flex items-start gap-2 p-2">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-xs font-medium" title={f.filename}>
+                {f.filename}
+              </div>
+              <div className="text-[10px] text-muted-foreground">
+                {markFirst && i === 0 && files.length > 1 ? "Main poster · " : ""}
+                {fmtFileSize(f.size_bytes)}
+              </div>
+            </div>
+            {canEdit && <DeleteButton eventId={eventId} file={f} />}
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
