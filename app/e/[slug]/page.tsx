@@ -112,7 +112,7 @@ export default async function PublicEventPage({
 
   // Fighter and sponsor names are embedded so the whole page is one round trip
   // after the event lookup.
-  const [{ data: rawBouts }, sbRes, { data: sponsorSlots }, { data: rawPosters }] = await Promise.all([
+  const [{ data: rawBouts }, sbRes, { data: sponsorSlots }, { data: rawPosters }, regRes] = await Promise.all([
     supabase
       .from("bouts")
       .select(
@@ -138,7 +138,14 @@ export default async function PublicEventPage({
       .eq("event_id", event.id)
       .eq("category", "poster")
       .order("created_at", { ascending: false }),
+    // Kept out of the main event query so a missing column can't take the
+    // whole public page down.
+    supabase.from("events").select("registration_open").eq("id", event.id).maybeSingle<{
+      registration_open: boolean;
+    }>(),
   ]);
+  const registrationOpen =
+    event.status === "scheduled" && regRes.data?.registration_open === true;
   const posters = ((rawPosters ?? []) as { id: string; filename: string }[]).map((p) => ({
     ...p,
     src: `/e/${slug}/poster/${p.id}`,
@@ -246,6 +253,14 @@ export default async function PublicEventPage({
               </span>
             )}
           </div>
+          {registrationOpen && (
+            <Link
+              href={`/e/${slug}/register`}
+              className="mt-6 inline-flex h-10 items-center rounded-lg bg-white px-5 text-sm font-semibold text-neutral-950 transition-colors hover:bg-white/90"
+            >
+              Register for event
+            </Link>
+          )}
           </div>
           {posters.length > 0 && (
             <div className="w-full shrink-0 md:w-72">

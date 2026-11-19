@@ -226,3 +226,90 @@ export async function saveMatchmakingSettings(formData: FormData) {
   if (error) dbErr(error);
   revalidatePath(`/events/${event_id}/matchmaking`);
 }
+
+// ── Public sign-ups ────────────────────────────────────────────────────────
+
+// Turn a public sign-up into a roster entry. With `fighter_id` it adds that
+// existing registry fighter; without, it creates a new fighter from the name.
+export async function acceptRegistration(formData: FormData) {
+  const event_id = orNull(formData.get("event_id"));
+  const registration_id = orNull(formData.get("registration_id"));
+  if (!event_id || !registration_id) throw new Error("Missing fields.");
+  const { user, event } = await requireEventEditor(event_id);
+
+  const supabase = db();
+  const { data: reg } = await supabase
+    .from("event_registrations")
+    .select("full_name, status")
+    .eq("id", registration_id)
+    .eq("event_id", event_id)
+    .maybeSingle<{ full_name: string; status: string }>();
+  if (!reg) throw new Error("That sign-up no longer exists.");
+  if (reg.status !== "pending") return;
+
+  let fighter_id = orNull(formData.get("fighter_id"));
+  let competing_as: BoutClass;
+  if (fighter_id) {
+    const { data: fighter } = await supabase
+      .from("fighters")
+      .select("pro_wins, pro_losses, pro_draws, am_wins, am_losses, am_draws")
+      .eq("id", fighter_id)
+      .maybeSingle<Parameters<typeof defaultCompetingAs>[0]>();
+    if (!fighter) throw new Error("That fighter no longer exists.");
+    competing_as = competingAsFor(event, fighter);
+  } else {
+    const { data: created, error } = await supabase
+      .from("fighters")
+      .insert({ full_name: reg.full_name, primary_sport: event.primary_sport })
+      .select("id")
+      .single<{ id: string }>();
+    if (error) dbErr(error);
+    fighter_id = created!.id;
+    competing_as = event.event_type === "pro_card" ? "pro" : "amateur";
+    revalidatePath("/fighters");
+  }
+
+  const { error: rosterErr } = await supabase
+    .from("event_fighters")
+    .upsert(
+      [{ event_id, fighter_id, status: "pending", competing_as, added_by: user.id }],
+      { onConflict: "event_id,fighter_id", ignoreDuplicates: true },
+    );
+  if (rosterErr) dbErr(rosterErr);
+
+  const { error } = await supabase
+    .from("event_registrations")
+    .update({ status: "added", fighter_id })
+    .eq("id", registration_id);
+  if (error) dbErr(error);
+  done(event_id);
+}
+
+export async function dismissRegistration(formData: FormData) {
+  const event_id = orNull(formData.get("event_id"));
+  const registration_id = orNull(formData.get("registration_id"));
+  if (!event_id || !registration_id) throw new Error("Missing fields.");
+  await requireEventEditor(event_id);
+
+  const { error } = await db()
+    .from("event_registrations")
+    .update({ status: "dismissed" })
+    .eq("id", registration_id)
+    .eq("event_id", event_id);
+  if (error) dbErr(error);
+  done(event_id);
+}
+
+// Open or close the public "Register for event" button for this event.
+export async function setRegistrationOpen(formData: FormData) {
+  const event_id = orNull(formData.get("event_id"));
+  if (!event_id) throw new Error("Missing event.");
+  await requireEventEditor(event_id);
+
+  const { error } = await db()
+    .from("events")
+    .update({ registration_open: formData.get("open") === "1" })
+    .eq("id", event_id);
+  if (error) dbErr(error);
+  done(event_id);
+}

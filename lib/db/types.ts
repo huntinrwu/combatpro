@@ -149,6 +149,8 @@ export type EventRow = {
   promotion_id: string | null;
   primary_sport: string;
   event_type: EventType | null;
+  // Whether the public page accepts "register for event" sign-ups.
+  registration_open: boolean;
   // False for events (smokers etc.) that don't require fighter medicals.
   medicals_required: boolean;
   // Per-event matchmaking rules; read through parseMatchmaking().
@@ -299,6 +301,17 @@ export type EventRosterEntry = {
   target_weight_lbs: number | string | null;
   notes: string | null;
   added_by: string | null;
+  created_at: string;
+};
+
+// A public sign-up from the event page (table event_registrations).
+export type EventRegistration = {
+  id: string;
+  event_id: string;
+  full_name: string;
+  contact: string | null;
+  status: "pending" | "added" | "dismissed";
+  fighter_id: string | null;
   created_at: string;
 };
 

@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Plus, Swords, UserPlus, Users, X } from "lucide-react";
+import { ClipboardList, Plus, Swords, UserPlus, Users, X } from "lucide-react";
 
 import {
+  acceptRegistration,
   createAndAddFighter,
+  dismissRegistration,
   removeEventFighter,
+  setRegistrationOpen,
   updateEventFighter,
 } from "./actions";
 import { AddFightersPanel, type FighterCandidate } from "./_components/add-fighters-panel";
@@ -31,6 +34,7 @@ import {
   num,
   type Bout,
   type EventFighterStatus,
+  type EventRegistration,
   type EventRosterEntry,
   type Fighter,
   type FighterMedicalRecord,
@@ -95,7 +99,7 @@ export default async function EventFightersPage({
   const { id } = await params;
   const supabase = db();
 
-  const [detail, session, rosterRes, { data: registry }, { data: gyms }] = await Promise.all([
+  const [detail, session, rosterRes, { data: registry }, { data: gyms }, signupRes] = await Promise.all([
     loadEventDetail(id),
     getSessionUser(),
     supabase.from("event_fighters").select(ROSTER_SELECT).eq("event_id", id).order("created_at"),
@@ -104,6 +108,12 @@ export default async function EventFightersPage({
       .select("id, full_name, nickname, primary_sport, weight_class, gym, gym_id, gym_ref:gyms(name)")
       .order("full_name"),
     supabase.from("gyms").select("id, name").order("name"),
+    supabase
+      .from("event_registrations")
+      .select("id, full_name, contact, created_at")
+      .eq("event_id", id)
+      .eq("status", "pending")
+      .order("created_at"),
   ]);
   if (!detail) notFound();
   const { event, bouts, fighterMap } = detail;
@@ -155,7 +165,24 @@ export default async function EventFightersPage({
   ).length;
 
   const onRoster = new Set(roster.map((r) => r.fighter_id));
-  const candidates: FighterCandidate[] = ((registry ?? []) as unknown as RegistryFighter[])
+  // Public sign-ups waiting for a decision, each with any registry fighter of
+  // the same name so staff can link instead of creating a duplicate.
+  const registryList = (registry ?? []) as unknown as RegistryFighter[];
+  const signups = signupRes.error
+    ? null
+    : (
+        (signupRes.data ?? []) as Pick<
+          EventRegistration,
+          "id" | "full_name" | "contact" | "created_at"
+        >[]
+      ).map((s) => ({
+        ...s,
+        matches: registryList.filter(
+          (f) => f.full_name.trim().toLowerCase() === s.full_name.toLowerCase(),
+        ),
+      }));
+  const registrationOpen = event.registration_open !== false;
+  const candidates: FighterCandidate[] = registryList
     .filter((f) => !onRoster.has(f.id))
     .map((f) => ({
       id: f.id,
@@ -397,6 +424,91 @@ export default async function EventFightersPage({
 
         {canEdit && (
           <div className="space-y-6">
+            {signups && (
+              <Card collapsible={false}>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <ClipboardList className="h-4 w-4" />
+                    Public sign-ups ({signups.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <ToastedForm
+                    action={setRegistrationOpen}
+                    className="flex items-center justify-between gap-2 text-xs"
+                  >
+                    <input type="hidden" name="event_id" value={event.id} />
+                    <input type="hidden" name="open" value={registrationOpen ? "0" : "1"} />
+                    <span className="text-muted-foreground">
+                      {event.status !== "scheduled"
+                        ? "The Register button only shows while the event is scheduled."
+                        : registrationOpen
+                          ? "The public page shows a Register button."
+                          : "Registration is closed."}
+                    </span>
+                    <Button type="submit" size="sm" variant="outline">
+                      {registrationOpen ? "Close" : "Open"}
+                    </Button>
+                  </ToastedForm>
+                  {signups.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No one waiting.</p>
+                  ) : (
+                    <ul className="divide-y divide-border rounded-md border border-border/70">
+                      {signups.map((s) => (
+                        <li key={s.id} className="space-y-2 px-3 py-2">
+                          <div>
+                            <div className="text-sm font-medium">{s.full_name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {s.contact ?? "No contact given"}
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {s.matches.map((f) => (
+                              <ToastedForm
+                                key={f.id}
+                                action={acceptRegistration}
+                                successMessage="Added to roster"
+                              >
+                                <input type="hidden" name="event_id" value={event.id} />
+                                <input type="hidden" name="registration_id" value={s.id} />
+                                <input type="hidden" name="fighter_id" value={f.id} />
+                                <Button type="submit" size="sm">
+                                  Add existing{gymName(f) ? ` (${gymName(f)})` : ""}
+                                </Button>
+                              </ToastedForm>
+                            ))}
+                            <ToastedForm
+                              action={acceptRegistration}
+                              successMessage="Fighter created and added"
+                            >
+                              <input type="hidden" name="event_id" value={event.id} />
+                              <input type="hidden" name="registration_id" value={s.id} />
+                              <Button
+                                type="submit"
+                                size="sm"
+                                variant={s.matches.length > 0 ? "outline" : "default"}
+                              >
+                                Add as new fighter
+                              </Button>
+                            </ToastedForm>
+                            <ToastedForm action={dismissRegistration} successMessage="Dismissed">
+                              <input type="hidden" name="event_id" value={event.id} />
+                              <input type="hidden" name="registration_id" value={s.id} />
+                              <Button type="submit" size="sm" variant="ghost">
+                                Dismiss
+                              </Button>
+                            </ToastedForm>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Accepted sign-ups join the roster as Pending so you can confirm them.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
             <Card collapsible={false}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
