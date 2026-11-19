@@ -4,56 +4,80 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { db, dbErr } from "@/lib/db/client";
-import { toInt, toNum } from "@/lib/form-utils";
+import { idOrNull, toInt, toNum } from "@/lib/form-utils";
 import { getSessionUser, requireStaff } from "@/lib/auth/session";
 import { feetInToCm, inToCm } from "@/lib/units";
 
-// Seed placeholder bout rows from the aggregate W/L/D counters typed on the
-// fighter form. Called only on CREATE — reflects the fighter's declared
-// career total in the fight_records ledger so the profile card isn't empty
-// while sourced bout details are still being backfilled. Each row uses a
-// unique opponent stub ("Undisclosed opponent #N") so the reconciliation
-// clustering can't merge them into "disputed" from mixed results.
-async function seedDeclaredFightRecords(fighterId: string, formData: FormData) {
-  const counts = {
-    pro: {
-      win: toInt(formData.get("pro_wins")) ?? 0,
-      loss: toInt(formData.get("pro_losses")) ?? 0,
-      draw: toInt(formData.get("pro_draws")) ?? 0,
-    },
-    am: {
-      win: toInt(formData.get("am_wins")) ?? 0,
-      loss: toInt(formData.get("am_losses")) ?? 0,
-      draw: toInt(formData.get("am_draws")) ?? 0,
-    },
-  };
-  const primary_sport = formData.get("primary_sport")?.toString().trim() || null;
-  const today = new Date().toISOString().slice(0, 10);
-  const user = await getSessionUser();
+type DeclaredCounts = Record<"pro" | "am", Record<"win" | "loss" | "draw", number>>;
 
+// Placeholder bout rows standing in for a fighter's declared W/L/D totals
+// until sourced bout details are entered. Each row uses a unique opponent
+// stub ("Undisclosed opponent #N", numbered from startIdx + 1) so the
+// reconciliation clustering can't merge them into "disputed" from mixed
+// results.
+function placeholderFightRows(opts: {
+  fighterId: string;
+  sport: string | null;
+  counts: DeclaredCounts;
+  startIdx: number;
+  userId: string | null;
+  sourceLabel: string;
+  notes: string;
+}): Array<Record<string, unknown>> {
+  const today = new Date().toISOString().slice(0, 10);
   const rows: Array<Record<string, unknown>> = [];
-  let idx = 0;
+  let idx = opts.startIdx;
   for (const tier of ["pro", "am"] as const) {
-    for (const [result, count] of Object.entries(counts[tier]) as Array<
-      ["win" | "loss" | "draw", number]
-    >) {
-      for (let i = 0; i < count; i++) {
+    for (const result of ["win", "loss", "draw"] as const) {
+      for (let i = 0; i < opts.counts[tier][result]; i++) {
         idx++;
         rows.push({
-          fighter_id: fighterId,
+          fighter_id: opts.fighterId,
           opponent_name: `Undisclosed opponent #${idx}`,
           fight_date: today,
           result,
           is_pro: tier === "pro",
-          sport: primary_sport,
+          sport: opts.sport,
           confidence: "reported",
-          source_label: "Declared on registration",
-          submitted_by: user?.id ?? null,
-          notes: "Placeholder from initial fighter registration — replace with sourced bout detail when known.",
+          source_label: opts.sourceLabel,
+          submitted_by: opts.userId,
+          notes: opts.notes,
         });
       }
     }
   }
+  return rows;
+}
+
+// Seed placeholder bout rows from the aggregate W/L/D counters typed on the
+// fighter form. Called only on CREATE — reflects the fighter's declared
+// career total in the fight_records ledger so the profile card isn't empty
+// while sourced bout details are still being backfilled.
+async function seedDeclaredFightRecords(
+  fighterId: string,
+  formData: FormData,
+  userId: string | null,
+) {
+  const rows = placeholderFightRows({
+    fighterId,
+    sport: formData.get("primary_sport")?.toString().trim() || null,
+    counts: {
+      pro: {
+        win: toInt(formData.get("pro_wins")) ?? 0,
+        loss: toInt(formData.get("pro_losses")) ?? 0,
+        draw: toInt(formData.get("pro_draws")) ?? 0,
+      },
+      am: {
+        win: toInt(formData.get("am_wins")) ?? 0,
+        loss: toInt(formData.get("am_losses")) ?? 0,
+        draw: toInt(formData.get("am_draws")) ?? 0,
+      },
+    },
+    startIdx: 0,
+    userId,
+    sourceLabel: "Declared on registration",
+    notes: "Placeholder from initial fighter registration — replace with sourced bout detail when known.",
+  });
   if (rows.length === 0) return;
   await db().from("fight_records").insert(rows);
 }
@@ -61,17 +85,20 @@ async function seedDeclaredFightRecords(fighterId: string, formData: FormData) {
 // Walking weight is intentionally NOT stored directly on the fighter row via
 // the form. It's a derived column maintained by the fighter_weight_log
 // trigger. Route new readings through the log so history stays intact.
-async function maybeLogWalkingWeight(fighterId: string, formData: FormData) {
+async function maybeLogWalkingWeight(
+  fighterId: string,
+  formData: FormData,
+  userId: string | null,
+) {
   const raw = formData.get("walking_weight_lbs")?.toString().trim();
   if (!raw) return;
   const n = Number(raw);
   if (!Number.isFinite(n) || n < 60 || n > 500) return;
-  const user = await getSessionUser();
   await db().from("fighter_weight_log").insert({
     fighter_id: fighterId,
     weight_lbs: n,
     source: "form",
-    logged_by: user?.id ?? null,
+    logged_by: userId,
   });
 }
 
@@ -87,10 +114,7 @@ function fighterPayload(formData: FormData) {
     date_of_birth: formData.get("date_of_birth")?.toString() || null,
     nationality: formData.get("nationality")?.toString().trim() || null,
     gym: formData.get("gym")?.toString().trim() || null,
-    gym_id: (() => {
-      const v = formData.get("gym_id")?.toString().trim();
-      return v && v !== "__none__" ? v : null;
-    })(),
+    gym_id: idOrNull(formData.get("gym_id")),
     hometown: formData.get("hometown")?.toString().trim() || null,
     stance: formData.get("stance")?.toString() || null,
     // Forms send US-primary units (feet+inches for height, inches for reach); DB stores cm.
@@ -128,16 +152,17 @@ export async function createFighter(formData: FormData) {
     .select("id")
     .single();
   if (error) dbErr(error);
+  const userId = (await getSessionUser())?.id ?? null;
   await Promise.all([
-    maybeLogWalkingWeight(data.id, formData),
-    seedDeclaredFightRecords(data.id, formData),
+    maybeLogWalkingWeight(data.id, formData, userId),
+    seedDeclaredFightRecords(data.id, formData, userId),
   ]);
   revalidatePath("/fighters");
   redirect(`/fighters/${data.id}`);
 }
 
 export async function updateFighter(formData: FormData) {
-  await requireStaff();
+  const staff = await requireStaff();
   const id = formData.get("id")?.toString();
   if (!id) throw new Error("Missing fighter id.");
 
@@ -146,7 +171,7 @@ export async function updateFighter(formData: FormData) {
     .update(fighterPayload(formData))
     .eq("id", id);
   if (error) dbErr(error);
-  await maybeLogWalkingWeight(id, formData);
+  await maybeLogWalkingWeight(id, formData, staff.id);
 
   revalidatePath(`/fighters/${id}`);
   revalidatePath("/fighters");
@@ -159,7 +184,7 @@ export async function updateFighter(formData: FormData) {
 // counts (per pro/am × win/loss/draw bucket). Safe to re-run: only creates
 // what's missing.
 export async function backfillDeclaredFightRecords(formData: FormData) {
-  await requireStaff();
+  const staff = await requireStaff();
   const fighter_id = formData.get("fighter_id")?.toString();
   if (!fighter_id) throw new Error("fighter_id is required.");
 
@@ -187,48 +212,40 @@ export async function backfillDeclaredFightRecords(formData: FormData) {
   ]);
   if (!fighter) throw new Error("Fighter not found.");
 
-  const declared = {
-    pro: { win: fighter.pro_wins, loss: fighter.pro_losses, draw: fighter.pro_draws },
-    am: { win: fighter.am_wins, loss: fighter.am_losses, draw: fighter.am_draws },
-  };
-  const have = {
+  const existingRows = (existing ?? []) as Array<{
+    result: "win" | "loss" | "draw" | "no_contest";
+    is_pro: boolean;
+  }>;
+  const have: DeclaredCounts = {
     pro: { win: 0, loss: 0, draw: 0 },
     am: { win: 0, loss: 0, draw: 0 },
   };
-  for (const r of (existing ?? []) as Array<{
-    result: "win" | "loss" | "draw" | "no_contest";
-    is_pro: boolean;
-  }>) {
+  for (const r of existingRows) {
     if (r.result === "no_contest") continue;
     have[r.is_pro ? "pro" : "am"][r.result]++;
   }
+  const missing = (declared: number, recorded: number) => Math.max(0, declared - recorded);
 
-  const today = new Date().toISOString().slice(0, 10);
-  const user = await getSessionUser();
-  const rows: Array<Record<string, unknown>> = [];
-  let idx =
-    ((existing ?? []) as unknown[]).length; // continue numbering past existing rows
-
-  for (const tier of ["pro", "am"] as const) {
-    for (const result of ["win", "loss", "draw"] as const) {
-      const missing = Math.max(0, declared[tier][result] - have[tier][result]);
-      for (let i = 0; i < missing; i++) {
-        idx++;
-        rows.push({
-          fighter_id,
-          opponent_name: `Undisclosed opponent #${idx}`,
-          fight_date: today,
-          result,
-          is_pro: tier === "pro",
-          sport: fighter.primary_sport,
-          confidence: "reported",
-          source_label: "Backfilled from declared record",
-          submitted_by: user?.id ?? null,
-          notes: "Placeholder backfilled from declared W-L-D — replace with sourced bout detail when known.",
-        });
-      }
-    }
-  }
+  const rows = placeholderFightRows({
+    fighterId: fighter_id,
+    sport: fighter.primary_sport,
+    counts: {
+      pro: {
+        win: missing(fighter.pro_wins, have.pro.win),
+        loss: missing(fighter.pro_losses, have.pro.loss),
+        draw: missing(fighter.pro_draws, have.pro.draw),
+      },
+      am: {
+        win: missing(fighter.am_wins, have.am.win),
+        loss: missing(fighter.am_losses, have.am.loss),
+        draw: missing(fighter.am_draws, have.am.draw),
+      },
+    },
+    startIdx: existingRows.length, // continue numbering past existing rows
+    userId: staff.id,
+    sourceLabel: "Backfilled from declared record",
+    notes: "Placeholder backfilled from declared W-L-D — replace with sourced bout detail when known.",
+  });
   if (rows.length > 0) {
     const { error } = await supabase.from("fight_records").insert(rows);
     if (error) dbErr(error);

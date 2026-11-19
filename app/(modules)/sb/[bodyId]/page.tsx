@@ -24,6 +24,7 @@ import { getSessionUser } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { IconSummaryTile as SummaryTile } from "@/components/summary-tile";
 import {
   fighterClearanceSummary,
   fmtMoney,
@@ -40,8 +41,6 @@ import {
   type SanctioningBody,
 } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
 type SbEvent = Pick<
   EventRow,
   "id" | "name" | "status" | "event_date" | "city" | "state" | "promoter"
@@ -50,6 +49,19 @@ type SbBout = Pick<
   Bout,
   "id" | "event_id" | "red_corner_fighter_id" | "blue_corner_fighter_id" | "result" | "bout_order"
 >;
+
+type SbBody = Pick<
+  SanctioningBody,
+  "id" | "abbreviation" | "name" | "scope" | "sports" | "headquarters" | "website" | "contact_email"
+>;
+
+// Worst medical status first.
+const MEDICAL_STATUS_RANK: Record<string, number> = {
+  expired: 3,
+  missing: 2,
+  expiring: 1,
+  active: 0,
+};
 
 export default async function SbDashboardPage({
   params,
@@ -71,9 +83,9 @@ export default async function SbDashboardPage({
     getSessionUser(),
     supabase
       .from("sanctioning_bodies")
-      .select("*")
+      .select("id, abbreviation, name, scope, sports, headquarters, website, contact_email")
       .eq("id", bodyId)
-      .maybeSingle<SanctioningBody>(),
+      .maybeSingle<SbBody>(),
     supabase
       .from("events")
       .select("id, name, status, event_date, city, state, promoter")
@@ -247,18 +259,18 @@ export default async function SbDashboardPage({
 
   const fighterRows = fighters
     .map((f) => {
-      const asOf = asOfEventDates.get(f.id) ?? today;
+      const nextEventDate = asOfEventDates.get(f.id);
+      const asOf = nextEventDate ?? today;
       const summary = fighterClearanceSummary(
         medsByFighter.get(f.id) ?? [],
         undefined,
         `${asOf}T23:59:59`,
       );
-      const nextEventDate = asOfEventDates.get(f.id);
       return { fighter: f, summary, nextEventDate };
     })
     .sort((a, b) => {
-      const rank: Record<string, number> = { expired: 3, missing: 2, expiring: 1, active: 0 };
-      const d = rank[b.summary.worstStatus] - rank[a.summary.worstStatus];
+      const d =
+        MEDICAL_STATUS_RANK[b.summary.worstStatus] - MEDICAL_STATUS_RANK[a.summary.worstStatus];
       if (d !== 0) return d;
       // Then by nearest upcoming event date
       const ad = a.nextEventDate ?? "9999-12-31";
@@ -391,7 +403,7 @@ export default async function SbDashboardPage({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {missingAgreements.length === 0 && missingReports.length === 0 ? (
+              {docsPending === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   All documents up to date. 🎉
                 </p>
@@ -636,37 +648,6 @@ export default async function SbDashboardPage({
   );
 }
 
-function SummaryTile({
-  Icon,
-  label,
-  value,
-  hint,
-  tone = "muted",
-}: {
-  Icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string;
-  hint?: string;
-  tone?: "ok" | "warn" | "muted";
-}) {
-  const bg =
-    tone === "warn"
-      ? "border-amber-500/40 bg-amber-500/5"
-      : tone === "ok"
-        ? "border-emerald-500/30 bg-emerald-500/5"
-        : "border-border bg-muted/20";
-  return (
-    <div className={`rounded-lg border p-3 ${bg}`}>
-      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-        <Icon className="h-3 w-3" />
-        {label}
-      </div>
-      <div className="mt-1 font-mono text-2xl font-semibold">{value}</div>
-      {hint && <div className="mt-0.5 text-[11px] text-muted-foreground">{hint}</div>}
-    </div>
-  );
-}
-
 function EventRowLine({
   event,
   cardSize,
@@ -751,31 +732,26 @@ function DocRow({
   );
 }
 
+const MEDICAL_PILL_CLASS: Record<string, string> = {
+  expired: "bg-red-500/10 text-red-700 dark:text-red-300",
+  missing: "bg-muted text-muted-foreground",
+  expiring: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  active: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+};
+
 function MedicalPill({ status }: { status: string }) {
-  const conf =
-    status === "expired"
-      ? { bg: "bg-red-500/10 text-red-700 dark:text-red-300", label: "expired" }
-      : status === "missing"
-        ? { bg: "bg-muted text-muted-foreground", label: "missing" }
-        : status === "expiring"
-          ? {
-              bg: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
-              label: "expiring",
-            }
-          : {
-              bg: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-              label: "active",
-            };
+  // Anything unrecognised renders as "active", same as before.
+  const label = status in MEDICAL_PILL_CLASS ? status : "active";
   return (
     <span
-      className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${conf.bg}`}
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${MEDICAL_PILL_CLASS[label]}`}
     >
       {status === "active" ? (
         <HeartPulse className="h-3 w-3" />
       ) : (
         <AlertCircle className="h-3 w-3" />
       )}
-      {conf.label}
+      {label}
     </span>
   );
 }

@@ -12,8 +12,6 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { FIGHT_OUTCOMES, SPORTS, type Fighter } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
 export default async function SubmitFightRecordPage({
   params,
 }: {
@@ -78,7 +76,7 @@ export default async function SubmitFightRecordPage({
             <FormField
               label="Opponent — from registry (optional)"
               htmlFor="opponent_fighter_id"
-              hint="If listed here, opponent_name auto-fills."
+              hint="If listed here, opponent_name is what shows on the card."
             >
               <NativeSelect id="opponent_fighter_id" name="opponent_fighter_id" defaultValue="__none__">
                 <option value="__none__">— Not in registry —</option>

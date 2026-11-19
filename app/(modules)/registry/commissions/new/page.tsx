@@ -2,8 +2,6 @@ import { createCommission } from "../../actions";
 import { CommissionForm } from "../../_components/commission-form";
 import { requireStaff } from "@/lib/auth/session";
 
-export const dynamic = "force-dynamic";
-
 export default async function NewCommissionPage() {
   await requireStaff();
   return (

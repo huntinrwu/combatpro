@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { db, dbErr } from "@/lib/db/client";
-import { orNull as str } from "@/lib/form-utils";
+import { idOrNull, orNull as str } from "@/lib/form-utils";
 import { requireStaff } from "@/lib/auth/session";
 
 // Shared by create + update. Name is the only required field.
@@ -55,8 +55,7 @@ export async function assignFighterGym(formData: FormData) {
   const fighter_id = str(formData.get("fighter_id"));
   if (!fighter_id) throw new Error("Missing fighter_id.");
 
-  const gym_id_raw = str(formData.get("gym_id"));
-  const gym_id = gym_id_raw && gym_id_raw !== "__none__" ? gym_id_raw : null;
+  const gym_id = idOrNull(formData.get("gym_id"));
 
   const { error } = await db()
     .from("fighters")

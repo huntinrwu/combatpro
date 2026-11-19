@@ -9,19 +9,14 @@ import { requireAdmin } from "@/lib/auth/session";
 import { ROLE_LABELS, type PlatformRole } from "@/lib/auth/roles";
 import { fmtDateShort } from "@/lib/format-utils";
 
-export const dynamic = "force-dynamic";
-
 type PendingGrant = {
   id: string;
   role: PlatformRole;
-  status: string;
   requested_at: string;
-  gym_id: string | null;
-  user_id: string;
 };
 
-type Profile = { id: string; email: string; full_name: string | null };
-type GymRef = { id: string; name: string; approval_status: string };
+type Profile = { email: string; full_name: string | null };
+type GymRef = { name: string; approval_status: string };
 
 export default async function AccessRequestsPage() {
   await requireAdmin();
@@ -31,7 +26,7 @@ export default async function AccessRequestsPage() {
   const { data: grants } = await admin
     .from("user_role_grants")
     .select(
-      "id, role, status, requested_at, gym_id, user_id, profile:profiles!user_id(id, email, full_name), gym:gyms(id, name, approval_status)",
+      "id, role, requested_at, profile:profiles!user_id(email, full_name), gym:gyms(name, approval_status)",
     )
     .eq("status", "pending")
     .order("requested_at", { ascending: true });
@@ -58,7 +53,7 @@ export default async function AccessRequestsPage() {
           <ul className="divide-y divide-border/60">
             {rows.map((r) => {
               const p = r.profile;
-              const gym = r.gym_id ? r.gym : null;
+              const gym = r.gym;
               return (
                 <li key={r.id} className="flex flex-wrap items-center gap-3 py-3 text-sm">
                   <div className="min-w-0 flex-1">

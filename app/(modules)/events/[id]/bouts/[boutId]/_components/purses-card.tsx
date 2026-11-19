@@ -1,7 +1,6 @@
 import { BadgeCheck, DollarSign, RotateCcw } from "lucide-react";
 
 import { markPursePaid, unmarkPursePaid, upsertPurse } from "../purse-actions";
-import { fmtWhen } from "./fmt-when";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/form-field";
@@ -13,11 +12,8 @@ import {
   type Corner,
   type Fighter,
 } from "@/lib/db/types";
-
-const CORNER_DOT: Record<Corner, string> = {
-  red: "bg-red-500",
-  blue: "bg-blue-500",
-};
+import { fmtDateTime } from "@/lib/format-utils";
+import { CORNER_DOT } from "@/lib/ui-config";
 
 export function PursesCard({
   boutId,
@@ -211,7 +207,7 @@ function PurseColumn({
       {isPaid ? (
         <div className="space-y-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs">
           <div className="font-medium text-emerald-700 dark:text-emerald-300">
-            Paid {fmtWhen(purse!.paid_at!)}
+            Paid {fmtDateTime(purse!.paid_at!)}
           </div>
           {purse!.paid_by && (
             <div className="text-muted-foreground">By: {purse!.paid_by}</div>

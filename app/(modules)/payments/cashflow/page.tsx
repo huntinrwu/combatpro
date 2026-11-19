@@ -6,10 +6,10 @@ import { db } from "@/lib/db/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SummaryTile } from "@/components/summary-tile";
 import {
-  EXPENSE_CATEGORIES,
-  REVENUE_CATEGORIES,
   fmtMoney,
+  ledgerCategoryLabel,
   num,
   paymentMethodLabel,
   type EventRow,
@@ -17,8 +17,6 @@ import {
   type PaymentMethod,
   type Vendor,
 } from "@/lib/db/types";
-
-export const dynamic = "force-dynamic";
 
 const RANGE_DAYS: Record<string, number> = {
   "30d": 30,
@@ -48,11 +46,6 @@ type CashFlowEntry = Pick<
   | "vendor_id"
   | "payment_method"
 >;
-
-function categoryLabel(entryType: "revenue" | "expense", category: string): string {
-  const list = entryType === "revenue" ? REVENUE_CATEGORIES : EXPENSE_CATEGORIES;
-  return list.find((c) => c.value === category)?.label ?? category;
-}
 
 // Bucket the ledger entries into 8 evenly-spaced buckets across the range.
 function bucketize(entries: CashFlowEntry[], sinceIso: string, todayIso: string) {
@@ -122,10 +115,8 @@ export default async function CashFlowPage({
   })[];
 
   const vendorMap = new Map<string, string>();
-  const eventMap = new Map<string, Pick<EventRow, "id" | "name" | "event_date">>();
   for (const e of inRange) {
     if (e.vendor_id && e.vendor) vendorMap.set(e.vendor_id, e.vendor.name);
-    if (e.event) eventMap.set(e.event_id, e.event);
   }
 
   let revenue = 0;
@@ -134,7 +125,14 @@ export default async function CashFlowPage({
   const byRevenueCat = new Map<string, number>();
   const byVendor = new Map<string, number>();
   const byPaymentMethod = new Map<PaymentMethod, number>();
-  const byEvent = new Map<string, { revenue: number; expense: number }>();
+  const byEvent = new Map<
+    string,
+    {
+      event: Pick<EventRow, "id" | "name" | "event_date"> | null;
+      revenue: number;
+      expense: number;
+    }
+  >();
 
   for (const e of inRange) {
     const amount = num(e.amount);
@@ -155,7 +153,8 @@ export default async function CashFlowPage({
       }
     }
     const bucket =
-      byEvent.get(e.event_id) ?? { revenue: 0, expense: 0 };
+      byEvent.get(e.event_id) ?? { event: e.event, revenue: 0, expense: 0 };
+    bucket.event ??= e.event;
     if (e.entry_type === "revenue") bucket.revenue += amount;
     else bucket.expense += amount;
     byEvent.set(e.event_id, bucket);
@@ -170,14 +169,19 @@ export default async function CashFlowPage({
   const netPerWeek = weeklyIn - weeklyBurn;
 
   const expenseRows = [...byExpenseCat.entries()]
-    .map(([cat, amt]) => ({ label: categoryLabel("expense", cat), amount: amt }))
+    .map(([cat, amt]) => ({
+      label: ledgerCategoryLabel({ entry_type: "expense", category: cat }),
+      amount: amt,
+    }))
     .sort((a, b) => b.amount - a.amount);
   const revenueRows = [...byRevenueCat.entries()]
-    .map(([cat, amt]) => ({ label: categoryLabel("revenue", cat), amount: amt }))
+    .map(([cat, amt]) => ({
+      label: ledgerCategoryLabel({ entry_type: "revenue", category: cat }),
+      amount: amt,
+    }))
     .sort((a, b) => b.amount - a.amount);
   const vendorRows = [...byVendor.entries()]
     .map(([vid, amt]) => ({
-      vendorId: vid,
       label: vendorMap.get(vid) ?? "Unknown vendor",
       amount: amt,
     }))
@@ -190,14 +194,19 @@ export default async function CashFlowPage({
     }))
     .sort((a, b) => b.amount - a.amount);
 
-  const eventRows = [...byEvent.entries()]
-    .map(([eid, v]) => ({
-      event: eventMap.get(eid),
-      revenue: v.revenue,
-      expense: v.expense,
-      net: v.revenue - v.expense,
-    }))
-    .filter((r) => r.event)
+  const eventRows = [...byEvent.values()]
+    .flatMap((v) =>
+      v.event
+        ? [
+            {
+              event: v.event,
+              revenue: v.revenue,
+              expense: v.expense,
+              net: v.revenue - v.expense,
+            },
+          ]
+        : [],
+    )
     .sort((a, b) => b.expense - a.expense)
     .slice(0, 5);
 
@@ -383,10 +392,7 @@ export default async function CashFlowPage({
                 and tag them on event expenses.
               </p>
             ) : (
-              <HBarBreakdown
-                rows={vendorRows.map(({ label, amount }) => ({ label, amount }))}
-                color="expense"
-              />
+              <HBarBreakdown rows={vendorRows} color="expense" />
             )}
           </CardContent>
         </Card>
@@ -415,16 +421,16 @@ export default async function CashFlowPage({
             <ul className="divide-y divide-border/60">
               {eventRows.map((r) => (
                 <li
-                  key={r.event!.id}
+                  key={r.event.id}
                   className="flex items-center gap-3 p-3 hover:bg-muted/40"
                 >
                   <Link
-                    href={`/events/${r.event!.id}/financials`}
+                    href={`/events/${r.event.id}/financials`}
                     className="min-w-0 flex-1"
                   >
-                    <div className="font-medium">{r.event!.name}</div>
+                    <div className="font-medium">{r.event.name}</div>
                     <div className="text-xs text-muted-foreground">
-                      {r.event!.event_date}
+                      {r.event.event_date}
                     </div>
                   </Link>
                   <div className="text-right text-xs">
@@ -453,30 +459,5 @@ export default async function CashFlowPage({
         </Card>
       )}
     </>
-  );
-}
-
-function SummaryTile({
-  label,
-  value,
-  valueClassName,
-  icon,
-  hint,
-}: {
-  label: string;
-  value: string;
-  valueClassName?: string;
-  icon?: React.ReactNode;
-  hint?: string;
-}) {
-  return (
-    <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
-      <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground">
-        {icon}
-        {label}
-      </div>
-      <div className={`mt-1 font-mono text-lg font-semibold ${valueClassName ?? ""}`}>{value}</div>
-      {hint && <div className="mt-0.5 text-[10px] text-muted-foreground">{hint}</div>}
-    </div>
   );
 }

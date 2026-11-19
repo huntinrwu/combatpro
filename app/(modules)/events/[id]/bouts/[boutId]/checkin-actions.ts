@@ -3,14 +3,9 @@
 import { revalidatePath } from "next/cache";
 
 import { db, dbErr } from "@/lib/db/client";
-import { orNull, toNum as toNumericOrNull } from "@/lib/form-utils";
+import { orNull, requireCorner, toNum as toNumericOrNull } from "@/lib/form-utils";
 import { requireStaff } from "@/lib/auth/session";
 import type { Corner } from "@/lib/db/types";
-
-function requireCorner(raw: FormDataEntryValue | null): Corner {
-  if (raw === "red" || raw === "blue") return raw;
-  throw new Error("corner must be red or blue");
-}
 
 // One row per (bout, corner) — unique constraint makes this a single upsert.
 // Only the patched columns are written on conflict.

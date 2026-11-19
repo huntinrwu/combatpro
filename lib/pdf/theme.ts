@@ -1,5 +1,11 @@
 import { StyleSheet } from "@react-pdf/renderer";
 
+import type { EventRow } from "@/lib/db/types";
+
+// Event header fields shared by the PDF templates.
+export type PdfEvent = Pick<EventRow, "name" | "event_date" | "venue" | "city" | "state">;
+export type PdfEventWithSport = PdfEvent & Pick<EventRow, "primary_sport">;
+
 export const colors = {
   black: "#0a0a0a",
   gray: "#525252",

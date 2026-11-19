@@ -7,8 +7,6 @@ import { loadEventDetail } from "../_lib/event-detail";
 import { requireUser } from "@/lib/auth/session";
 import { canEditEvent } from "@/lib/auth/roles";
 
-export const dynamic = "force-dynamic";
-
 export default async function EditEventPage({
   params,
 }: {
@@ -17,7 +15,6 @@ export default async function EditEventPage({
   const user = await requireUser();
   const { id } = await params;
 
-  // Event comes from the per-request cache the [id] layout already populated.
   const [detail, { commissions, bodies, promotions }] = await Promise.all([
     loadEventDetail(id),
     loadEventFormOptions(),

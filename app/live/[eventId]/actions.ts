@@ -11,12 +11,9 @@ export async function declareResultAndAdvance(formData: FormData) {
   await requireStaff();
   await declareBoutResult(formData);
 
-  const event_id = formData.get("event_id")?.toString();
-  const bout_id = formData.get("bout_id")?.toString();
-  if (!event_id || !bout_id) return;
-
+  // declareBoutResult throws unless both ids are present.
   const advance = new FormData();
-  advance.set("event_id", event_id);
-  advance.set("current_bout_id", bout_id);
+  advance.set("event_id", String(formData.get("event_id")));
+  advance.set("current_bout_id", String(formData.get("bout_id")));
   await advanceToNextBout(advance);
 }

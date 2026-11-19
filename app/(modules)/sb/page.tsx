@@ -8,14 +8,12 @@ import { ViewSwitcher } from "@/components/view-switcher";
 import { KanbanBoard } from "@/components/views/kanban";
 import { CompactList, TableShell, TileGrid } from "@/components/views/containers";
 import { pickView } from "@/lib/view-mode";
+import { ZERO_COUNTS, countEventsBy, type EventCounts as Counts } from "@/app/_components/event-counts";
 import type { EventRow, SanctioningBody } from "@/lib/db/types";
-
-export const dynamic = "force-dynamic";
 
 const VIEWS = ["list", "card", "grid", "compact", "kanban"] as const;
 
 type Search = { view?: string };
-type Counts = { total: number; upcoming: number };
 type SbCard = Pick<SanctioningBody, "id" | "abbreviation" | "name" | "scope" | "sports">;
 
 export default async function SbIndexPage({
@@ -40,20 +38,10 @@ export default async function SbIndexPage({
       .not("sanctioning_body_id", "is", null),
   ]);
 
-  const eventCounts = new Map<string, Counts>();
-  const today = new Date().toISOString().slice(0, 10);
-  for (const e of (events ?? []) as Pick<
-    EventRow,
-    "sanctioning_body_id" | "event_date" | "status"
-  >[]) {
-    if (!e.sanctioning_body_id) continue;
-    const entry = eventCounts.get(e.sanctioning_body_id) ?? { total: 0, upcoming: 0 };
-    entry.total++;
-    if (e.event_date >= today && e.status !== "canceled" && e.status !== "complete") {
-      entry.upcoming++;
-    }
-    eventCounts.set(e.sanctioning_body_id, entry);
-  }
+  const eventCounts = countEventsBy(
+    (events ?? []) as Pick<EventRow, "sanctioning_body_id" | "event_date" | "status">[],
+    "sanctioning_body_id",
+  );
 
   const list = (bodies ?? []) as SbCard[];
 
@@ -68,10 +56,6 @@ export default async function SbIndexPage({
           <h1 className="mt-1 font-heading text-3xl font-semibold tracking-tight">
             Pick a sanctioning body
           </h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            POC preview — anyone can look at any SB&apos;s dashboard. Once auth lands, this page
-            will disappear and each SB rep will land straight on their own dashboard.
-          </p>
         </div>
         <ViewSwitcher views={[...VIEWS]} current={view} />
       </header>
@@ -107,7 +91,7 @@ function CardView({
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {bodies.map((b) => {
-        const c = counts.get(b.id) ?? { total: 0, upcoming: 0 };
+        const c = counts.get(b.id) ?? ZERO_COUNTS;
         return (
           <Link
             key={b.id}
@@ -178,7 +162,7 @@ function ListView({
       }
     >
       {bodies.map((b) => {
-            const c = counts.get(b.id) ?? { total: 0, upcoming: 0 };
+            const c = counts.get(b.id) ?? ZERO_COUNTS;
             return (
               <tr key={b.id} className="hover:bg-muted/40">
                 <td className="px-3 py-2 font-mono text-xs">
@@ -220,7 +204,7 @@ function GridView({
   return (
     <TileGrid dense>
       {bodies.map((b) => {
-        const c = counts.get(b.id) ?? { total: 0, upcoming: 0 };
+        const c = counts.get(b.id) ?? ZERO_COUNTS;
         return (
           <Link
             key={b.id}
@@ -252,7 +236,7 @@ function CompactView({
   return (
     <CompactList>
       {bodies.map((b) => {
-        const c = counts.get(b.id) ?? { total: 0, upcoming: 0 };
+        const c = counts.get(b.id) ?? ZERO_COUNTS;
         return (
           <Link
             key={b.id}
@@ -301,7 +285,7 @@ function KanbanView({
     <KanbanBoard
       columns={columns}
       renderItem={(b) => {
-        const c = counts.get(b.id) ?? { total: 0, upcoming: 0 };
+        const c = counts.get(b.id) ?? ZERO_COUNTS;
         return (
           <Link
             key={b.id}

@@ -16,15 +16,12 @@ export function ScorecardsSummary({
   judges: JudgeInfo[];
   cards: BoutScorecard[];
 }) {
-  if (judges.length === 0) return null;
-
   const byJudge = new Map<string, BoutScorecard[]>();
   for (const c of cards) {
     const arr = byJudge.get(c.judge_official_id) ?? [];
     arr.push(c);
     byJudge.set(c.judge_official_id, arr);
   }
-  for (const arr of byJudge.values()) arr.sort((a, b) => a.round_number - b.round_number);
 
   const totalsByJudge = new Map<string, { red: number; blue: number }>();
   for (const [id, arr] of byJudge) {

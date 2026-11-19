@@ -19,12 +19,9 @@ import type {
   Fighter,
   Gym,
   Official,
-  OfficialRole,
   Person,
 } from "@/lib/db/types";
 import { SPORTS, STANCES } from "@/lib/db/types";
-
-export const dynamic = "force-dynamic";
 
 // Only the columns the self-serve cards render / prefill.
 type MyFighter = Pick<
@@ -360,7 +357,7 @@ function OfficialCard({ official }: { official: MyOfficial }) {
           <Gavel className="h-4 w-4" />
           Officiating profile
           <div className="flex flex-wrap gap-1">
-            {official.roles.map((r: OfficialRole) => (
+            {official.roles.map((r) => (
               <Badge key={r} variant="secondary" className="capitalize">
                 {r}
               </Badge>
@@ -418,7 +415,7 @@ function OfficialCard({ official }: { official: MyOfficial }) {
             <Input
               id="o_sports"
               name="sports"
-              defaultValue={(official.sports ?? []).join(", ")}
+              defaultValue={official.sports.join(", ")}
             />
           </FormField>
           <FormField
@@ -430,7 +427,7 @@ function OfficialCard({ official }: { official: MyOfficial }) {
               id="o_certs"
               name="certifications"
               rows={2}
-              defaultValue={(official.certifications ?? []).join(", ")}
+              defaultValue={official.certifications.join(", ")}
             />
           </FormField>
           <FormField label="Photo URL" htmlFor="o_photo" className="sm:col-span-2">

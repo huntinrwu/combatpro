@@ -1,11 +1,20 @@
 import { redirect } from "next/navigation";
 
-import { FighterWidget, type FighterNextBout } from "./_components/dashboard/fighter-widget";
+import {
+  FighterWidget,
+  type FighterNextBout,
+  type FighterProfile,
+} from "./_components/dashboard/fighter-widget";
 import { GlobalSearch } from "./_components/dashboard/global-search";
-import { GymWidget, type RosterFighter } from "./_components/dashboard/gym-widget";
+import {
+  GymWidget,
+  type GymSummary,
+  type RosterFighter,
+} from "./_components/dashboard/gym-widget";
 import { ModulesStrip } from "./_components/dashboard/modules-strip";
 import {
   OfficialWidget,
+  type OfficialProfile,
   type OfficialUpcoming,
 } from "./_components/dashboard/official-widget";
 import {
@@ -27,16 +36,7 @@ import {
 import { db } from "@/lib/db/client";
 import { getSessionUser } from "@/lib/auth/session";
 import { ROLE_LABELS } from "@/lib/auth/roles";
-import type {
-  Bout,
-  EventOfficial,
-  EventRow,
-  Fighter,
-  Gym,
-  Official,
-} from "@/lib/db/types";
-
-export const dynamic = "force-dynamic";
+import type { Bout, EventOfficial, EventRow, Fighter } from "@/lib/db/types";
 
 // Column lists match exactly what each widget renders — keeps the
 // every-login dashboard from pulling whole rows (notes, contact info, …).
@@ -46,6 +46,10 @@ const SANCTIONED_EVENT_COLS = "id, name, event_date, slug";
 const RECENT_FIGHTER_COLS =
   "id, full_name, nickname, photo_url, weight_class, primary_sport, pro_wins, pro_losses, pro_draws";
 const ROSTER_FIGHTER_COLS = "id, full_name, pro_wins, pro_losses, pro_draws";
+const OFFICIAL_PROFILE_COLS = "id, full_name, roles";
+const FIGHTER_PROFILE_COLS =
+  "id, full_name, photo_url, weight_class, primary_sport, pro_wins, pro_losses, pro_draws, gym_id";
+const GYM_COLS = "id, name, city, state";
 
 export default async function Home() {
   const user = await getSessionUser();
@@ -98,16 +102,16 @@ export default async function Home() {
     ? (user.personId
         ? supabase
             .from("officials")
-            .select("*")
+            .select(OFFICIAL_PROFILE_COLS)
             .eq("person_id", user.personId)
             .limit(1)
-            .maybeSingle<Official>()
+            .maybeSingle<OfficialProfile>()
         : supabase
             .from("officials")
-            .select("*")
+            .select(OFFICIAL_PROFILE_COLS)
             .ilike("contact_email", email)
             .limit(1)
-            .maybeSingle<Official>())
+            .maybeSingle<OfficialProfile>())
     : null;
 
   // Fighter widget — same person_id-first strategy.
@@ -116,16 +120,16 @@ export default async function Home() {
     ? (user.personId
         ? supabase
             .from("fighters")
-            .select("*")
+            .select(FIGHTER_PROFILE_COLS)
             .eq("person_id", user.personId)
             .limit(1)
-            .maybeSingle<Fighter>()
+            .maybeSingle<FighterProfile>()
         : supabase
             .from("fighters")
-            .select("*")
+            .select(FIGHTER_PROFILE_COLS)
             .ilike("contact_email", email)
             .limit(1)
-            .maybeSingle<Fighter>())
+            .maybeSingle<FighterProfile>())
     : null;
 
   // Regulator widget (SB / commission)
@@ -158,10 +162,10 @@ export default async function Home() {
   const gymPromise = isGymPerson
     ? supabase
         .from("gyms")
-        .select("*")
+        .select(GYM_COLS)
         .ilike("contact_email", email)
         .limit(1)
-        .maybeSingle<Gym>()
+        .maybeSingle<GymSummary>()
     : null;
 
   const [
@@ -221,17 +225,14 @@ export default async function Home() {
     return out.slice(0, 5);
   };
 
-  const loadFighterGym = async (): Promise<Pick<
-    Gym,
-    "id" | "name" | "city" | "state"
-  > | null> => {
+  const loadFighterGym = async (): Promise<GymSummary | null> => {
     const gymId = fighterProfile?.data?.gym_id;
     if (!gymId) return null;
     const { data: g } = await supabase
       .from("gyms")
-      .select("id, name, city, state")
+      .select(GYM_COLS)
       .eq("id", gymId)
-      .maybeSingle<Pick<Gym, "id" | "name" | "city" | "state">>();
+      .maybeSingle<GymSummary>();
     return g ?? null;
   };
 
@@ -240,11 +241,11 @@ export default async function Home() {
     const fid = fighterProfile.data.id;
     const { data: bouts } = await supabase
       .from("bouts")
-      .select("id, event_id, red_corner_fighter_id, blue_corner_fighter_id")
+      .select("event_id, red_corner_fighter_id, blue_corner_fighter_id")
       .or(`red_corner_fighter_id.eq.${fid},blue_corner_fighter_id.eq.${fid}`);
     const boutRows = (bouts ?? []) as Pick<
       Bout,
-      "id" | "event_id" | "red_corner_fighter_id" | "blue_corner_fighter_id"
+      "event_id" | "red_corner_fighter_id" | "blue_corner_fighter_id"
     >[];
     if (!boutRows.length) return null;
     const { data: events } = await supabase
@@ -267,8 +268,6 @@ export default async function Home() {
       bout.red_corner_fighter_id === fid
         ? bout.blue_corner_fighter_id
         : bout.red_corner_fighter_id;
-    const corner: "red" | "blue" =
-      bout.red_corner_fighter_id === fid ? "red" : "blue";
     let opponentName: string | null = null;
     if (opponentId) {
       const { data: opp } = await supabase
@@ -279,13 +278,11 @@ export default async function Home() {
       opponentName = opp?.full_name ?? null;
     }
     return {
-      boutId: bout.id,
       eventId: nextEvent.id,
       eventName: nextEvent.name,
       eventDate: nextEvent.event_date,
       eventSlug: nextEvent.slug,
       opponentName,
-      corner,
     };
   };
 

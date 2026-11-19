@@ -2,7 +2,6 @@ import Link from "next/link";
 import { CheckCircle2, Download, FileText, RotateCcw } from "lucide-react";
 
 import { markDocumentFiled, unmarkDocumentFiled } from "../document-actions";
-import { fmtWhen } from "./fmt-when";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +10,7 @@ import {
   type BoutDocument,
   type BoutDocumentKind,
 } from "@/lib/db/types";
+import { fmtDateTime } from "@/lib/format-utils";
 
 export function DocumentsCard({
   boutId,
@@ -52,7 +52,7 @@ export function DocumentsCard({
                 <p className="mt-1 text-xs text-muted-foreground">{k.hint}</p>
                 {filed && (
                   <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
-                    <div>Filed {fmtWhen(filed.filed_at)}</div>
+                    <div>Filed {fmtDateTime(filed.filed_at)}</div>
                     {filed.filed_with && <div>With: {filed.filed_with}</div>}
                     {filed.filed_by && <div>By: {filed.filed_by}</div>}
                     {filed.reference && <div>Ref: {filed.reference}</div>}

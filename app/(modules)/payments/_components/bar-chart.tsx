@@ -29,15 +29,12 @@ function shortMoney(n: number): string {
   return `$${Math.round(n)}`;
 }
 
-export function CashFlowBarChart({
-  points,
-  height = 220,
-}: {
-  points: BarChartPoint[];
-  height?: number;
-}) {
+const CHART_HEIGHT = 220;
+
+export function CashFlowBarChart({ points }: { points: BarChartPoint[] }) {
+  const height = CHART_HEIGHT;
   const hasData = points.some((p) => p.revenue > 0 || p.expense > 0);
-  if (points.length === 0 || !hasData) {
+  if (!hasData) {
     return (
       <div className="flex h-40 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border/60 bg-muted/20 text-sm text-muted-foreground">
         <span>No cash flow in this range.</span>
@@ -67,16 +64,15 @@ export function CashFlowBarChart({
   });
 
   // Net line polyline over the bars (net = revenue - expense per bucket).
-  const netPoints = points
-    .map((p, i) => {
-      const x = yAxisWidth + i * groupWidth + groupWidth / 2;
-      const net = p.revenue - p.expense;
-      const clamped = Math.max(-max, Math.min(max, net));
-      const y = chartHeight - ((clamped + max) / (2 * max)) * chartHeight;
-      return `${x},${y}`;
-    })
-    .join(" ");
-  const zeroY = chartHeight - ((0 + max) / (2 * max)) * chartHeight;
+  const netDots = points.map((p, i) => {
+    const x = yAxisWidth + i * groupWidth + groupWidth / 2;
+    const net = p.revenue - p.expense;
+    const clamped = Math.max(-max, Math.min(max, net));
+    const y = chartHeight - ((clamped + max) / (2 * max)) * chartHeight;
+    return { x, y, net };
+  });
+  const netPoints = netDots.map((d) => `${d.x},${d.y}`).join(" ");
+  const zeroY = chartHeight / 2;
 
   return (
     <div className="w-full overflow-x-auto">
@@ -169,27 +165,21 @@ export function CashFlowBarChart({
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        {points.map((p, i) => {
-          const x = yAxisWidth + i * groupWidth + groupWidth / 2;
-          const net = p.revenue - p.expense;
-          const clamped = Math.max(-max, Math.min(max, net));
-          const y = chartHeight - ((clamped + max) / (2 * max)) * chartHeight;
-          return (
-            <circle
-              key={`net-${i}`}
-              cx={x}
-              cy={y}
-              r={2.5}
-              className={
-                net >= 0
-                  ? "fill-emerald-600 dark:fill-emerald-400"
-                  : "fill-red-600 dark:fill-red-400"
-              }
-            >
-              <title>Net: {net < 0 ? "−" : ""}{fmtMoney(Math.abs(net))}</title>
-            </circle>
-          );
-        })}
+        {netDots.map(({ x, y, net }, i) => (
+          <circle
+            key={`net-${i}`}
+            cx={x}
+            cy={y}
+            r={2.5}
+            className={
+              net >= 0
+                ? "fill-emerald-600 dark:fill-emerald-400"
+                : "fill-red-600 dark:fill-red-400"
+            }
+          >
+            <title>Net: {net < 0 ? "−" : ""}{fmtMoney(Math.abs(net))}</title>
+          </circle>
+        ))}
       </svg>
     </div>
   );
@@ -197,10 +187,10 @@ export function CashFlowBarChart({
 
 export function HBarBreakdown({
   rows,
-  color = "expense",
+  color,
 }: {
   rows: { label: string; amount: number }[];
-  color?: "expense" | "revenue";
+  color: "expense" | "revenue";
 }) {
   if (rows.length === 0) {
     return <p className="text-sm text-muted-foreground">Nothing to break down yet.</p>;

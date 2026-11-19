@@ -9,9 +9,6 @@ import {
 import { loadLedger } from "@/app/api/_lib/ledger";
 import { fileSlug } from "@/app/api/_lib/slug";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 // Escapes a value for RFC 4180 CSV: wrap in quotes if it contains
 // ", , \r, \n — and double any embedded quotes.
 function csvCell(raw: string | number | null | undefined): string {

@@ -347,10 +347,10 @@ export async function removeEventSponsorableItem(formData: FormData) {
   const supabase = db();
   const { data: item } = await supabase
     .from("event_sponsorable_items")
-    .select("id, key")
+    .select("key")
     .eq("id", id)
     .eq("event_id", event_id)
-    .maybeSingle<{ id: string; key: string }>();
+    .maybeSingle<{ key: string }>();
   if (!item) throw new Error("Item not found.");
 
   const { count: usedCount } = await supabase

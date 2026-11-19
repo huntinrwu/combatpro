@@ -10,8 +10,6 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { SPORTS, type Commission, type SanctioningBody } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
 export default async function NewRulesetPage({
   searchParams,
 }: {
@@ -46,7 +44,7 @@ export default async function NewRulesetPage({
         </p>
       </header>
 
-      <form action={createRulesetFromPdf} className="space-y-6" encType="multipart/form-data">
+      <form action={createRulesetFromPdf} className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Identity</CardTitle>

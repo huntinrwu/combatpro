@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LedgerList, LedgerRow } from "@/components/ui/ledger-list";
+import { SummaryTile } from "@/components/summary-tile";
 import { FormField } from "@/components/form-field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -33,8 +34,6 @@ import {
   type PaymentMethod,
   type Vendor,
 } from "@/lib/db/types";
-
-export const dynamic = "force-dynamic";
 
 export default async function VendorDetailPage({
   params,
@@ -368,14 +367,5 @@ export default async function VendorDetailPage({
         </LedgerList>
       </div>
     </>
-  );
-}
-
-function SummaryTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
-      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="mt-1 font-mono text-lg font-semibold">{value}</div>
-    </div>
   );
 }

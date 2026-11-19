@@ -8,10 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { createAdminClient } from "@/lib/supabase/server";
-import { fmtPersonNo } from "@/lib/format-utils";
+import { fmtPersonNo, parsePersonNo } from "@/lib/format-utils";
 import type { Person } from "@/lib/db/types";
-
-export const dynamic = "force-dynamic";
 
 type PersonRow = Pick<
   Person,
@@ -27,7 +25,6 @@ type Counts = {
   fighter: number;
   official: number;
   promotion: number;
-  hasAccount: boolean;
 };
 
 export default async function PersonsAdminPage({
@@ -53,9 +50,9 @@ export default async function PersonsAdminPage({
   }
 
   if (q.length > 0) {
-    const asNumber = Number.parseInt(q.replace(/[^0-9]/g, ""), 10);
+    const asNumber = parsePersonNo(q);
     const patterns = [`full_name.ilike.%${q}%`, `email.ilike.%${q}%`];
-    if (!Number.isNaN(asNumber)) patterns.push(`person_no.eq.${asNumber}`);
+    if (asNumber != null) patterns.push(`person_no.eq.${asNumber}`);
     query = query.or(patterns.join(","));
   }
 
@@ -94,12 +91,7 @@ export default async function PersonsAdminPage({
 
   const counts = new Map<string, Counts>();
   for (const r of rows) {
-    counts.set(r.id, {
-      fighter: 0,
-      official: 0,
-      promotion: 0,
-      hasAccount: Boolean(r.auth_user_id),
-    });
+    counts.set(r.id, { fighter: 0, official: 0, promotion: 0 });
   }
   for (const f of (fighters ?? []) as { person_id: string }[]) {
     const c = counts.get(f.person_id);
@@ -223,7 +215,7 @@ export default async function PersonsAdminPage({
                 </thead>
                 <tbody className="divide-y divide-border">
                   {rows.map((p) => {
-                    const c = counts.get(p.id);
+                    const c = counts.get(p.id) ?? { fighter: 0, official: 0, promotion: 0 };
                     const isMerged = Boolean(p.merged_into_person_id);
                     const mergedIntoNo = p.merged_into_person_id
                       ? targetLookup.get(p.merged_into_person_id)
@@ -254,23 +246,23 @@ export default async function PersonsAdminPage({
                                 Merged
                               </Badge>
                             )}
-                            {c?.hasAccount && (
+                            {p.auth_user_id && (
                               <Badge variant="secondary" className="gap-1 text-[10px]">
                                 <UserCircle className="h-3 w-3" />
                                 Account
                               </Badge>
                             )}
-                            {c && c.fighter > 0 && (
+                            {c.fighter > 0 && (
                               <Badge variant="outline" className="text-[10px]">
                                 Fighter × {c.fighter}
                               </Badge>
                             )}
-                            {c && c.official > 0 && (
+                            {c.official > 0 && (
                               <Badge variant="outline" className="text-[10px]">
                                 Official × {c.official}
                               </Badge>
                             )}
-                            {c && c.promotion > 0 && (
+                            {c.promotion > 0 && (
                               <Badge variant="outline" className="text-[10px]">
                                 Promotion contact × {c.promotion}
                               </Badge>

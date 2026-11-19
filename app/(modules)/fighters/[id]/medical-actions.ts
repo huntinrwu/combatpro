@@ -36,8 +36,8 @@ export async function addMedicalRecord(formData: FormData) {
 
   let expires_on = orNull(formData.get("expires_on"));
   if (!expires_on) {
-    const spec = MEDICAL_RECORD_KINDS.find((k) => k.value === kind);
-    if (spec) expires_on = addMonthsISO(issued_on, spec.default_expiry_months);
+    const spec = MEDICAL_RECORD_KINDS.find((k) => k.value === kind)!;
+    expires_on = addMonthsISO(issued_on, spec.default_expiry_months);
   }
 
   const payload = {

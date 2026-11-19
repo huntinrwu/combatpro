@@ -11,6 +11,7 @@ import { KanbanBoard } from "@/components/views/kanban";
 import { CardGrid, CompactList, TableShell, TileGrid } from "@/components/views/containers";
 import { pickView } from "@/lib/view-mode";
 import {
+  compareSponsorTier,
   fmtMoney,
   num,
   sponsorTierLabel,
@@ -19,8 +20,6 @@ import {
   type Sponsor,
   type SponsorTier,
 } from "@/lib/db/types";
-
-export const dynamic = "force-dynamic";
 
 const VIEWS = ["list", "card", "grid", "compact", "kanban"] as const;
 
@@ -36,10 +35,7 @@ type Stats = {
   contracted: number;
   paid: number;
   amountsVisible: boolean;
-  ownedEvents: number;
   topTier: SponsorTier | null;
-  topTierLabel: string | null;
-  topTierRank: number;
 };
 
 export default async function SponsorsListPage({
@@ -86,26 +82,13 @@ export default async function SponsorsListPage({
   };
 
   const summary = new Map<string, Stats>();
-  const rank: Record<string, number> = {
-    title: 0,
-    presenting: 1,
-    gold: 2,
-    silver: 3,
-    bronze: 4,
-    associate: 5,
-    media: 6,
-    in_kind: 7,
-  };
   for (const s of slotList) {
     const entry: Stats = summary.get(s.sponsor_id) ?? {
       events: new Set<string>(),
       contracted: 0,
       paid: 0,
       amountsVisible: false,
-      ownedEvents: 0,
       topTier: null,
-      topTierLabel: null,
-      topTierRank: 99,
     };
     entry.events.add(s.event_id);
     if (canSeeAmount(s.event_id)) {
@@ -113,13 +96,9 @@ export default async function SponsorsListPage({
       entry.contracted += amount;
       if (s.paid_at) entry.paid += amount;
       entry.amountsVisible = true;
-      entry.ownedEvents += 1;
     }
-    const r = rank[s.tier] ?? 99;
-    if (r < entry.topTierRank) {
-      entry.topTierRank = r;
+    if (!entry.topTier || compareSponsorTier(s.tier, entry.topTier) < 0) {
       entry.topTier = s.tier;
-      entry.topTierLabel = sponsorTierLabel(s.tier);
     }
     summary.set(s.sponsor_id, entry);
   }
@@ -217,8 +196,8 @@ function ListView({ sponsors, summary }: { sponsors: SponsorRow[]; summary: Map<
                   {s.contact_name || s.contact_email || "—"}
                 </td>
                 <td className="px-3 py-2">
-                  {stats?.topTierLabel ? (
-                    <Badge variant="outline">{stats.topTierLabel}</Badge>
+                  {stats?.topTier ? (
+                    <Badge variant="outline">{sponsorTierLabel(stats.topTier)}</Badge>
                   ) : (
                     <span className="text-xs text-muted-foreground">—</span>
                   )}
@@ -286,9 +265,9 @@ function CardView({ sponsors, summary }: { sponsors: SponsorRow[]; summary: Map<
                   {s.contact_name || s.contact_email || "—"}
                 </div>
               </div>
-              {stats?.topTierLabel && (
+              {stats?.topTier && (
                 <Badge variant="outline" className="shrink-0">
-                  {stats.topTierLabel}
+                  {sponsorTierLabel(stats.topTier)}
                 </Badge>
               )}
             </div>
@@ -347,8 +326,8 @@ function GridView({ sponsors, summary }: { sponsors: SponsorRow[]; summary: Map<
               </div>
             )}
             <div className="w-full truncate text-sm font-medium">{s.name}</div>
-            {stats?.topTierLabel && (
-              <div className="mt-0.5 text-[10px] text-muted-foreground">{stats.topTierLabel}</div>
+            {stats?.topTier && (
+              <div className="mt-0.5 text-[10px] text-muted-foreground">{sponsorTierLabel(stats.topTier)}</div>
             )}
             <div className="mt-1 text-[10px] font-mono">
               {stats?.amountsVisible ? fmtMoney(stats.contracted) : "—"}
@@ -379,7 +358,7 @@ function CompactView({
           >
             <span className="min-w-0 flex-1 truncate font-medium">{s.name}</span>
             <span className="hidden w-20 shrink-0 truncate text-right text-xs text-muted-foreground sm:block">
-              {stats?.topTierLabel ?? ""}
+              {stats?.topTier ? sponsorTierLabel(stats.topTier) : ""}
             </span>
             <span className="w-10 shrink-0 text-right font-mono text-xs">
               {stats?.events.size ?? 0}

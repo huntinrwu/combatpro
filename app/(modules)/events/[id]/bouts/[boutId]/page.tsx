@@ -39,8 +39,6 @@ import {
   type Ruleset,
 } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
 type RosterRow = Pick<EventOfficial, "id" | "official_id" | "event_role"> & {
   official: Pick<Official, "full_name"> | null;
 };
@@ -53,9 +51,7 @@ export default async function BoutDetailPage({
   const { id: eventId, boutId } = await params;
   const supabase = db();
 
-  // Event, bout, checks, purses, and fighter names come from the per-request
-  // cache the [id] layout already populated. Finding the bout in the event's
-  // card also enforces bout ↔ event ownership.
+  // Finding the bout in the event's card also enforces bout ↔ event ownership.
   const detail = await loadEventDetail(eventId);
   const bout = detail?.bouts.find((b) => b.id === boutId);
   if (!detail || !bout) notFound();
@@ -182,7 +178,6 @@ export default async function BoutDetailPage({
   const cards = (scorecards ?? []) as BoutScorecard[];
   const suggestion = suggestResultFromScorecards(cards);
   const totalRounds = bout.rounds ?? 10;
-  const isDeclared = Boolean(bout.result);
   const declaredMethodLabel =
     BOUT_METHODS.find((m) => m.value === bout.method)?.label ?? bout.method;
   const winnerName =
@@ -375,10 +370,7 @@ export default async function BoutDetailPage({
             <ScorecardsSummary
               boutId={bout.id}
               totalRounds={totalRounds}
-              judges={judges.map((j) => ({
-                official_id: j.official_id,
-                full_name: j.full_name,
-              }))}
+              judges={judges}
               cards={cards}
             />
           )}
@@ -392,7 +384,7 @@ export default async function BoutDetailPage({
         blue={blue}
         totalRounds={totalRounds}
         suggestion={suggestion}
-        declaredMethodLabel={declaredMethodLabel ?? null}
+        declaredMethodLabel={declaredMethodLabel}
         winnerName={winnerName}
       />
 
@@ -409,7 +401,7 @@ export default async function BoutDetailPage({
             eventId={event.id}
             documents={(documents ?? []) as BoutDocument[]}
             sanctioningBodyName={sanctioningBody?.name ?? null}
-            resultDeclared={isDeclared}
+            resultDeclared={isDone}
           />
         </CardContent>
       </Card>

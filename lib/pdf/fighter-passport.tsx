@@ -1,6 +1,7 @@
 import { Document, Page, Text, View } from "@react-pdf/renderer";
 
 import { BrandLockup } from "./brand-mark";
+import { KV } from "./parts";
 import { colors, fmtDate, styles } from "./theme";
 import {
   MEDICAL_RECORD_KINDS,
@@ -12,7 +13,7 @@ import {
   type MedicalRecordKind,
 } from "@/lib/db/types";
 
-export type NormalizedResult = "win" | "loss" | "draw" | "no_contest" | null;
+type NormalizedResult = "win" | "loss" | "draw" | "no_contest" | null;
 
 export type PassportBoutNormalizedRow = {
   event_name: string;
@@ -27,7 +28,7 @@ export type PassportBoutNormalizedRow = {
 
 export type FighterPassportProps = {
   fighter: Fighter;
-  gym: Pick<Gym, "id" | "name"> | null;
+  gym: Pick<Gym, "name"> | null;
   medicals: FighterMedicalRecord[];
   recentBouts: PassportBoutNormalizedRow[];
 };
@@ -152,40 +153,22 @@ export function FighterPassportPdf({
         <Text style={styles.sectionTitle}>Identity</Text>
         <View style={styles.grid2}>
           <View style={styles.col}>
-            <View style={styles.kv}>
-              <Text style={styles.k}>Date of birth</Text>
-              <Text style={styles.v}>
-                {fighter.date_of_birth ? fmtDate(fighter.date_of_birth) : "—"}
-                {age != null && ` (age ${age})`}
-              </Text>
-            </View>
-            <View style={styles.kv}>
-              <Text style={styles.k}>Nationality</Text>
-              <Text style={styles.v}>{fighter.nationality ?? "—"}</Text>
-            </View>
-            <View style={styles.kv}>
-              <Text style={styles.k}>Hometown</Text>
-              <Text style={styles.v}>{fighter.hometown ?? "—"}</Text>
-            </View>
+            <KV k="Date of birth">
+              {fmtDate(fighter.date_of_birth)}
+              {age != null && ` (age ${age})`}
+            </KV>
+            <KV k="Nationality">{fighter.nationality ?? "—"}</KV>
+            <KV k="Hometown">{fighter.hometown ?? "—"}</KV>
           </View>
           <View style={styles.col}>
-            <View style={styles.kv}>
-              <Text style={styles.k}>Gym</Text>
-              <Text style={styles.v}>{gym?.name ?? fighter.gym ?? "—"}</Text>
-            </View>
-            <View style={styles.kv}>
-              <Text style={styles.k}>Height / Reach</Text>
-              <Text style={styles.v}>
-                {fighter.height_cm != null ? `${fighter.height_cm} cm` : "—"} /{" "}
-                {fighter.reach_cm != null ? `${fighter.reach_cm} cm` : "—"}
-              </Text>
-            </View>
-            <View style={styles.kv}>
-              <Text style={styles.k}>Contact</Text>
-              <Text style={styles.v}>
-                {fighter.contact_email ?? fighter.contact_phone ?? "—"}
-              </Text>
-            </View>
+            <KV k="Gym">{gym?.name ?? fighter.gym ?? "—"}</KV>
+            <KV k="Height / Reach">
+              {fighter.height_cm != null ? `${fighter.height_cm} cm` : "—"} /{" "}
+              {fighter.reach_cm != null ? `${fighter.reach_cm} cm` : "—"}
+            </KV>
+            <KV k="Contact">
+              {fighter.contact_email ?? fighter.contact_phone ?? "—"}
+            </KV>
           </View>
         </View>
 
@@ -220,10 +203,10 @@ export function FighterPassportPdf({
                   {medicalKindLabel(row.kind)}
                 </Text>
                 <Text style={[styles.tCell, { flex: MEDICAL_COL.issued }]}>
-                  {row.rec ? fmtDate(row.rec.issued_on) : "—"}
+                  {fmtDate(row.rec?.issued_on)}
                 </Text>
                 <Text style={[styles.tCell, { flex: MEDICAL_COL.expires }]}>
-                  {row.rec?.expires_on ? fmtDate(row.rec.expires_on) : "—"}
+                  {fmtDate(row.rec?.expires_on)}
                 </Text>
                 <Text
                   style={[

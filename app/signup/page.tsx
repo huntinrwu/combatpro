@@ -6,8 +6,6 @@ import { SignupForm } from "./_components/signup-form";
 import { getSessionUser } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/server";
 
-export const dynamic = "force-dynamic";
-
 export default async function SignupPage() {
   const [user, { data: gyms }] = await Promise.all([
     getSessionUser(),

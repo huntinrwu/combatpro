@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { db, dbErr } from "@/lib/db/client";
 import { orNull } from "@/lib/form-utils";
 import { requireStaff } from "@/lib/auth/session";
-import { OFFICIAL_ROLES, type OfficialRole } from "@/lib/db/types";
+import { OFFICIAL_ROLES, OFFICIAL_SB_STATUSES, type OfficialRole } from "@/lib/db/types";
 
 function getAllStrings(fd: FormData, key: string): string[] {
   return fd
@@ -69,8 +69,6 @@ export async function updateOfficial(formData: FormData) {
 
 // ── Sanctioning-body links ────────────────────────────────────────────────
 
-const VALID_SB_STATUSES = new Set(["active", "inactive", "suspended"]);
-
 export async function linkOfficialToSanctioningBody(formData: FormData) {
   await requireStaff();
   const official_id = formData.get("official_id")?.toString();
@@ -80,7 +78,7 @@ export async function linkOfficialToSanctioningBody(formData: FormData) {
   }
 
   const rawStatus = formData.get("status")?.toString() ?? "active";
-  const status = VALID_SB_STATUSES.has(rawStatus) ? rawStatus : "active";
+  const status = (OFFICIAL_SB_STATUSES as string[]).includes(rawStatus) ? rawStatus : "active";
 
   const payload = {
     official_id,

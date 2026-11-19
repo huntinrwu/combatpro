@@ -14,6 +14,12 @@ import type {
   Sponsor,
 } from "@/lib/db/types";
 
+// Fighter fields the card views render. Gym name is embedded via
+// fighters.gym_id → gyms.
+export type EventFighter = Pick<Fighter, "id" | "full_name" | "gym" | "gym_id"> & {
+  gym_ref: { name: string } | null;
+};
+
 // Everything the event layout + its child tabs share. Loaded once per request
 // via React's cache() — the layout and any child page can call
 // loadEventDetail(id) and share the same in-memory result. Cuts the "layout
@@ -21,7 +27,7 @@ import type {
 export type EventDetail = {
   event: EventRow;
   bouts: Bout[];
-  fighterMap: Map<string, Pick<Fighter, "id" | "full_name">>;
+  fighterMap: Map<string, EventFighter>;
   checks: BoutFighterCheck[];
   checksByBout: Map<string, Partial<Record<"red" | "blue", BoutFighterCheck>>>;
   purses: BoutPurse[];
@@ -30,7 +36,7 @@ export type EventDetail = {
 };
 
 // Distinct red/blue fighter ids across a card.
-export function fighterIdsOf(
+function fighterIdsOf(
   bouts: Pick<Bout, "red_corner_fighter_id" | "blue_corner_fighter_id">[],
 ): string[] {
   return Array.from(
@@ -42,25 +48,28 @@ export function fighterIdsOf(
   );
 }
 
+// "Name (Gym)" for print sheets; a registry gym wins over the free-text one.
+export function fighterLabel(f: EventFighter | null | undefined): string {
+  if (!f) return "TBD";
+  const gym = f.gym_id ? f.gym_ref?.name : f.gym;
+  return gym ? `${f.full_name} (${gym})` : f.full_name;
+}
+
 export const loadEventDetail = cache(async (id: string): Promise<EventDetail | null> => {
   const supabase = db();
 
-  const { data: event } = await supabase
-    .from("events")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle<EventRow>();
+  const [{ data: event }, { data: bouts }, { data: ledger }, { data: sponsorSlots }] =
+    await Promise.all([
+      supabase.from("events").select("*").eq("id", id).maybeSingle<EventRow>(),
+      supabase
+        .from("bouts")
+        .select("*")
+        .eq("event_id", id)
+        .order("bout_order", { ascending: true, nullsFirst: false }),
+      supabase.from("event_ledger").select("*").eq("event_id", id).order("created_at"),
+      supabase.from("event_sponsors").select("*").eq("event_id", id),
+    ]);
   if (!event) return null;
-
-  const [{ data: bouts }, { data: ledger }, { data: sponsorSlots }] = await Promise.all([
-    supabase
-      .from("bouts")
-      .select("*")
-      .eq("event_id", id)
-      .order("bout_order", { ascending: true, nullsFirst: false }),
-    supabase.from("event_ledger").select("*").eq("event_id", id).order("created_at"),
-    supabase.from("event_sponsors").select("*").eq("event_id", id),
-  ]);
 
   const boutList = (bouts ?? []) as Bout[];
   const boutIds = boutList.map((b) => b.id);
@@ -74,12 +83,15 @@ export const loadEventDetail = cache(async (id: string): Promise<EventDetail | n
       ? supabase.from("bout_purses").select("*").in("bout_id", boutIds)
       : Promise.resolve({ data: [] }),
     fighterIds.length
-      ? supabase.from("fighters").select("id, full_name").in("id", fighterIds)
+      ? supabase
+          .from("fighters")
+          .select("id, full_name, gym, gym_id, gym_ref:gyms(name)")
+          .in("id", fighterIds)
       : Promise.resolve({ data: [] }),
   ]);
 
-  const fighterMap = new Map<string, Pick<Fighter, "id" | "full_name">>();
-  for (const f of (fighters ?? []) as Pick<Fighter, "id" | "full_name">[]) {
+  const fighterMap = new Map<string, EventFighter>();
+  for (const f of (fighters ?? []) as unknown as EventFighter[]) {
     fighterMap.set(f.id, f);
   }
 

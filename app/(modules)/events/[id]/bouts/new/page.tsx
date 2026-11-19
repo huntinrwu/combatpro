@@ -14,8 +14,6 @@ import { WeightClassSelect } from "@/components/weight-class-select";
 import { BOUT_CLASSES, SCORING_MODES, SPORTS } from "@/lib/db/types";
 import type { Fighter, Ruleset } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
 export default async function NewBoutPage({
   params,
 }: {
@@ -24,7 +22,6 @@ export default async function NewBoutPage({
   const { id } = await params;
   const supabase = db();
 
-  // Event comes from the per-request cache the [id] layout already populated.
   const [detail, { data: fighters }, { data: rulesets }] = await Promise.all([
     loadEventDetail(id),
     supabase

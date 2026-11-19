@@ -4,7 +4,6 @@ import {
   ArrowUpRight,
   CalendarClock,
   CalendarDays,
-  Check,
   ChevronLeft,
   CircleAlert,
   Gavel,
@@ -12,16 +11,16 @@ import {
   ShieldCheck,
   Trophy,
   Users,
-  X,
 } from "lucide-react";
 
 import { db } from "@/lib/db/client";
 import { fmtDateShortWithDay as fmtEventDate } from "@/lib/format-utils";
 import { getSessionUser } from "@/lib/auth/session";
-import { setPromotionStatus } from "../actions";
+import { PromotionReviewButtons } from "../_components/promotion-review-buttons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { IconSummaryTile as SummaryTile } from "@/components/summary-tile";
 import type {
   Bout,
   EventOfficial,
@@ -30,8 +29,6 @@ import type {
   Official,
   Promotion,
 } from "@/lib/db/types";
-
-export const dynamic = "force-dynamic";
 
 type PromoEvent = Pick<
   EventRow,
@@ -217,24 +214,7 @@ export default async function PromotionDetailPage({
         </div>
         <div className="flex items-center gap-2">
           {session?.isStaff && isPending && (
-            <>
-              <form action={setPromotionStatus}>
-                <input type="hidden" name="id" value={promo.id} />
-                <input type="hidden" name="status" value="approved" />
-                <Button size="sm" variant="outline">
-                  <Check className="h-3.5 w-3.5" />
-                  Approve
-                </Button>
-              </form>
-              <form action={setPromotionStatus}>
-                <input type="hidden" name="id" value={promo.id} />
-                <input type="hidden" name="status" value="rejected" />
-                <Button size="sm" variant="ghost">
-                  <X className="h-3.5 w-3.5" />
-                  Reject
-                </Button>
-              </form>
-            </>
+            <PromotionReviewButtons id={promo.id} iconClassName="h-3.5 w-3.5" />
           )}
           {session?.isStaff && (
             <Button
@@ -452,29 +432,6 @@ export default async function PromotionDetailPage({
         </div>
       </div>
     </>
-  );
-}
-
-function SummaryTile({
-  Icon,
-  label,
-  value,
-  hint,
-}: {
-  Icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string;
-  hint?: string;
-}) {
-  return (
-    <div className="rounded-lg border border-border bg-muted/20 p-3">
-      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-        <Icon className="h-3 w-3" />
-        {label}
-      </div>
-      <div className="mt-1 font-mono text-2xl font-semibold">{value}</div>
-      {hint && <div className="mt-0.5 text-[11px] text-muted-foreground">{hint}</div>}
-    </div>
   );
 }
 

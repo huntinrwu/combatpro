@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
-export type MediaKind =
+type MediaKind =
   | "sponsor-logo"
   | "fighter-photo"
   | "official-photo"

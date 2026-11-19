@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { db, dbErr } from "@/lib/db/client";
-import { orNull, toInt, toNum } from "@/lib/form-utils";
+import { idOrNull, orNull, toInt, toNum } from "@/lib/form-utils";
 import { requireEventCreator, requireUser } from "@/lib/auth/session";
 import { canEditEvent } from "@/lib/auth/roles";
 import { makeEventSlug, type BoutClass, type EventRow, type EventStatus, type ScoringMode } from "@/lib/db/types";
@@ -28,10 +28,7 @@ function eventFieldsFrom(formData: FormData) {
     state: orNull(formData.get("state")),
     country: orNull(formData.get("country")) ?? "US",
     promoter: orNull(formData.get("promoter")),
-    promotion_id: (() => {
-      const v = orNull(formData.get("promotion_id"));
-      return v && v !== "__none__" ? v : null;
-    })(),
+    promotion_id: idOrNull(formData.get("promotion_id")),
     commission_id: orNull(formData.get("commission_id")),
     sanctioning_body_id: orNull(formData.get("sanctioning_body_id")),
     status: (formData.get("status")?.toString() as EventStatus) || "draft",
@@ -122,11 +119,7 @@ export async function createBout(formData: FormData) {
     red_corner_fighter_id: orNull(formData.get("red_corner_fighter_id")),
     blue_corner_fighter_id: orNull(formData.get("blue_corner_fighter_id")),
     scheduled_start_time: orNull(formData.get("scheduled_start_time")),
-    ruleset_id:
-      (() => {
-        const v = orNull(formData.get("ruleset_id"));
-        return v && v !== "__none__" ? v : null;
-      })(),
+    ruleset_id: idOrNull(formData.get("ruleset_id")),
     notes: orNull(formData.get("notes")),
   };
 
@@ -178,14 +171,14 @@ export async function advanceToNextBout(formData: FormData) {
   const supabase = db();
   const { data: bouts } = await supabase
     .from("bouts")
-    .select("id, bout_order, result")
+    .select("id, result")
     .eq("event_id", event_id)
     .order("bout_order", { ascending: true, nullsFirst: false });
 
-  const list = (bouts ?? []) as { id: string; bout_order: number | null; result: string | null }[];
+  const list = (bouts ?? []) as { id: string; result: string | null }[];
   const currentIdx = current_bout_id ? list.findIndex((b) => b.id === current_bout_id) : -1;
   const searchFrom = currentIdx >= 0 ? currentIdx + 1 : 0;
-  const next = list.slice(searchFrom).find((b) => b.id !== current_bout_id && !b.result);
+  const next = list.slice(searchFrom).find((b) => !b.result);
 
   const { error } = await supabase
     .from("events")

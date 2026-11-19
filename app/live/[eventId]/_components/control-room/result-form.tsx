@@ -15,16 +15,14 @@ export function ResultForm({
   eventId,
   bout,
   defaultRound,
-  declared,
 }: {
   eventId: string;
   bout: ControlRoomBout;
   defaultRound: number;
-  declared: boolean;
 }) {
-  const [outcome, setOutcome] = useState<string>(bout.result ?? "");
+  const [outcome, setOutcome] = useState("");
 
-  if (declared) {
+  if (bout.result) {
     return (
       <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5">
         <div className="text-[10px] font-semibold uppercase tracking-widest text-amber-300">
@@ -99,8 +97,8 @@ export function ResultForm({
       <input type="hidden" name="result" value={outcome} />
 
       <div className="flex gap-2">
-        {outcomeBtn("red", bout.red?.full_name ? `${bout.red.full_name}` : "Red wins", "red")}
-        {outcomeBtn("blue", bout.blue?.full_name ? `${bout.blue.full_name}` : "Blue wins", "blue")}
+        {outcomeBtn("red", bout.red?.full_name || "Red wins", "red")}
+        {outcomeBtn("blue", bout.blue?.full_name || "Blue wins", "blue")}
       </div>
       <div className="flex gap-2">
         {outcomeBtn("draw", "Draw", "neutral")}

@@ -1,7 +1,8 @@
 import { Document, Page, Text, View } from "@react-pdf/renderer";
 
 import { BrandLockup } from "./brand-mark";
-import { colors, fmtDate, fmtDateTime, styles } from "./theme";
+import { KV } from "./parts";
+import { colors, fmtDate, fmtDateTime, styles, type PdfEvent } from "./theme";
 import {
   BOUT_METHODS,
   checkinProgress,
@@ -10,16 +11,15 @@ import {
   type BoutFighterCheck,
   type BoutScorecard,
   type Corner,
-  type EventRow,
   type Fighter,
 } from "@/lib/db/types";
 
 export type FightReportProps = {
-  event: Pick<EventRow, "name" | "event_date" | "venue" | "city" | "state" | "primary_sport">;
+  event: PdfEvent;
   bout: Bout;
   red: Fighter | null;
   blue: Fighter | null;
-  officials: { role: string; name: string; state: string | null }[];
+  officials: { role: string; name: string }[];
   scorecards: BoutScorecard[];
   judges: { official_id: string; name: string }[];
   checks: Partial<Record<Corner, BoutFighterCheck>>;
@@ -51,6 +51,49 @@ function checkGateLabel(check: BoutFighterCheck | undefined | null): string {
   return gates.length ? gates.join(" · ") : "No gates cleared";
 }
 
+function CheckinCard({
+  corner,
+  fighter,
+  check,
+  contractLbs,
+}: {
+  corner: Corner;
+  fighter: Fighter | null;
+  check: BoutFighterCheck | undefined;
+  contractLbs: Bout["contracted_weight_lbs"];
+}) {
+  const color = corner === "red" ? colors.red : colors.blue;
+  const weighStatus = weighInStatus(contractLbs, check?.weigh_in_lbs ?? null);
+  return (
+    <View style={[styles.cornerCard, { borderLeftColor: color, flex: 1 }]}>
+      <Text style={[styles.cornerLabel, { color }]}>
+        {corner === "red" ? "Red corner" : "Blue corner"}
+      </Text>
+      <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold" }}>
+        {fighter?.full_name ?? "TBD"}
+      </Text>
+      <KV k="Weigh-in">
+        {check?.weigh_in_lbs != null
+          ? `${check.weigh_in_lbs} lbs${
+              weighStatus === "over"
+                ? " (OVER contract)"
+                : weighStatus === "under"
+                  ? " (under)"
+                  : " (on contract)"
+            }`
+          : "—"}
+      </KV>
+      <KV k="Weighed at">{fmtDateTime(check?.weigh_in_at)}</KV>
+      <KV k="Gates">{checkGateLabel(check)}</KV>
+      {check?.override_reason && (
+        <KV k="Override" vStyle={{ color: colors.amber, fontStyle: "italic" }}>
+          {check.override_reason}
+        </KV>
+      )}
+    </View>
+  );
+}
+
 export function FightReportPdf({
   event,
   bout,
@@ -79,11 +122,6 @@ export function FightReportPdf({
       blue: arr.reduce((s, c) => s + c.blue_score, 0),
     });
   }
-
-  const redCheck = checks.red;
-  const blueCheck = checks.blue;
-  const redWeighStatus = weighInStatus(bout.contracted_weight_lbs, redCheck?.weigh_in_lbs ?? null);
-  const blueWeighStatus = weighInStatus(bout.contracted_weight_lbs, blueCheck?.weigh_in_lbs ?? null);
 
   return (
     <Document
@@ -118,103 +156,31 @@ export function FightReportPdf({
         <Text style={styles.sectionTitle}>Sanctioning</Text>
         <View style={styles.grid2}>
           <View style={styles.col}>
-            <View style={styles.kv}>
-              <Text style={styles.k}>Sanctioning body</Text>
-              <Text style={styles.v}>{sanctioningBody ?? "—"}</Text>
-            </View>
-            <View style={styles.kv}>
-              <Text style={styles.k}>Regulator</Text>
-              <Text style={styles.v}>{commission ?? "—"}</Text>
-            </View>
+            <KV k="Sanctioning body">{sanctioningBody ?? "—"}</KV>
+            <KV k="Regulator">{commission ?? "—"}</KV>
           </View>
           <View style={styles.col}>
-            <View style={styles.kv}>
-              <Text style={styles.k}>Weight class</Text>
-              <Text style={styles.v}>{bout.weight_class ?? "—"}</Text>
-            </View>
-            <View style={styles.kv}>
-              <Text style={styles.k}>Contract weight</Text>
-              <Text style={styles.v}>
-                {bout.contracted_weight_lbs != null ? `${bout.contracted_weight_lbs} lbs` : "—"}
-              </Text>
-            </View>
+            <KV k="Weight class">{bout.weight_class ?? "—"}</KV>
+            <KV k="Contract weight">
+              {bout.contracted_weight_lbs != null ? `${bout.contracted_weight_lbs} lbs` : "—"}
+            </KV>
           </View>
         </View>
 
         <Text style={styles.sectionTitle}>Fighter check-in</Text>
         <View style={styles.grid2}>
-          <View style={[styles.cornerCard, { borderLeftColor: colors.red, flex: 1 }]}>
-            <Text style={[styles.cornerLabel, { color: colors.red }]}>Red corner</Text>
-            <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold" }}>
-              {red?.full_name ?? "TBD"}
-            </Text>
-            <View style={styles.kv}>
-              <Text style={styles.k}>Weigh-in</Text>
-              <Text style={styles.v}>
-                {redCheck?.weigh_in_lbs != null
-                  ? `${redCheck.weigh_in_lbs} lbs${
-                      redWeighStatus === "over"
-                        ? " (OVER contract)"
-                        : redWeighStatus === "under"
-                          ? " (under)"
-                          : " (on contract)"
-                    }`
-                  : "—"}
-              </Text>
-            </View>
-            <View style={styles.kv}>
-              <Text style={styles.k}>Weighed at</Text>
-              <Text style={styles.v}>{fmtDateTime(redCheck?.weigh_in_at)}</Text>
-            </View>
-            <View style={styles.kv}>
-              <Text style={styles.k}>Gates</Text>
-              <Text style={styles.v}>{checkGateLabel(redCheck)}</Text>
-            </View>
-            {redCheck?.override_reason && (
-              <View style={styles.kv}>
-                <Text style={styles.k}>Override</Text>
-                <Text style={[styles.v, { color: colors.amber, fontStyle: "italic" }]}>
-                  {redCheck.override_reason}
-                </Text>
-              </View>
-            )}
-          </View>
-          <View style={[styles.cornerCard, { borderLeftColor: colors.blue, flex: 1 }]}>
-            <Text style={[styles.cornerLabel, { color: colors.blue }]}>Blue corner</Text>
-            <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold" }}>
-              {blue?.full_name ?? "TBD"}
-            </Text>
-            <View style={styles.kv}>
-              <Text style={styles.k}>Weigh-in</Text>
-              <Text style={styles.v}>
-                {blueCheck?.weigh_in_lbs != null
-                  ? `${blueCheck.weigh_in_lbs} lbs${
-                      blueWeighStatus === "over"
-                        ? " (OVER contract)"
-                        : blueWeighStatus === "under"
-                          ? " (under)"
-                          : " (on contract)"
-                    }`
-                  : "—"}
-              </Text>
-            </View>
-            <View style={styles.kv}>
-              <Text style={styles.k}>Weighed at</Text>
-              <Text style={styles.v}>{fmtDateTime(blueCheck?.weigh_in_at)}</Text>
-            </View>
-            <View style={styles.kv}>
-              <Text style={styles.k}>Gates</Text>
-              <Text style={styles.v}>{checkGateLabel(blueCheck)}</Text>
-            </View>
-            {blueCheck?.override_reason && (
-              <View style={styles.kv}>
-                <Text style={styles.k}>Override</Text>
-                <Text style={[styles.v, { color: colors.amber, fontStyle: "italic" }]}>
-                  {blueCheck.override_reason}
-                </Text>
-              </View>
-            )}
-          </View>
+          <CheckinCard
+            corner="red"
+            fighter={red}
+            check={checks.red}
+            contractLbs={bout.contracted_weight_lbs}
+          />
+          <CheckinCard
+            corner="blue"
+            fighter={blue}
+            check={checks.blue}
+            contractLbs={bout.contracted_weight_lbs}
+          />
         </View>
 
         <Text style={styles.sectionTitle}>Judges&rsquo; scorecards</Text>

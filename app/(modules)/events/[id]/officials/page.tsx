@@ -19,8 +19,6 @@ import {
   type Official,
 } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
 type OfficialLite = Pick<Official, "id" | "full_name" | "roles" | "home_state">;
 
 type RosterRow = Pick<EventOfficial, "id" | "official_id" | "event_role">;
@@ -57,12 +55,13 @@ export default async function EventOfficialsPage({
         .order("full_name"),
       supabase
         .from("official_availability")
-        .select("official_id, status, notes")
+        .select("official_id, status")
         .eq("block_date", event.event_date),
     ]);
 
+  const pickerOfficials = (allOfficials ?? []) as OfficialLite[];
   const officialMap = new Map<string, OfficialLite>();
-  for (const o of (allOfficials ?? []) as OfficialLite[]) {
+  for (const o of pickerOfficials) {
     officialMap.set(o.id, o);
   }
 
@@ -82,25 +81,10 @@ export default async function EventOfficialsPage({
     grouped.set(row.event_role, arr);
   }
 
-  // Same-official-same-role pairs are unique. We still allow one official to
-  // hold multiple roles, so filter the assign picker to hide only exact dupes.
-  const takenPairs = new Set(
-    enriched.map((r) => `${r.official_id}:${r.event_role}`),
-  );
-
-  const unavailableMap = new Map<
-    string,
-    { status: string; notes: string | null }
-  >();
-  for (const b of (unavailable ?? []) as {
-    official_id: string;
-    status: string;
-    notes: string | null;
-  }[]) {
-    unavailableMap.set(b.official_id, { status: b.status, notes: b.notes });
+  const unavailableStatus = new Map<string, string>();
+  for (const b of (unavailable ?? []) as { official_id: string; status: string }[]) {
+    unavailableStatus.set(b.official_id, b.status);
   }
-
-  const pickerOfficials = (allOfficials ?? []) as OfficialLite[];
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
@@ -206,11 +190,11 @@ export default async function EventOfficialsPage({
                       Choose…
                     </option>
                     {pickerOfficials.map((o) => {
-                      const block = unavailableMap.get(o.id);
+                      const status = unavailableStatus.get(o.id);
                       const prefix =
-                        block?.status === "unavailable"
+                        status === "unavailable"
                           ? "⛔ UNAVAILABLE — "
-                          : block?.status === "tentative"
+                          : status === "tentative"
                             ? "⚠️ tentative — "
                             : "";
                       return (
@@ -247,12 +231,6 @@ export default async function EventOfficialsPage({
                 <Button type="submit" size="sm">
                   Add to roster
                 </Button>
-                {takenPairs.size > 0 && (
-                  <p className="text-[11px] text-muted-foreground">
-                    {takenPairs.size} role assignment
-                    {takenPairs.size === 1 ? "" : "s"} on the roster so far.
-                  </p>
-                )}
               </form>
             )}
           </CardContent>

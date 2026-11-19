@@ -29,8 +29,6 @@ import {
   type SponsorTier,
 } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
 // cache()d so generateMetadata and the page share one query per request.
 const loadEvent = cache(async (slug: string) => {
   const supabase = db();
@@ -125,9 +123,9 @@ export default async function PublicEventPage({
     event.sanctioning_body_id
       ? supabase
           .from("sanctioning_bodies")
-          .select("id, name, abbreviation, website")
+          .select("name, abbreviation, website")
           .eq("id", event.sanctioning_body_id)
-          .maybeSingle<Pick<SanctioningBody, "id" | "name" | "abbreviation" | "website">>()
+          .maybeSingle<Pick<SanctioningBody, "name" | "abbreviation" | "website">>()
       : Promise.resolve({ data: null }),
     supabase
       .from("event_sponsors")
@@ -276,7 +274,6 @@ export default async function PublicEventPage({
             <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-5">
               {orderedTiers.map((tier) => {
                 const names = sponsorsByTier.get(tier) ?? [];
-                if (names.length === 0) return null;
                 return (
                   <div key={tier} className="flex items-baseline gap-4">
                     <span className="w-24 shrink-0 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">

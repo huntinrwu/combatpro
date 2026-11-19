@@ -1,12 +1,11 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { BookOpen, ExternalLink } from "lucide-react";
 
 import { loadEventDetail } from "../_lib/event-detail";
 import { db } from "@/lib/db/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Commission, SanctioningBody } from "@/lib/db/types";
-
-export const dynamic = "force-dynamic";
 
 export default async function EventRegulatoryTabPage({
   params,
@@ -16,11 +15,12 @@ export default async function EventRegulatoryTabPage({
   const { id } = await params;
   const supabase = db();
 
-  // Event comes from the per-request cache the [id] layout already populated.
-  const event = (await loadEventDetail(id))?.event;
+  const detail = await loadEventDetail(id);
+  if (!detail) notFound();
+  const { event } = detail;
 
   const [commissionRes, bodyRes] = await Promise.all([
-    event?.commission_id
+    event.commission_id
       ? supabase
           .from("commissions")
           .select("id, abbreviation, name, jurisdiction, website")
@@ -29,7 +29,7 @@ export default async function EventRegulatoryTabPage({
             Pick<Commission, "id" | "abbreviation" | "name" | "jurisdiction" | "website">
           >()
       : Promise.resolve({ data: null }),
-    event?.sanctioning_body_id
+    event.sanctioning_body_id
       ? supabase
           .from("sanctioning_bodies")
           .select("id, abbreviation, name, scope, website")
@@ -123,7 +123,7 @@ export default async function EventRegulatoryTabPage({
             <div className="text-xs uppercase tracking-wide text-muted-foreground">
               Promoter
             </div>
-            <div className="mt-1">{event?.promoter ?? "—"}</div>
+            <div className="mt-1">{event.promoter ?? "—"}</div>
           </div>
         </CardContent>
       </Card>
@@ -133,7 +133,7 @@ export default async function EventRegulatoryTabPage({
           <CardTitle className="text-base">Notes</CardTitle>
         </CardHeader>
         <CardContent>
-          {event?.notes ? (
+          {event.notes ? (
             <p className="whitespace-pre-wrap text-sm">{event.notes}</p>
           ) : (
             <p className="text-sm text-muted-foreground">No notes for this event.</p>

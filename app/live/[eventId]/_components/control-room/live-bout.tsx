@@ -63,13 +63,6 @@ export function LiveBout({
     }));
   }, [bout.rounds]);
 
-  const isDeclared = Boolean(bout.result);
-
-  // Prefill the round entered on the result form so the operator doesn't have
-  // to think — mid-round stoppages default to the current round (nextRound
-  // already clamps it to bout.rounds).
-  const defaultRound = timer.round;
-
   return (
     <div className="mx-auto max-w-[1600px] px-6 pb-10 pt-6">
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
@@ -89,12 +82,13 @@ export function LiveBout({
         </section>
 
         <section className="space-y-6">
+          {/* The round prefills from the timer — mid-round stoppages default to
+              the current round (nextRound already clamps it to bout.rounds). */}
           <ResultForm
-            key={bout.id + (isDeclared ? "-declared" : "")}
+            key={bout.result ? "declared" : "open"}
             eventId={eventId}
             bout={bout}
-            defaultRound={defaultRound}
-            declared={isDeclared}
+            defaultRound={timer.round}
           />
           <OnDeckCard bout={nextBout} />
           <ControlBar eventId={eventId} bout={bout} />

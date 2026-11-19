@@ -1,15 +1,11 @@
-import { renderToBuffer } from "@react-pdf/renderer";
-
 import { db } from "@/lib/db/client";
 import { requireStaff } from "@/lib/auth/session";
 import { FinancialsReportPdf } from "@/lib/pdf/financials-report";
 import { purseBreakdown } from "@/lib/db/types";
 import type { BoutPurse, EventRow } from "@/lib/db/types";
 import { loadLedger } from "@/app/api/_lib/ledger";
+import { pdfResponse } from "@/app/api/_lib/pdf";
 import { fileSlug } from "@/app/api/_lib/slug";
-
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 export async function GET(
   _req: Request,
@@ -45,31 +41,14 @@ export async function GET(
     purseNet += purseBreakdown(p).net;
   }
 
-  const buffer = await renderToBuffer(
+  return pdfResponse(
     <FinancialsReportPdf
-      event={{
-        name: event.name,
-        event_date: event.event_date,
-        venue: event.venue,
-        city: event.city,
-        state: event.state,
-        primary_sport: event.primary_sport,
-      }}
+      event={event}
       promoter={event.promoter}
       entries={ledgerRows}
       vendorNameMap={vendorNameMap}
       purseNet={purseNet}
     />,
+    `financials-${fileSlug(event.name)}-${event.event_date}.pdf`,
   );
-
-  const filename = `financials-${fileSlug(event.name)}-${event.event_date}.pdf`;
-
-  return new Response(new Uint8Array(buffer), {
-    status: 200,
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${filename}"`,
-      "Cache-Control": "no-store",
-    },
-  });
 }

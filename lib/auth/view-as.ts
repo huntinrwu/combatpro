@@ -4,10 +4,8 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 
 import { PLATFORM_ROLES } from "./roles";
-import { getSessionUser } from "./session";
+import { VIEW_AS_COOKIE, getSessionUser } from "./session";
 
-// Value is a PlatformRole or absent.
-const VIEW_AS_COOKIE = "cp:view-as";
 const ONE_MONTH = 60 * 60 * 24 * 30;
 
 export async function setViewAsRole(fd: FormData) {

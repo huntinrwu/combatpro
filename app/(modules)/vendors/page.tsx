@@ -25,8 +25,6 @@ import {
   type Vendor,
 } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
 export default async function VendorsPage() {
   const supabase = db();
   const [{ data: vendors }, { data: ledger }] = await Promise.all([
@@ -85,18 +83,15 @@ export default async function VendorsPage() {
   const enriched = list
     .map((v) => {
       const b = spendMap.get(v.id);
-      const methods = b?.methods ?? new Map<PaymentMethod, number>();
-      const dominantMethod = [...methods.entries()].sort((a, b) => b[1] - a[1])[0];
+      const methodMix = [...(b?.methods ?? [])].sort((x, y) => y[1] - x[1]);
       return {
         vendor: v,
         total: b?.total ?? 0,
         eventCount: b?.events.size ?? 0,
         entryCount: b?.entries ?? 0,
         lastPaid: b?.lastPaid ?? null,
-        dominantMethod: dominantMethod
-          ? { method: dominantMethod[0], amount: dominantMethod[1] }
-          : null,
-        methodMix: [...methods.entries()].sort((a, b) => b[1] - a[1]),
+        dominantMethod: methodMix[0]?.[0] ?? null,
+        methodMix,
       };
     })
     .sort((a, b) => b.total - a.total);
@@ -148,7 +143,7 @@ export default async function VendorsPage() {
                   )}
                   {dominantMethod && (
                     <Badge variant="secondary" className="text-[10px]">
-                      {paymentMethodLabel(dominantMethod.method)}
+                      {paymentMethodLabel(dominantMethod)}
                     </Badge>
                   )}
                 </>

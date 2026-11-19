@@ -24,8 +24,6 @@ import {
   type Sponsor,
 } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
 type SlotRow = Pick<
   EventSponsor,
   "id" | "event_id" | "item_type" | "slot_label" | "tier" | "contract_value" | "paid_at"
@@ -73,16 +71,16 @@ export default async function SponsorDetailPage({
   const eventIds = Array.from(new Set(slotList.map((s) => s.event_id)));
   const eventMap = new Map<
     string,
-    Pick<EventRow, "id" | "name" | "event_date" | "status" | "created_by">
+    Pick<EventRow, "id" | "name" | "event_date" | "created_by">
   >();
   if (eventIds.length) {
     const { data: events } = await supabase
       .from("events")
-      .select("id, name, event_date, status, created_by")
+      .select("id, name, event_date, created_by")
       .in("id", eventIds);
     for (const e of (events ?? []) as Pick<
       EventRow,
-      "id" | "name" | "event_date" | "status" | "created_by"
+      "id" | "name" | "event_date" | "created_by"
     >[]) {
       eventMap.set(e.id, e);
     }
@@ -101,14 +99,12 @@ export default async function SponsorDetailPage({
   let visibleContracted = 0;
   let visiblePaid = 0;
   let visibleSlotCount = 0;
-  const visibleEventSet = new Set<string>();
   for (const s of slotList) {
     if (!canSeeSlot(s)) continue;
     const v = num(s.contract_value);
     visibleContracted += v;
     if (s.paid_at) visiblePaid += v;
     visibleSlotCount++;
-    visibleEventSet.add(s.event_id);
   }
   const totals = {
     contracted: Math.round(visibleContracted * 100) / 100,
@@ -117,7 +113,6 @@ export default async function SponsorDetailPage({
       Math.round((visibleContracted - visiblePaid) * 100) / 100,
     slotCount: visibleSlotCount,
   };
-  const totalEvents = new Set(slotList.map((s) => s.event_id)).size;
 
   const sortedSlots = [...slotList].sort((a, b) => {
     const ea = eventMap.get(a.event_id);
@@ -161,7 +156,7 @@ export default async function SponsorDetailPage({
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
-          {session?.isStaff ? (
+          {isStaff ? (
             <form action={updateSponsor} className="space-y-6">
               <input type="hidden" name="id" value={sponsor.id} />
               <Card>
@@ -269,7 +264,7 @@ export default async function SponsorDetailPage({
                         {visible ? (
                           <>
                             <span className="font-mono text-xs">
-                              {fmtMoney(Number(s.contract_value))}
+                              {fmtMoney(num(s.contract_value))}
                             </span>
                             {s.paid_at ? (
                               <Badge className="text-[10px]">Paid</Badge>
@@ -302,7 +297,7 @@ export default async function SponsorDetailPage({
             <CardContent className="space-y-1 text-sm">
               <div className="grid grid-cols-2 gap-y-1">
                 <span className="text-muted-foreground">Events sponsored</span>
-                <span className="text-right font-mono">{totalEvents}</span>
+                <span className="text-right font-mono">{eventIds.length}</span>
                 <span className="text-muted-foreground">Assignments</span>
                 <span className="text-right font-mono">{slotList.length}</span>
                 <span className="col-span-2 my-1 border-t border-border/70" />

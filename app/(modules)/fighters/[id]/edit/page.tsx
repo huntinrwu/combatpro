@@ -6,8 +6,6 @@ import { db } from "@/lib/db/client";
 import { requireStaff } from "@/lib/auth/session";
 import type { Fighter, Gym } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
 export default async function EditFighterPage({
   params,
 }: {

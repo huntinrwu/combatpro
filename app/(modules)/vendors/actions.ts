@@ -23,7 +23,7 @@ function vendorPayload(formData: FormData, name: string) {
 
 export async function addVendor(formData: FormData) {
   await requireStaff();
-  const name = formData.get("name")?.toString().trim();
+  const name = orNull(formData.get("name"));
   if (!name) throw new Error("Vendor name is required.");
 
   const { error } = await db().from("vendors").insert(vendorPayload(formData, name));
@@ -34,8 +34,8 @@ export async function addVendor(formData: FormData) {
 
 export async function updateVendor(formData: FormData) {
   await requireStaff();
-  const id = formData.get("id")?.toString();
-  const name = formData.get("name")?.toString().trim();
+  const id = orNull(formData.get("id"));
+  const name = orNull(formData.get("name"));
   if (!id) throw new Error("Vendor id is required.");
   if (!name) throw new Error("Vendor name is required.");
 
@@ -47,7 +47,7 @@ export async function updateVendor(formData: FormData) {
 
 export async function deleteVendor(formData: FormData) {
   await requireStaff();
-  const id = formData.get("id")?.toString();
+  const id = orNull(formData.get("id"));
   if (!id) throw new Error("Vendor id is required.");
 
   const { error } = await db().from("vendors").delete().eq("id", id);

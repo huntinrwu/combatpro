@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { Check, ChevronRight, CircleAlert, Plus, Search, ShieldCheck, X } from "lucide-react";
+import { ChevronRight, CircleAlert, Plus, Search, ShieldCheck, X } from "lucide-react";
 
 import { db } from "@/lib/db/client";
 import { getSessionUser } from "@/lib/auth/session";
-import { setPromotionStatus } from "./actions";
+import { PromotionReviewButtons } from "./_components/promotion-review-buttons";
+import { ZERO_COUNTS, countEventsBy, type EventCounts as Counts } from "@/app/_components/event-counts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,8 +16,6 @@ import { CardGrid, CompactList, TableShell, TileGrid } from "@/components/views/
 import { pickView } from "@/lib/view-mode";
 import { PROMOTION_SCOPES, type EventRow, type Promotion, type PromotionScope } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
 const VIEWS = ["list", "card", "grid", "compact", "kanban"] as const;
 
 type Search = {
@@ -27,7 +26,25 @@ type Search = {
   view?: string;
 };
 
-type Counts = { total: number; upcoming: number };
+// Only the columns the list views, filters and pending queue read.
+const PROMOTION_COLS =
+  "id, name, abbreviation, status, scope, sports, home_state, city, notes, logo_url, tenant_org_id, submitted_by_email, submitted_at";
+type PromotionRow = Pick<
+  Promotion,
+  | "id"
+  | "name"
+  | "abbreviation"
+  | "status"
+  | "scope"
+  | "sports"
+  | "home_state"
+  | "city"
+  | "notes"
+  | "logo_url"
+  | "tenant_org_id"
+  | "submitted_by_email"
+  | "submitted_at"
+>;
 
 export default async function PromotionsListPage({
   searchParams,
@@ -50,7 +67,7 @@ export default async function PromotionsListPage({
     getSessionUser(),
     supabase
       .from("promotions")
-      .select("*")
+      .select(PROMOTION_COLS)
       .in("status", ["approved", "pending"])
       .order("name"),
     supabase
@@ -59,23 +76,13 @@ export default async function PromotionsListPage({
       .not("promotion_id", "is", null),
   ]);
 
-  const all = (rawPromos ?? []) as Promotion[];
+  const all = (rawPromos ?? []) as PromotionRow[];
   const events = (rawEvents ?? []) as Pick<
     EventRow,
     "promotion_id" | "event_date" | "status"
   >[];
 
-  const today = new Date().toISOString().slice(0, 10);
-  const eventCounts = new Map<string, Counts>();
-  for (const e of events) {
-    if (!e.promotion_id) continue;
-    const entry = eventCounts.get(e.promotion_id) ?? { total: 0, upcoming: 0 };
-    entry.total++;
-    if (e.event_date >= today && e.status !== "canceled" && e.status !== "complete") {
-      entry.upcoming++;
-    }
-    eventCounts.set(e.promotion_id, entry);
-  }
+  const eventCounts = countEventsBy(events, "promotion_id");
 
   const approved = all.filter((p) => p.status === "approved");
   const pending = all.filter((p) => p.status === "pending");
@@ -220,22 +227,7 @@ export default async function PromotionsListPage({
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <form action={setPromotionStatus}>
-                      <input type="hidden" name="id" value={p.id} />
-                      <input type="hidden" name="status" value="approved" />
-                      <Button size="sm" variant="outline">
-                        <Check className="h-3 w-3" />
-                        Approve
-                      </Button>
-                    </form>
-                    <form action={setPromotionStatus}>
-                      <input type="hidden" name="id" value={p.id} />
-                      <input type="hidden" name="status" value="rejected" />
-                      <Button size="sm" variant="ghost">
-                        <X className="h-3 w-3" />
-                        Reject
-                      </Button>
-                    </form>
+                    <PromotionReviewButtons id={p.id} />
                   </div>
                 </li>
               ))}
@@ -268,7 +260,7 @@ function ListView({
   promotions,
   counts,
 }: {
-  promotions: Promotion[];
+  promotions: PromotionRow[];
   counts: Map<string, Counts>;
 }) {
   return (
@@ -285,7 +277,7 @@ function ListView({
       }
     >
       {promotions.map((p) => {
-            const c = counts.get(p.id) ?? { total: 0, upcoming: 0 };
+            const c = counts.get(p.id) ?? ZERO_COUNTS;
             return (
               <tr key={p.id} className="hover:bg-muted/40">
                 <td className="px-3 py-2">
@@ -328,13 +320,13 @@ function CardView({
   promotions,
   counts,
 }: {
-  promotions: Promotion[];
+  promotions: PromotionRow[];
   counts: Map<string, Counts>;
 }) {
   return (
     <CardGrid>
       {promotions.map((p) => {
-        const c = counts.get(p.id) ?? { total: 0, upcoming: 0 };
+        const c = counts.get(p.id) ?? ZERO_COUNTS;
         return (
           <Link
             key={p.id}
@@ -410,13 +402,13 @@ function GridView({
   promotions,
   counts,
 }: {
-  promotions: Promotion[];
+  promotions: PromotionRow[];
   counts: Map<string, Counts>;
 }) {
   return (
     <TileGrid dense className="lg:grid-cols-5">
       {promotions.map((p) => {
-        const c = counts.get(p.id) ?? { total: 0, upcoming: 0 };
+        const c = counts.get(p.id) ?? ZERO_COUNTS;
         return (
           <Link
             key={p.id}
@@ -453,13 +445,13 @@ function CompactView({
   promotions,
   counts,
 }: {
-  promotions: Promotion[];
+  promotions: PromotionRow[];
   counts: Map<string, Counts>;
 }) {
   return (
     <CompactList>
       {promotions.map((p) => {
-        const c = counts.get(p.id) ?? { total: 0, upcoming: 0 };
+        const c = counts.get(p.id) ?? ZERO_COUNTS;
         return (
           <Link
             key={p.id}
@@ -488,10 +480,10 @@ function KanbanView({
   promotions,
   counts,
 }: {
-  promotions: Promotion[];
+  promotions: PromotionRow[];
   counts: Map<string, Counts>;
 }) {
-  const buckets = new Map<PromotionScope, Promotion[]>();
+  const buckets = new Map<PromotionScope, PromotionRow[]>();
   for (const s of PROMOTION_SCOPES) buckets.set(s, []);
   for (const p of promotions) {
     if (!buckets.has(p.scope)) buckets.set(p.scope, []);
@@ -511,7 +503,7 @@ function KanbanView({
     <KanbanBoard
       columns={columns}
       renderItem={(p) => {
-        const c = counts.get(p.id) ?? { total: 0, upcoming: 0 };
+        const c = counts.get(p.id) ?? ZERO_COUNTS;
         return (
           <Link
             key={p.id}

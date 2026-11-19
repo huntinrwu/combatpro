@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { signupAction } from "../actions";
@@ -23,10 +23,7 @@ export function SignupForm({ gyms }: { gyms: Gym[] }) {
   const [selectedRoles, setSelectedRoles] = useState<Set<PlatformRole>>(new Set());
   const [gymChoice, setGymChoice] = useState<string>("");
 
-  const needsGym = useMemo(
-    () => [...selectedRoles].some((r) => ROLES_REQUIRING_GYM.includes(r)),
-    [selectedRoles],
-  );
+  const needsGym = [...selectedRoles].some((r) => ROLES_REQUIRING_GYM.includes(r));
   const showNewGymFields = needsGym && gymChoice === "__new__";
 
   function toggleRole(r: PlatformRole) {
@@ -142,7 +139,7 @@ export function SignupForm({ gyms }: { gyms: Gym[] }) {
         </div>
       )}
 
-      {state && !state.ok && (
+      {!state.ok && (
         <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {state.error}
         </p>

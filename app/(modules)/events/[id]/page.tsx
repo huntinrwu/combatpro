@@ -14,8 +14,6 @@ import {
   type Fighter,
 } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
 type BoutWithFighters = Bout & {
   red?: Pick<Fighter, "id" | "full_name"> | null;
   blue?: Pick<Fighter, "id" | "full_name"> | null;

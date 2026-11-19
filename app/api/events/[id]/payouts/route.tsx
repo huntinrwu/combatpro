@@ -1,5 +1,3 @@
-import { renderToBuffer } from "@react-pdf/renderer";
-
 import { db } from "@/lib/db/client";
 import { requireStaff } from "@/lib/auth/session";
 import {
@@ -19,10 +17,8 @@ import type {
   SanctioningBody,
   Sponsor,
 } from "@/lib/db/types";
+import { pdfResponse } from "@/app/api/_lib/pdf";
 import { fileSlug } from "@/app/api/_lib/slug";
-
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 export async function GET(
   _req: Request,
@@ -106,48 +102,27 @@ export async function GET(
 
   const rows: PayoutRow[] = [];
   for (const b of boutList) {
-    rows.push({
-      bout_order: b.bout_order,
-      corner: "red",
-      fighter_name: b.red_corner_fighter_id ? fighterMap.get(b.red_corner_fighter_id) ?? "TBD" : "TBD",
-      gym_name: b.red_corner_fighter_id ? fighterGymMap.get(b.red_corner_fighter_id) ?? null : null,
-      purse: purseByBoutCorner.get(`${b.id}:red`) ?? null,
-    });
-    rows.push({
-      bout_order: b.bout_order,
-      corner: "blue",
-      fighter_name: b.blue_corner_fighter_id ? fighterMap.get(b.blue_corner_fighter_id) ?? "TBD" : "TBD",
-      gym_name: b.blue_corner_fighter_id ? fighterGymMap.get(b.blue_corner_fighter_id) ?? null : null,
-      purse: purseByBoutCorner.get(`${b.id}:blue`) ?? null,
-    });
+    for (const corner of ["red", "blue"] as const) {
+      const fighterId = corner === "red" ? b.red_corner_fighter_id : b.blue_corner_fighter_id;
+      rows.push({
+        bout_order: b.bout_order,
+        corner,
+        fighter_name: fighterId ? fighterMap.get(fighterId) ?? "TBD" : "TBD",
+        gym_name: fighterId ? fighterGymMap.get(fighterId) ?? null : null,
+        purse: purseByBoutCorner.get(`${b.id}:${corner}`) ?? null,
+      });
+    }
   }
 
-  const buffer = await renderToBuffer(
+  return pdfResponse(
     <PayoutSheetPdf
-      event={{
-        name: event.name,
-        event_date: event.event_date,
-        venue: event.venue,
-        city: event.city,
-        state: event.state,
-        primary_sport: event.primary_sport,
-      }}
+      event={event}
       promoter={event.promoter}
       sanctioningBody={event.sanctioning_body?.name ?? null}
       commission={event.commission?.name ?? null}
       rows={rows}
       sponsors={sponsorLines}
     />,
+    `payout-sheet-${fileSlug(event.name)}.pdf`,
   );
-
-  const filename = `payout-sheet-${fileSlug(event.name)}.pdf`;
-
-  return new Response(new Uint8Array(buffer), {
-    status: 200,
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${filename}"`,
-      "Cache-Control": "no-store",
-    },
-  });
 }

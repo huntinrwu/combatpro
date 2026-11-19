@@ -7,6 +7,7 @@ import { EVENT_STATUS_VARIANT as STATUS_VARIANT } from "@/lib/ui-config";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LedgerList, LedgerRow } from "@/components/ui/ledger-list";
+import { SummaryTile } from "@/components/summary-tile";
 import {
   computeEventPnL,
   fmtMoney,
@@ -16,7 +17,18 @@ import {
   type LedgerEntry,
 } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
+// The lib helpers are typed against the full rows but only read these columns.
+type PurseRow = Pick<
+  BoutPurse,
+  | "bout_id"
+  | "gross_purse"
+  | "manager_pct"
+  | "sanctioning_fee"
+  | "tax_withholding"
+  | "other_deductions"
+  | "paid_at"
+>;
+type LedgerRowData = Pick<LedgerEntry, "event_id" | "entry_type" | "amount">;
 
 export default async function PaymentsPage() {
   const supabase = db();
@@ -27,32 +39,34 @@ export default async function PaymentsPage() {
         .select("id, name, status, event_date, venue")
         .order("event_date", { ascending: false }),
       supabase.from("bouts").select("id, event_id"),
-      supabase.from("bout_purses").select("*"),
-      supabase.from("event_ledger").select("*"),
+      // Only the columns purseBreakdown / computeEventPnL read.
+      supabase
+        .from("bout_purses")
+        .select(
+          "bout_id, gross_purse, manager_pct, sanctioning_fee, tax_withholding, other_deductions, paid_at",
+        ),
+      supabase.from("event_ledger").select("event_id, entry_type, amount"),
     ]);
 
-  // bout_id → event_id
+  // bout_id → event_id, and event_id → bout count (corners = bouts × 2)
   const boutToEvent = new Map<string, string>();
+  const eventBoutCounts = new Map<string, number>();
   for (const b of (bouts ?? []) as { id: string; event_id: string }[]) {
     boutToEvent.set(b.id, b.event_id);
+    eventBoutCounts.set(b.event_id, (eventBoutCounts.get(b.event_id) ?? 0) + 1);
   }
   // event_id → purses
-  const eventPurses = new Map<string, BoutPurse[]>();
-  for (const p of (purses ?? []) as BoutPurse[]) {
+  const eventPurses = new Map<string, PurseRow[]>();
+  for (const p of (purses ?? []) as PurseRow[]) {
     const eventId = boutToEvent.get(p.bout_id);
     if (!eventId) continue;
     const arr = eventPurses.get(eventId) ?? [];
     arr.push(p);
     eventPurses.set(eventId, arr);
   }
-  // event_id → total corners (bouts × 2)
-  const eventBoutCounts = new Map<string, number>();
-  for (const b of (bouts ?? []) as { id: string; event_id: string }[]) {
-    eventBoutCounts.set(b.event_id, (eventBoutCounts.get(b.event_id) ?? 0) + 1);
-  }
 
-  const ledgerByEvent = new Map<string, LedgerEntry[]>();
-  for (const l of (ledger ?? []) as LedgerEntry[]) {
+  const ledgerByEvent = new Map<string, LedgerRowData[]>();
+  for (const l of (ledger ?? []) as LedgerRowData[]) {
     const arr = ledgerByEvent.get(l.event_id) ?? [];
     arr.push(l);
     ledgerByEvent.set(l.event_id, arr);
@@ -66,13 +80,13 @@ export default async function PaymentsPage() {
     let net = 0;
     let paid = 0;
     for (const p of ps) {
-      const b = purseBreakdown(p);
+      const b = purseBreakdown(p as BoutPurse);
       gross += b.gross;
       net += b.net;
       if (p.paid_at) paid++;
     }
     const totalCorners = (eventBoutCounts.get(e.id) ?? 0) * 2;
-    const pnl = computeEventPnL(ledgerByEvent.get(e.id) ?? [], net);
+    const pnl = computeEventPnL((ledgerByEvent.get(e.id) ?? []) as LedgerEntry[], net);
     return {
       event: e,
       gross,
@@ -227,22 +241,5 @@ export default async function PaymentsPage() {
         ))}
       </LedgerList>
     </>
-  );
-}
-
-function SummaryTile({
-  label,
-  value,
-  valueClassName,
-}: {
-  label: string;
-  value: string;
-  valueClassName?: string;
-}) {
-  return (
-    <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
-      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className={`mt-1 font-mono text-lg font-semibold ${valueClassName ?? ""}`}>{value}</div>
-    </div>
   );
 }

@@ -9,6 +9,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { ViewSwitcher } from "@/components/view-switcher";
 import { KanbanBoard } from "@/components/views/kanban";
 import { CardGrid, CompactList, TableShell, TileGrid } from "@/components/views/containers";
+import { initials } from "@/lib/text-utils";
 import { pickView } from "@/lib/view-mode";
 import {
   OFFICIAL_ROLES,
@@ -16,8 +17,6 @@ import {
   type Official,
   type OfficialRole,
 } from "@/lib/db/types";
-
-export const dynamic = "force-dynamic";
 
 const VIEWS = ["list", "card", "grid", "compact", "kanban"] as const;
 
@@ -29,6 +28,23 @@ type Search = {
   status?: string;
   view?: string;
 };
+
+// Only the columns the views render or the search filter reads.
+const LIST_COLUMNS =
+  "id, full_name, roles, sports, home_state, is_active, active_since, notes, certifications";
+
+type OfficialRow = Pick<
+  Official,
+  | "id"
+  | "full_name"
+  | "roles"
+  | "sports"
+  | "home_state"
+  | "is_active"
+  | "active_since"
+  | "notes"
+  | "certifications"
+>;
 
 // "2019-04-11" → "6 yr" (relative to today, floored). Empty string when null.
 function activeFor(activeSince: string | null): string {
@@ -63,9 +79,7 @@ export default async function OfficialsListPage({
   // translate cleanly to a single SQL predicate.
   let query = supabase
     .from("officials")
-    .select(
-      "id, full_name, roles, sports, home_state, is_active, active_since, notes, certifications",
-    )
+    .select(LIST_COLUMNS)
     .order("full_name");
 
   if (role) query = query.contains("roles", [role]);
@@ -79,13 +93,13 @@ export default async function OfficialsListPage({
     supabase.from("officials").select("home_state").not("home_state", "is", null),
   ]);
 
-  const filtered = ((officials ?? []) as Official[]).filter((o) => {
+  const filtered = ((officials ?? []) as OfficialRow[]).filter((o) => {
     if (!q) return true;
     const needle = q.toLowerCase();
     return (
       o.full_name.toLowerCase().includes(needle) ||
       (o.notes ?? "").toLowerCase().includes(needle) ||
-      (o.certifications ?? []).some((c) => c.toLowerCase().includes(needle))
+      o.certifications.some((c) => c.toLowerCase().includes(needle))
     );
   });
 
@@ -227,7 +241,7 @@ function StatusDot({ active }: { active: boolean }) {
   );
 }
 
-function ListView({ officials }: { officials: Official[] }) {
+function ListView({ officials }: { officials: OfficialRow[] }) {
   return (
     <TableShell
       head={
@@ -286,7 +300,7 @@ function ListView({ officials }: { officials: Official[] }) {
   );
 }
 
-function CardView({ officials }: { officials: Official[] }) {
+function CardView({ officials }: { officials: OfficialRow[] }) {
   return (
     <CardGrid>
       {officials.map((o) => (
@@ -324,7 +338,7 @@ function CardView({ officials }: { officials: Official[] }) {
               </Badge>
             ))}
           </div>
-          {o.certifications && o.certifications.length > 0 && (
+          {o.certifications.length > 0 && (
             <div className="text-[10px] text-muted-foreground">
               Certs: {o.certifications.slice(0, 3).join(", ")}
               {o.certifications.length > 3 && ` +${o.certifications.length - 3}`}
@@ -336,7 +350,7 @@ function CardView({ officials }: { officials: Official[] }) {
   );
 }
 
-function GridView({ officials }: { officials: Official[] }) {
+function GridView({ officials }: { officials: OfficialRow[] }) {
   return (
     <TileGrid dense>
       {officials.map((o) => (
@@ -346,11 +360,7 @@ function GridView({ officials }: { officials: Official[] }) {
           className="group flex flex-col items-center rounded-xl border border-border bg-card p-3 text-center transition-all hover:-translate-y-0.5 hover:border-foreground/30"
         >
           <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-muted text-sm font-heading">
-            {o.full_name
-              .split(/\s+/)
-              .slice(0, 2)
-              .map((n) => n[0]?.toUpperCase() ?? "")
-              .join("")}
+            {initials(o.full_name)}
           </div>
           <div className="w-full truncate text-sm font-medium">{o.full_name}</div>
           <div className="w-full truncate text-[10px] capitalize text-muted-foreground">
@@ -366,7 +376,7 @@ function GridView({ officials }: { officials: Official[] }) {
   );
 }
 
-function CompactView({ officials }: { officials: Official[] }) {
+function CompactView({ officials }: { officials: OfficialRow[] }) {
   return (
     <CompactList>
       {officials.map((o) => (
@@ -394,8 +404,8 @@ function CompactView({ officials }: { officials: Official[] }) {
 
 // Kanban: officials appear in every column they hold a role in. Copies is
 // intentional — the point is to answer "who can I pull as a judge?" at a glance.
-function KanbanView({ officials }: { officials: Official[] }) {
-  const buckets = new Map<OfficialRole, Official[]>();
+function KanbanView({ officials }: { officials: OfficialRow[] }) {
+  const buckets = new Map<OfficialRole, OfficialRow[]>();
   for (const r of OFFICIAL_ROLES) buckets.set(r, []);
   for (const o of officials) {
     for (const r of o.roles) {

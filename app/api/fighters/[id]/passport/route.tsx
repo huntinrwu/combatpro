@@ -1,5 +1,3 @@
-import { renderToBuffer } from "@react-pdf/renderer";
-
 import { db } from "@/lib/db/client";
 import { requireStaff } from "@/lib/auth/session";
 import {
@@ -14,10 +12,8 @@ import type {
   FighterMedicalRecord,
   Gym,
 } from "@/lib/db/types";
+import { pdfResponse } from "@/app/api/_lib/pdf";
 import { fileSlug } from "@/app/api/_lib/slug";
-
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 export async function GET(
   _req: Request,
@@ -31,9 +27,9 @@ export async function GET(
   const [{ data: fighter }, { data: medicals }, { data: bouts }] = await Promise.all([
     supabase
       .from("fighters")
-      .select("*, gym_ref:gyms(id, name)")
+      .select("*, gym_ref:gyms(name)")
       .eq("id", id)
-      .maybeSingle<Fighter & { gym_ref: Pick<Gym, "id" | "name"> | null }>(),
+      .maybeSingle<Fighter & { gym_ref: Pick<Gym, "name"> | null }>(),
     supabase
       .from("fighter_medical_records")
       .select("*")
@@ -104,13 +100,10 @@ export async function GET(
     .map((b): PassportBoutNormalizedRow | null => {
       const evt = eventMap.get(b.event_id);
       if (!evt) return null;
-      const oppId =
-        b.red_corner_fighter_id === id
-          ? b.blue_corner_fighter_id
-          : b.red_corner_fighter_id;
-      const opponent = oppId ? opponentMap.get(oppId) ?? null : null;
       const isRed = b.red_corner_fighter_id === id;
-      const outcome = (b.result as BoutOutcome | null) ?? null;
+      const oppId = isRed ? b.blue_corner_fighter_id : b.red_corner_fighter_id;
+      const opponent = oppId ? opponentMap.get(oppId) ?? null : null;
+      const outcome = b.result as BoutOutcome | null;
       const normalized =
         outcome == null
           ? null
@@ -128,7 +121,7 @@ export async function GET(
         method: b.method,
         round_finished: b.round_finished,
         time_finished: b.time_finished,
-        bout_class: (b.bout_class ?? "pro") as "pro" | "amateur",
+        bout_class: b.bout_class,
         normalizedResult: normalized,
       };
     })
@@ -136,23 +129,13 @@ export async function GET(
     .sort((a, b) => b.event_date.localeCompare(a.event_date))
     .slice(0, 8);
 
-  const buffer = await renderToBuffer(
+  return pdfResponse(
     <FighterPassportPdf
       fighter={fighterRow}
-      gym={fighter.gym_id ? gym : null}
+      gym={gym}
       medicals={(medicals ?? []) as FighterMedicalRecord[]}
       recentBouts={rows}
     />,
+    `passport-${fileSlug(fighter.full_name)}.pdf`,
   );
-
-  const filename = `passport-${fileSlug(fighter.full_name)}.pdf`;
-
-  return new Response(new Uint8Array(buffer), {
-    status: 200,
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${filename}"`,
-      "Cache-Control": "no-store",
-    },
-  });
 }

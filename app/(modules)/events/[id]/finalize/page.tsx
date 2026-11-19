@@ -28,8 +28,6 @@ import {
   type Fighter,
 } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
 type BoutRow = Bout & {
   red?: Pick<Fighter, "id" | "full_name"> | null;
   blue?: Pick<Fighter, "id" | "full_name"> | null;
@@ -43,8 +41,6 @@ export default async function EventFinalizePage({
 }) {
   const { id } = await params;
 
-  // Event, bouts, and fighter names come from the per-request cache the [id]
-  // layout already populated.
   const detail = await loadEventDetail(id);
   if (!detail) notFound();
   const { event, bouts, fighterMap } = detail;

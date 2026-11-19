@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { dbErr } from "@/lib/db/client";
 import { requireUser } from "@/lib/auth/session";
-import { toInt, toNum } from "@/lib/form-utils";
+import { idOrNull, orNull, splitList, toInt, toNum } from "@/lib/form-utils";
 import { feetInToCm, inToCm } from "@/lib/units";
 
 // All /me actions authorize via the caller's session personId. A user can
@@ -26,17 +26,17 @@ export async function updateMyPerson(fd: FormData) {
   const { userId, personId } = await requirePersonId();
   const admin = createAdminClient();
 
-  const full_name = fd.get("full_name")?.toString().trim();
+  const full_name = orNull(fd.get("full_name"));
   if (!full_name) throw new Error("Full name is required.");
 
   const payload = {
     full_name,
-    email: fd.get("email")?.toString().trim() || null,
-    phone: fd.get("phone")?.toString().trim() || null,
-    hometown: fd.get("hometown")?.toString().trim() || null,
-    nationality: fd.get("nationality")?.toString().trim() || null,
-    date_of_birth: fd.get("date_of_birth")?.toString() || null,
-    avatar_url: fd.get("avatar_url")?.toString().trim() || null,
+    email: orNull(fd.get("email")),
+    phone: orNull(fd.get("phone")),
+    hometown: orNull(fd.get("hometown")),
+    nationality: orNull(fd.get("nationality")),
+    date_of_birth: orNull(fd.get("date_of_birth")),
+    avatar_url: orNull(fd.get("avatar_url")),
     updated_at: new Date().toISOString(),
   };
 
@@ -70,32 +70,24 @@ export async function updateMyFighter(fd: FormData) {
     .maybeSingle<{ id: string }>();
   if (!fighter) throw new Error("No fighter record linked to your account.");
 
-  const payload: Record<string, unknown> = {
-    nickname: fd.get("nickname")?.toString().trim() || null,
-    stance: fd.get("stance")?.toString() || null,
-    weight_class: fd.get("weight_class")?.toString().trim() || null,
-    primary_sport: fd.get("primary_sport")?.toString().trim() || undefined,
-    gym_id: (() => {
-      const v = fd.get("gym_id")?.toString().trim();
-      return v && v !== "__none__" ? v : null;
-    })(),
-    height_cm: (() => {
-      const cm = feetInToCm(toNum(fd.get("height_ft")), toNum(fd.get("height_in")));
-      return cm == null ? null : Math.round(cm);
-    })(),
-    reach_cm: (() => {
-      const cm = inToCm(toNum(fd.get("reach_in")));
-      return cm == null ? null : Math.round(cm);
-    })(),
-    contact_email: fd.get("contact_email")?.toString().trim() || null,
-    contact_phone: fd.get("contact_phone")?.toString().trim() || null,
-    photo_url: fd.get("photo_url")?.toString().trim() || null,
-    hometown: fd.get("hometown")?.toString().trim() || null,
-    nationality: fd.get("nationality")?.toString().trim() || null,
+  const heightCm = feetInToCm(toNum(fd.get("height_ft")), toNum(fd.get("height_in")));
+  const reachCm = inToCm(toNum(fd.get("reach_in")));
+  const payload = {
+    nickname: orNull(fd.get("nickname")),
+    stance: orNull(fd.get("stance")),
+    weight_class: orNull(fd.get("weight_class")),
+    // undefined is dropped from the request, so an empty field leaves the
+    // NOT NULL column untouched instead of clearing it.
+    primary_sport: orNull(fd.get("primary_sport")) ?? undefined,
+    gym_id: idOrNull(fd.get("gym_id")),
+    height_cm: heightCm == null ? null : Math.round(heightCm),
+    reach_cm: reachCm == null ? null : Math.round(reachCm),
+    contact_email: orNull(fd.get("contact_email")),
+    contact_phone: orNull(fd.get("contact_phone")),
+    photo_url: orNull(fd.get("photo_url")),
+    hometown: orNull(fd.get("hometown")),
+    nationality: orNull(fd.get("nationality")),
   };
-  // Drop primary_sport if the form field was empty — server would otherwise
-  // clear a NOT NULL column.
-  if (!payload.primary_sport) delete payload.primary_sport;
 
   const { error } = await admin
     .from("fighters")
@@ -128,21 +120,18 @@ export async function updateMyOfficial(fd: FormData) {
     .maybeSingle<{ id: string }>();
   if (!official) throw new Error("No official record linked to your account.");
 
-  const rawSports = fd.get("sports")?.toString().trim() ?? "";
-  const rawCerts = fd.get("certifications")?.toString().trim() ?? "";
-
   const payload = {
     is_active: fd.get("is_active") === "on",
-    home_state: fd.get("home_state")?.toString().trim() || null,
-    contact_email: fd.get("contact_email")?.toString().trim() || null,
-    contact_phone: fd.get("contact_phone")?.toString().trim() || null,
-    photo_url: fd.get("photo_url")?.toString().trim() || null,
-    sports: rawSports
-      ? rawSports.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
-      : [],
-    certifications: rawCerts
-      ? rawCerts.split(",").map((s) => s.trim()).filter(Boolean)
-      : [],
+    home_state: orNull(fd.get("home_state")),
+    contact_email: orNull(fd.get("contact_email")),
+    contact_phone: orNull(fd.get("contact_phone")),
+    photo_url: orNull(fd.get("photo_url")),
+    sports: splitList(fd.get("sports")),
+    // Not splitList: certification names keep their casing.
+    certifications: (orNull(fd.get("certifications")) ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
   };
 
   const { error } = await admin

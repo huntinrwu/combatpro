@@ -138,7 +138,7 @@ export function ResultCard({
               id="method"
               name="method"
               required
-              defaultValue={(bout.method as string | null) ?? suggestion?.method ?? ""}
+              defaultValue={bout.method ?? suggestion?.method ?? ""}
             >
               <option value="" disabled>
                 Select method…

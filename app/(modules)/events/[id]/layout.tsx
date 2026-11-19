@@ -30,8 +30,6 @@ import {
   sponsorshipTotals,
 } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
 export default async function EventLayout({
   children,
   params,
@@ -45,8 +43,7 @@ export default async function EventLayout({
   const { event, bouts, checks, purses, ledger, sponsorSlots } = detail;
   const canEdit = session ? canEditEvent(event, session) : false;
 
-  const boutIds = bouts.map((b) => b.id);
-  const totalWeighInSlots = boutIds.length * 2;
+  const totalWeighInSlots = bouts.length * 2;
   let weighedCorners = 0;
   for (const c of checks) {
     if (c.weigh_in_lbs != null) weighedCorners++;
@@ -158,7 +155,7 @@ export default async function EventLayout({
       </header>
 
       <MetricsStrip
-        bouts={boutIds.length}
+        bouts={bouts.length}
         weighed={weighedCorners}
         weighTotal={totalWeighInSlots}
         purseNet={payoutNet}

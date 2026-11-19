@@ -11,6 +11,7 @@ import { updateFighterLicenses } from "../actions";
 import { db } from "@/lib/db/client";
 import { getSessionUser } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
+import { DetailRow } from "@/components/detail-row";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -27,18 +28,7 @@ import type {
   Gym,
   Promotion,
 } from "@/lib/db/types";
-import { fmtHeight, fmtReach } from "@/lib/units";
-
-export const dynamic = "force-dynamic";
-
-function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex items-baseline justify-between gap-4 border-b border-border/50 py-1.5 last:border-b-0">
-      <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
-      <span className="text-right text-sm">{value ?? <em className="text-muted-foreground">—</em>}</span>
-    </div>
-  );
-}
+import { cmToFeetIn, cmToIn } from "@/lib/units";
 
 export default async function FighterDetailPage({
   params,
@@ -91,6 +81,7 @@ export default async function FighterDetailPage({
 
   if (!fighter) notFound();
 
+  const heightParts = cmToFeetIn(fighter.height_cm);
   const gymList = (gyms ?? []) as Pick<Gym, "id" | "name">[];
   const assignedGym = fighter.gym_id
     ? gymList.find((g) => g.id === fighter.gym_id) ?? null
@@ -260,10 +251,10 @@ export default async function FighterDetailPage({
             <DetailRow
               label="Height"
               value={
-                fighter.height_cm
+                fighter.height_cm && heightParts
                   ? (
                       <span>
-                        {fmtHeight(fighter.height_cm).split(" (")[0]}
+                        {`${heightParts.feet}'${heightParts.inches}"`}
                         <span className="ml-1 text-xs text-muted-foreground">
                           ({(fighter.height_cm / 100).toFixed(2)} m / {Math.round(fighter.height_cm)} cm)
                         </span>
@@ -278,7 +269,7 @@ export default async function FighterDetailPage({
                 fighter.reach_cm
                   ? (
                       <span>
-                        {fmtReach(fighter.reach_cm).split(" (")[0]}
+                        {Math.round(cmToIn(fighter.reach_cm) ?? 0)} in
                         <span className="ml-1 text-xs text-muted-foreground">
                           ({Math.round(fighter.reach_cm)} cm)
                         </span>

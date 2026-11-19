@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { db, dbErr } from "@/lib/db/client";
-import { orNull as str, toInt } from "@/lib/form-utils";
+import { idOrNull, orNull as str, toInt } from "@/lib/form-utils";
 import { getSessionUser, requireStaff } from "@/lib/auth/session";
 import {
   FIGHT_CONFIDENCE,
@@ -77,8 +77,7 @@ export async function submitFightRecord(formData: FormData) {
     throw new Error("Fighter, opponent, and date are required.");
   }
 
-  const opp_id_raw = str(formData.get("opponent_fighter_id"));
-  const opponent_fighter_id = opp_id_raw && opp_id_raw !== "__none__" ? opp_id_raw : null;
+  const opponent_fighter_id = idOrNull(formData.get("opponent_fighter_id"));
 
   const payload = {
     fighter_id,
@@ -116,8 +115,7 @@ export async function updateFightRecord(formData: FormData) {
   const fighter_id = str(formData.get("fighter_id"));
   if (!id || !fighter_id) throw new Error("Missing id.");
 
-  const opp_id_raw = str(formData.get("opponent_fighter_id"));
-  const opponent_fighter_id = opp_id_raw && opp_id_raw !== "__none__" ? opp_id_raw : null;
+  const opponent_fighter_id = idOrNull(formData.get("opponent_fighter_id"));
 
   const opponent_name = str(formData.get("opponent_name"));
   const fight_date = str(formData.get("fight_date"));

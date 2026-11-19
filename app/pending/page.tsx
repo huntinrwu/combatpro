@@ -5,8 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getSessionUser } from "@/lib/auth/session";
 import { ROLE_LABELS } from "@/lib/auth/roles";
 
-export const dynamic = "force-dynamic";
-
 export default async function PendingPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");

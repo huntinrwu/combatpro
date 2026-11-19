@@ -1,5 +1,3 @@
-"use client";
-
 import { Trash2 } from "lucide-react";
 
 import {
@@ -10,9 +8,7 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/form-field";
 import { Input } from "@/components/ui/input";
 import type { FighterWeightLogEntry } from "@/lib/db/types";
-import { lbsToKg } from "@/lib/units";
-
-import { toNum } from "./num";
+import { lbsToKg, toNum } from "@/lib/units";
 
 function fmt(iso: string): string {
   return new Date(iso).toLocaleString("en-US", {

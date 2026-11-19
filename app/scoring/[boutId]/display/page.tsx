@@ -9,8 +9,6 @@ import type {
   Official,
 } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
 export type JudgeSummary = Pick<Official, "id" | "full_name">;
 
 export default async function DisplayPage({

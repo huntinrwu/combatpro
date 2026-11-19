@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { db, dbErr } from "@/lib/db/client";
 import { requireStaff } from "@/lib/auth/session";
-import { EVENT_ROLES, type EventRole } from "@/lib/db/types";
+import { EVENT_ROLES } from "@/lib/db/types";
 
 export async function assignEventOfficial(formData: FormData) {
   await requireStaff();
@@ -16,7 +16,7 @@ export async function assignEventOfficial(formData: FormData) {
     throw new Error("event, official, and role are required.");
   }
 
-  const event_role = EVENT_ROLES.find((r) => r === roleRaw) as EventRole | undefined;
+  const event_role = EVENT_ROLES.find((r) => r === roleRaw);
   if (!event_role) throw new Error("Invalid event role.");
 
   const { error } = await db().from("event_officials").insert({

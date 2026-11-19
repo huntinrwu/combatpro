@@ -5,7 +5,7 @@ import { colors } from "./theme";
 // Two chevrons pointing inward — red-corner vs blue-corner motif —
 // rendered as React-PDF SVG primitives so the mark ships inside the doc
 // without an external image fetch.
-export function BrandMark({ size = 22 }: { size?: number }) {
+function BrandMark({ size = 22 }: { size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 32 32">
       <Rect x={0} y={0} width={32} height={32} rx={7} ry={7} fill={colors.black} />

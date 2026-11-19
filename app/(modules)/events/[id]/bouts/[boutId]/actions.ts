@@ -77,68 +77,31 @@ async function syncFightRecordsForBout(bout_id: string) {
   const outcomes = outcomesForFighters(bout.result);
   const location = [event.city, event.state].filter(Boolean).join(", ") || null;
 
-  const rows: Array<{
-    fighter_id: string;
-    opponent_fighter_id: string | null;
-    opponent_name: string;
-    fight_date: string;
-    result: FightOutcome;
-    method: string | null;
-    round_finished: number | null;
-    time_finished: string | null;
-    sport: string;
-    weight_class: string | null;
-    is_pro: boolean;
-    confidence: "verified";
-    source_label: string;
-    bout_id: string;
-    event_name: string;
-    location: string | null;
-  }> = [];
+  const rowFor = (fighter_id: string, opponent_id: string | null, result: FightOutcome) => ({
+    fighter_id,
+    opponent_fighter_id: opponent_id,
+    opponent_name: opponent_id ? nameById.get(opponent_id) ?? "TBD" : "TBD",
+    fight_date: event.event_date,
+    result,
+    method: bout.method,
+    round_finished: bout.round_finished,
+    time_finished: bout.time_finished,
+    sport: bout.sport,
+    weight_class: bout.weight_class,
+    is_pro: bout.bout_class === "pro",
+    confidence: "verified" as const,
+    source_label: "CombatPro event",
+    bout_id: bout.id,
+    event_name: event.name,
+    location,
+  });
 
+  const rows: ReturnType<typeof rowFor>[] = [];
   if (bout.red_corner_fighter_id) {
-    rows.push({
-      fighter_id: bout.red_corner_fighter_id,
-      opponent_fighter_id: bout.blue_corner_fighter_id,
-      opponent_name: bout.blue_corner_fighter_id
-        ? nameById.get(bout.blue_corner_fighter_id) ?? "TBD"
-        : "TBD",
-      fight_date: event.event_date,
-      result: outcomes.red,
-      method: bout.method,
-      round_finished: bout.round_finished,
-      time_finished: bout.time_finished,
-      sport: bout.sport,
-      weight_class: bout.weight_class,
-      is_pro: bout.bout_class === "pro",
-      confidence: "verified",
-      source_label: "CombatPro event",
-      bout_id: bout.id,
-      event_name: event.name,
-      location,
-    });
+    rows.push(rowFor(bout.red_corner_fighter_id, bout.blue_corner_fighter_id, outcomes.red));
   }
   if (bout.blue_corner_fighter_id) {
-    rows.push({
-      fighter_id: bout.blue_corner_fighter_id,
-      opponent_fighter_id: bout.red_corner_fighter_id,
-      opponent_name: bout.red_corner_fighter_id
-        ? nameById.get(bout.red_corner_fighter_id) ?? "TBD"
-        : "TBD",
-      fight_date: event.event_date,
-      result: outcomes.blue,
-      method: bout.method,
-      round_finished: bout.round_finished,
-      time_finished: bout.time_finished,
-      sport: bout.sport,
-      weight_class: bout.weight_class,
-      is_pro: bout.bout_class === "pro",
-      confidence: "verified",
-      source_label: "CombatPro event",
-      bout_id: bout.id,
-      event_name: event.name,
-      location,
-    });
+    rows.push(rowFor(bout.blue_corner_fighter_id, bout.red_corner_fighter_id, outcomes.blue));
   }
 
   if (rows.length) {
@@ -264,7 +227,7 @@ export async function declareBoutResult(formData: FormData) {
       bout_class,
       round_finished: toIntOrNull(formData.get("round_finished")),
       time_finished: orNull(formData.get("time_finished")),
-      notes: orNull(formData.get("notes")) ?? null,
+      notes: orNull(formData.get("notes")),
       records_applied: true,
     })
     .eq("id", bout_id);

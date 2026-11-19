@@ -1,7 +1,8 @@
 import { Document, Page, Text, View } from "@react-pdf/renderer";
 
 import { BrandLockup } from "./brand-mark";
-import { colors, fmtDate, styles } from "./theme";
+import { KV } from "./parts";
+import { colors, fmtDate, styles, type PdfEventWithSport } from "./theme";
 import {
   fmtMoney,
   ledgerCategoryLabel,
@@ -11,14 +12,7 @@ import {
 } from "@/lib/db/types";
 
 export type FinancialsReportProps = {
-  event: {
-    name: string;
-    event_date: string;
-    venue: string | null;
-    city: string | null;
-    state: string | null;
-    primary_sport: string;
-  };
+  event: PdfEventWithSport;
   promoter: string | null;
   entries: LedgerEntry[];
   vendorNameMap: Map<string, string>;
@@ -83,7 +77,7 @@ function LedgerTable({
         return (
           <View key={e.id} style={rowStyle}>
             <Text style={[styles.tCell, { flex: COL.date }]}>
-              {e.received_at ? fmtDate(e.received_at) : "—"}
+              {fmtDate(e.received_at)}
             </Text>
             <View style={[styles.tCell, { flex: COL.label }]}>
               <Text>{e.label}</Text>
@@ -188,18 +182,12 @@ export function FinancialsReportPdf({
 
         <View style={styles.grid2}>
           <View style={styles.col}>
-            <View style={styles.kv}>
-              <Text style={styles.k}>Promoter</Text>
-              <Text style={styles.v}>{promoter ?? "—"}</Text>
-            </View>
+            <KV k="Promoter">{promoter ?? "—"}</KV>
           </View>
           <View style={styles.col}>
-            <View style={styles.kv}>
-              <Text style={styles.k}>Entries</Text>
-              <Text style={styles.v}>
-                {revenue.length} revenue · {expenses.length} expense
-              </Text>
-            </View>
+            <KV k="Entries">
+              {revenue.length} revenue · {expenses.length} expense
+            </KV>
           </View>
         </View>
 

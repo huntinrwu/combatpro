@@ -3,8 +3,6 @@ import { EventForm } from "../_components/event-form";
 import { loadEventFormOptions } from "../_lib/event-form-options";
 import { requireEventCreator } from "@/lib/auth/session";
 
-export const dynamic = "force-dynamic";
-
 export default async function NewEventPage() {
   await requireEventCreator();
   const { commissions, bodies, promotions } = await loadEventFormOptions();

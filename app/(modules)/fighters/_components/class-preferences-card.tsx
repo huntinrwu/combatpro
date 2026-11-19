@@ -6,9 +6,8 @@ import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { WeightClassSelect } from "@/components/weight-class-select";
 import { SPORTS, type FighterClassPreference } from "@/lib/db/types";
+import { toNum } from "@/lib/units";
 import { weightClassFor } from "@/lib/weight-classes";
-
-import { toNum } from "./num";
 
 export function ClassPreferencesCard({
   fighterId,
@@ -44,7 +43,7 @@ export function ClassPreferencesCard({
             if (!p) return null;
             const derived = walking != null ? weightClassFor(sport, walking) : null;
             const stretchNote =
-              walking != null && derived && derived !== p.class_name
+              derived && derived !== p.class_name
                 ? `walking ${walking} → ${derived}`
                 : null;
             return (

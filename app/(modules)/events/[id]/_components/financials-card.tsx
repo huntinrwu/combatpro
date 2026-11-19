@@ -16,8 +16,6 @@ import {
 } from "@/lib/db/types";
 import { fmtDateShort } from "@/lib/format-utils";
 
-const fmtDate = (iso: string | null) => (iso ? fmtDateShort(iso) : "—");
-
 export function FinancialsCard({
   eventId,
   entries,
@@ -128,7 +126,7 @@ function LedgerSection({
                       )}
                       {e.received_at && (
                         <span>
-                          {isRevenue ? "Received" : "Paid"} {fmtDate(e.received_at)}
+                          {isRevenue ? "Received" : "Paid"} {fmtDateShort(e.received_at)}
                         </span>
                       )}
                       {e.reference && <span>Ref {e.reference}</span>}

@@ -5,6 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Fighter, Gym } from "@/lib/db/types";
 
+export type GymSummary = Pick<Gym, "id" | "name" | "city" | "state">;
+
 export type RosterFighter = Pick<
   Fighter,
   "id" | "full_name" | "pro_wins" | "pro_losses" | "pro_draws"
@@ -14,7 +16,7 @@ export function GymWidget({
   gym,
   roster,
 }: {
-  gym: Gym | null;
+  gym: GymSummary | null;
   roster: RosterFighter[];
 }) {
   return (

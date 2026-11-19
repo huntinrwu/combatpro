@@ -25,7 +25,7 @@ const toneSign: Record<LedgerAmountTone, string> = {
   neutral: "",
 };
 
-export type LedgerAmount = {
+type LedgerAmount = {
   value: string;
   tone?: LedgerAmountTone;
   showSign?: boolean;

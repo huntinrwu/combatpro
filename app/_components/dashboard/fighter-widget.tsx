@@ -9,14 +9,25 @@ import { fmtDateShort as fmtEventDate } from "@/lib/format-utils";
 import { initials } from "@/lib/text-utils";
 import type { Fighter, Gym } from "@/lib/db/types";
 
+export type FighterProfile = Pick<
+  Fighter,
+  | "id"
+  | "full_name"
+  | "photo_url"
+  | "weight_class"
+  | "primary_sport"
+  | "pro_wins"
+  | "pro_losses"
+  | "pro_draws"
+  | "gym_id"
+>;
+
 export type FighterNextBout = {
-  boutId: string;
   eventId: string;
   eventName: string;
   eventDate: string;
   eventSlug: string | null;
   opponentName: string | null;
-  corner: "red" | "blue";
 } | null;
 
 export function FighterWidget({
@@ -24,7 +35,7 @@ export function FighterWidget({
   nextBout,
   gym,
 }: {
-  profile: Fighter | null;
+  profile: FighterProfile | null;
   nextBout: FighterNextBout;
   gym: Pick<Gym, "id" | "name" | "city" | "state"> | null;
 }) {

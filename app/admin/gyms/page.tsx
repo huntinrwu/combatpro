@@ -7,18 +7,15 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/session";
 import { fmtDateShort } from "@/lib/format-utils";
 
-export const dynamic = "force-dynamic";
-
 type PendingGym = {
   id: string;
   name: string;
   city: string | null;
   state: string | null;
-  submitted_by: string | null;
   created_at: string;
 };
 
-type Profile = { id: string; email: string; full_name: string | null };
+type Profile = { email: string; full_name: string | null };
 
 export default async function GymApprovalsPage() {
   await requireAdmin();
@@ -26,7 +23,7 @@ export default async function GymApprovalsPage() {
   const { data: gyms } = await admin
     .from("gyms")
     .select(
-      "id, name, city, state, submitted_by, created_at, submitter:profiles!submitted_by(id, email, full_name)",
+      "id, name, city, state, created_at, submitter:profiles!submitted_by(email, full_name)",
     )
     .eq("approval_status", "pending")
     .order("created_at", { ascending: true });
@@ -49,7 +46,7 @@ export default async function GymApprovalsPage() {
         ) : (
           <ul className="divide-y divide-border/60">
             {rows.map((g) => {
-              const submitter = g.submitted_by ? g.submitter : null;
+              const submitter = g.submitter;
               return (
                 <li key={g.id} className="flex flex-wrap items-center gap-3 py-3 text-sm">
                   <div className="min-w-0 flex-1">

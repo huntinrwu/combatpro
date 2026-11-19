@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 import { CalendarDays, Loader2, Search, Users, X } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
 import type { SearchHit } from "./search-types";
 
 export function GlobalSearch() {
@@ -149,9 +148,7 @@ function HitGroup({
             <Link
               href={h.href}
               onClick={onSelect}
-              className={cn(
-                "block px-3 py-2 text-sm transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none",
-              )}
+              className="block px-3 py-2 text-sm transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
             >
               <div className="font-medium text-foreground">{h.title}</div>
               {h.subtitle && (

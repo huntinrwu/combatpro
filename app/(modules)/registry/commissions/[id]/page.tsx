@@ -9,8 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Commission, Ruleset } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
 export default async function CommissionDetailPage({
   params,
 }: {

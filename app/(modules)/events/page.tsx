@@ -14,8 +14,6 @@ import { CardGrid, CompactList, TableShell, TileGrid } from "@/components/views/
 import { pickView } from "@/lib/view-mode";
 import { EVENT_STATUSES, type EventRow } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
 const VIEWS = [
   "list",
   "card",
@@ -181,29 +179,28 @@ function CardView({ events }: { events: EventListRow[] }) {
 function GridView({ events }: { events: EventListRow[] }) {
   return (
     <TileGrid>
-      {events.map((e) => (
-        <Link
-          key={e.id}
-          href={`/events/${e.id}`}
-          className="group flex flex-col rounded-xl border border-border bg-card p-3 text-center transition-all hover:-translate-y-0.5 hover:border-foreground/30"
-        >
-          <div className="mb-2 rounded-lg bg-muted/40 px-2 py-2">
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              {new Date(`${e.event_date}T00:00:00`).toLocaleDateString("en-US", { month: "short" })}
+      {events.map((e) => {
+        const date = new Date(`${e.event_date}T00:00:00`);
+        return (
+          <Link
+            key={e.id}
+            href={`/events/${e.id}`}
+            className="group flex flex-col rounded-xl border border-border bg-card p-3 text-center transition-all hover:-translate-y-0.5 hover:border-foreground/30"
+          >
+            <div className="mb-2 rounded-lg bg-muted/40 px-2 py-2">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                {date.toLocaleDateString("en-US", { month: "short" })}
+              </div>
+              <div className="font-heading text-2xl leading-none">{date.getDate()}</div>
+              <div className="text-[10px] text-muted-foreground">{date.getFullYear()}</div>
             </div>
-            <div className="font-heading text-2xl leading-none">
-              {new Date(`${e.event_date}T00:00:00`).getDate()}
+            <div className="truncate text-sm font-medium">{e.name}</div>
+            <div className="mt-1 truncate text-[10px] capitalize text-muted-foreground">
+              {e.primary_sport} · {e.status}
             </div>
-            <div className="text-[10px] text-muted-foreground">
-              {new Date(`${e.event_date}T00:00:00`).getFullYear()}
-            </div>
-          </div>
-          <div className="truncate text-sm font-medium">{e.name}</div>
-          <div className="mt-1 truncate text-[10px] capitalize text-muted-foreground">
-            {e.primary_sport} · {e.status}
-          </div>
-        </Link>
-      ))}
+          </Link>
+        );
+      })}
     </TileGrid>
   );
 }
@@ -283,7 +280,8 @@ function CalendarView({ events }: { events: EventListRow[] }) {
     if (!months.has(key)) months.set(key, []);
     months.get(key)!.push(e);
   }
-  const ordered = Array.from(months.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+  // Events arrive newest-first, so months are already in display order.
+  const ordered = Array.from(months.entries());
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -352,12 +350,11 @@ function CalendarView({ events }: { events: EventListRow[] }) {
 }
 
 function TimelineView({ events }: { events: EventListRow[] }) {
-  const sorted = [...events].sort((a, b) => b.event_date.localeCompare(a.event_date));
   return (
     <div className="relative pl-6">
       <div className="absolute left-2 top-2 bottom-2 w-px bg-border" />
       <div className="space-y-4">
-        {sorted.map((e) => (
+        {events.map((e) => (
           <div key={e.id} className="relative">
             <div
               className={`absolute -left-[18px] top-2 h-3 w-3 rounded-full ring-2 ring-background ${

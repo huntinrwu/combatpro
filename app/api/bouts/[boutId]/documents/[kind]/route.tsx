@@ -1,10 +1,10 @@
-import { renderToBuffer } from "@react-pdf/renderer";
-
 import { db } from "@/lib/db/client";
 import { requireStaff } from "@/lib/auth/session";
 import { BoutAgreementPdf } from "@/lib/pdf/bout-agreement";
 import { FightReportPdf } from "@/lib/pdf/fight-report";
 import { fighterClearanceSummary } from "@/lib/db/types";
+import { pdfResponse } from "@/app/api/_lib/pdf";
+import { fileSlug } from "@/app/api/_lib/slug";
 import type {
   Bout,
   BoutDocumentKind,
@@ -20,9 +20,6 @@ import type {
   Ruleset,
   SanctioningBody,
 } from "@/lib/db/types";
-
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 const KINDS: BoutDocumentKind[] = ["bout_agreement", "fight_report"];
 
@@ -53,6 +50,9 @@ export async function GET(
 
   // Everything below depends only on the bout, so it loads in one round trip.
   // Sanctioning body / commission names are embedded in the event lookup.
+  // Scorecards + checks feed the fight report; medicals + ruleset feed the
+  // bout agreement — each is only fetched for the document that prints it.
+  const isAgreement = kind === "bout_agreement";
   const [
     { data: event },
     { data: assignments },
@@ -65,39 +65,33 @@ export async function GET(
     supabase
       .from("events")
       .select(
-        "id, name, event_date, venue, city, state, country, primary_sport, sanctioning_body:sanctioning_bodies(name), commission:commissions(name)",
+        "name, event_date, venue, city, state, sanctioning_body:sanctioning_bodies(name), commission:commissions(name)",
       )
       .eq("id", bout.event_id)
       .maybeSingle<
-        Pick<
-          EventRow,
-          | "id"
-          | "name"
-          | "event_date"
-          | "venue"
-          | "city"
-          | "state"
-          | "country"
-          | "primary_sport"
-        > & {
+        Pick<EventRow, "name" | "event_date" | "venue" | "city" | "state"> & {
           sanctioning_body: Pick<SanctioningBody, "name"> | null;
           commission: Pick<Commission, "name"> | null;
         }
       >(),
     supabase
       .from("event_officials")
-      .select("official_id, event_role, official:officials(full_name, home_state)")
+      .select("official_id, event_role, official:officials(full_name)")
       .eq("event_id", bout.event_id),
-    supabase.from("bout_scorecards").select("*").eq("bout_id", boutId).order("round_number"),
-    supabase.from("bout_fighter_checks").select("*").eq("bout_id", boutId),
+    isAgreement
+      ? Promise.resolve({ data: [] as BoutScorecard[] })
+      : supabase.from("bout_scorecards").select("*").eq("bout_id", boutId).order("round_number"),
+    isAgreement
+      ? Promise.resolve({ data: [] as BoutFighterCheck[] })
+      : supabase.from("bout_fighter_checks").select("*").eq("bout_id", boutId),
     // Fighters + medical records (clearance is computed as of event date)
     fighterIds.length
       ? supabase.from("fighters").select("*").in("id", fighterIds)
       : Promise.resolve({ data: [] as Fighter[] }),
-    fighterIds.length
+    isAgreement && fighterIds.length
       ? supabase.from("fighter_medical_records").select("*").in("fighter_id", fighterIds)
       : Promise.resolve({ data: [] as FighterMedicalRecord[] }),
-    bout.ruleset_id
+    isAgreement && bout.ruleset_id
       ? supabase
           .from("rulesets")
           .select("*")
@@ -119,30 +113,19 @@ export async function GET(
   const red = bout.red_corner_fighter_id ? fighterMap.get(bout.red_corner_fighter_id) ?? null : null;
   const blue = bout.blue_corner_fighter_id ? fighterMap.get(bout.blue_corner_fighter_id) ?? null : null;
   const asOfEventDate = `${event.event_date}T23:59:59`;
-  const redClearance = bout.red_corner_fighter_id
-    ? fighterClearanceSummary(
-        medicalByFighter.get(bout.red_corner_fighter_id) ?? [],
-        undefined,
-        asOfEventDate,
-      )
-    : null;
-  const blueClearance = bout.blue_corner_fighter_id
-    ? fighterClearanceSummary(
-        medicalByFighter.get(bout.blue_corner_fighter_id) ?? [],
-        undefined,
-        asOfEventDate,
-      )
-    : null;
+  const clearanceFor = (fighterId: string | null) =>
+    isAgreement && fighterId
+      ? fighterClearanceSummary(medicalByFighter.get(fighterId) ?? [], undefined, asOfEventDate)
+      : null;
 
   // Officials — sourced from the event roster (same for every bout on the card).
   const rosterRows = (assignments ?? []) as unknown as (Pick<
     EventOfficial,
     "official_id" | "event_role"
-  > & { official: Pick<Official, "full_name" | "home_state"> | null })[];
+  > & { official: Pick<Official, "full_name"> | null })[];
   const officials = rosterRows.map((a) => ({
     role: a.event_role,
     name: a.official?.full_name ?? "(missing)",
-    state: a.official?.home_state ?? null,
   }));
   const judges = rosterRows
     .filter((a) => a.event_role === "judge")
@@ -157,60 +140,34 @@ export async function GET(
     checksByCorner[c.corner] = c;
   }
 
-  const sanctioningBodyName = event.sanctioning_body?.name ?? null;
-  const commissionName = event.commission?.name ?? null;
-  const ruleset = rulesetData ?? null;
-
   const shared = {
-    event: {
-      name: event.name,
-      event_date: event.event_date,
-      venue: event.venue,
-      city: event.city,
-      state: event.state,
-      primary_sport: event.primary_sport,
-    },
+    event,
     bout,
     red,
     blue,
     officials,
-    sanctioningBody: sanctioningBodyName,
-    commission: commissionName,
+    sanctioningBody: event.sanctioning_body?.name ?? null,
+    commission: event.commission?.name ?? null,
   };
 
-  const doc =
-    kind === "bout_agreement" ? (
-      <BoutAgreementPdf
-        {...shared}
-        ruleset={ruleset}
-        redClearance={redClearance}
-        blueClearance={blueClearance}
-      />
-    ) : (
-      <FightReportPdf
-        {...shared}
-        scorecards={(scorecards ?? []) as BoutScorecard[]}
-        judges={judges}
-        checks={checksByCorner}
-      />
-    );
+  const doc = isAgreement ? (
+    <BoutAgreementPdf
+      {...shared}
+      ruleset={rulesetData}
+      redClearance={clearanceFor(bout.red_corner_fighter_id)}
+      blueClearance={clearanceFor(bout.blue_corner_fighter_id)}
+    />
+  ) : (
+    <FightReportPdf
+      {...shared}
+      scorecards={(scorecards ?? []) as BoutScorecard[]}
+      judges={judges}
+      checks={checksByCorner}
+    />
+  );
 
-  const buffer = await renderToBuffer(doc);
-  const filename =
-    kind === "bout_agreement"
-      ? `bout-agreement-${red?.full_name ?? "red"}-vs-${blue?.full_name ?? "blue"}.pdf`
-      : `fight-report-${red?.full_name ?? "red"}-vs-${blue?.full_name ?? "blue"}.pdf`;
-
-  return new Response(new Uint8Array(buffer), {
-    status: 200,
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${slugFilename(filename)}"`,
-      "Cache-Control": "no-store",
-    },
-  });
-}
-
-function slugFilename(name: string): string {
-  return name.replace(/[^a-z0-9._-]+/gi, "-").replace(/-+/g, "-").toLowerCase();
+  const filename = `${fileSlug(
+    `${kind}-${red?.full_name ?? "red"}-vs-${blue?.full_name ?? "blue"}`,
+  )}.pdf`;
+  return pdfResponse(doc, filename);
 }

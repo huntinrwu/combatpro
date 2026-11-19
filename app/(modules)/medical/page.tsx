@@ -5,6 +5,7 @@ import { db } from "@/lib/db/client";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  CLEARANCE_STATUS_RANK,
   MEDICAL_RECORD_KINDS,
   daysUntil,
   fighterClearanceSummary,
@@ -13,33 +14,19 @@ import {
   type FighterMedicalRecord,
   type MedicalRecordKind,
 } from "@/lib/db/types";
-
-export const dynamic = "force-dynamic";
+import { fmtDateShort } from "@/lib/format-utils";
+import { CLEARANCE_STATUS_META as STATUS_META } from "@/lib/ui-config";
 
 type FighterRow = Pick<Fighter, "id" | "full_name" | "primary_sport">;
 
-const STATUS_META: Record<ClearanceStatus, { label: string; className: string; rank: number }> = {
-  expired: {
-    label: "Expired",
-    className: "border-red-500/50 text-red-700 dark:text-red-300",
-    rank: 3,
-  },
-  missing: {
-    label: "Missing",
-    className: "border-muted-foreground/40 text-muted-foreground",
-    rank: 2,
-  },
-  expiring: {
-    label: "Expiring",
-    className: "border-amber-500/40 text-amber-700 dark:text-amber-300",
-    rank: 1,
-  },
-  active: {
-    label: "Active",
-    className: "border-emerald-500/40 text-emerald-700 dark:text-emerald-300",
-    rank: 0,
-  },
-};
+// Only the columns the clearance summary reads — the full row also carries
+// physician / facility / notes text this dashboard never shows.
+const RECORD_COLUMNS = "id, fighter_id, kind, issued_on, expires_on";
+
+type RecordRow = Pick<
+  FighterMedicalRecord,
+  "id" | "fighter_id" | "kind" | "issued_on" | "expires_on"
+>;
 
 function statusIcon(status: ClearanceStatus) {
   if (status === "active") return <CheckCircle2 className="h-3 w-3" />;
@@ -47,8 +34,8 @@ function statusIcon(status: ClearanceStatus) {
   return <AlertCircle className="h-3 w-3" />;
 }
 
-function soonestExpiry(records: FighterMedicalRecord[]): FighterMedicalRecord | null {
-  let best: FighterMedicalRecord | null = null;
+function soonestExpiry(records: RecordRow[]): RecordRow | null {
+  let best: RecordRow | null = null;
   for (const r of records) {
     if (!r.expires_on) continue;
     if (!best || r.expires_on < best.expires_on!) best = r;
@@ -60,11 +47,11 @@ export default async function MedicalPage() {
   const supabase = db();
   const [{ data: fighters }, { data: records }] = await Promise.all([
     supabase.from("fighters").select("id, full_name, primary_sport").order("full_name"),
-    supabase.from("fighter_medical_records").select("*"),
+    supabase.from("fighter_medical_records").select(RECORD_COLUMNS),
   ]);
 
-  const recordsByFighter = new Map<string, FighterMedicalRecord[]>();
-  for (const r of (records ?? []) as FighterMedicalRecord[]) {
+  const recordsByFighter = new Map<string, RecordRow[]>();
+  for (const r of (records ?? []) as RecordRow[]) {
     const arr = recordsByFighter.get(r.fighter_id) ?? [];
     arr.push(r);
     recordsByFighter.set(r.fighter_id, arr);
@@ -72,13 +59,15 @@ export default async function MedicalPage() {
 
   const rows = ((fighters ?? []) as FighterRow[]).map((f) => {
     const fRecords = recordsByFighter.get(f.id) ?? [];
-    const summary = fighterClearanceSummary(fRecords);
+    // The summary only reads kind / issued_on / expires_on, all selected above.
+    const summary = fighterClearanceSummary(fRecords as FighterMedicalRecord[]);
     const soon = soonestExpiry(fRecords);
-    return { fighter: f, records: fRecords, summary, soonestExpiry: soon };
+    return { fighter: f, summary, soonestExpiry: soon };
   });
 
   rows.sort((a, b) => {
-    const rank = STATUS_META[b.summary.worstStatus].rank - STATUS_META[a.summary.worstStatus].rank;
+    const rank =
+      CLEARANCE_STATUS_RANK[b.summary.worstStatus] - CLEARANCE_STATUS_RANK[a.summary.worstStatus];
     if (rank !== 0) return rank;
     const aExp = a.soonestExpiry?.expires_on ?? "9999-12-31";
     const bExp = b.soonestExpiry?.expires_on ?? "9999-12-31";
@@ -150,7 +139,7 @@ function FighterRow({
 }: {
   fighter: FighterRow;
   summary: ReturnType<typeof fighterClearanceSummary>;
-  soonestExpiry: FighterMedicalRecord | null;
+  soonestExpiry: RecordRow | null;
 }) {
   const days = soonestExpiry?.expires_on ? daysUntil(soonestExpiry.expires_on) : null;
   const soonKind = soonestExpiry
@@ -189,11 +178,7 @@ function FighterRow({
               {soonKind}
               <br />
               expires{" "}
-              {new Date(soonestExpiry.expires_on + "T00:00:00").toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-              })}
+              {fmtDateShort(soonestExpiry.expires_on)}
             </div>
           </>
         ) : (

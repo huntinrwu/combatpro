@@ -13,35 +13,11 @@ import {
   type FighterMedicalRecord,
   type MedicalRecordKind,
 } from "@/lib/db/types";
+import { fmtDateShort as fmtDate } from "@/lib/format-utils";
+import { CLEARANCE_STATUS_META as STATUS_META } from "@/lib/ui-config";
 
-function fmtDate(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso + "T00:00:00").toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-const STATUS_META: Record<ClearanceStatus, { label: string; className: string }> = {
-  active: {
-    label: "Active",
-    className: "border-emerald-500/40 text-emerald-700 dark:text-emerald-300",
-  },
-  expiring: {
-    label: "Expiring",
-    className: "border-amber-500/40 text-amber-700 dark:text-amber-300",
-  },
-  expired: {
-    label: "Expired",
-    className: "border-red-500/50 text-red-700 dark:text-red-300",
-  },
-  missing: {
-    label: "Missing",
-    className: "border-muted-foreground/40 text-muted-foreground",
-  },
-};
-
+// `records` must arrive newest-first (issued_on desc) — the per-kind history
+// lists render in the order given.
 export function MedicalClearancesCard({
   fighterId,
   records,
@@ -55,9 +31,6 @@ export function MedicalClearancesCard({
     const arr = historyByKind.get(r.kind) ?? [];
     arr.push(r);
     historyByKind.set(r.kind, arr);
-  }
-  for (const arr of historyByKind.values()) {
-    arr.sort((a, b) => (a.issued_on < b.issued_on ? 1 : -1));
   }
 
   return (

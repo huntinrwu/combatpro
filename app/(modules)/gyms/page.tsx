@@ -11,8 +11,6 @@ import { CardGrid, CompactList, TableShell, TileGrid } from "@/components/views/
 import { pickView } from "@/lib/view-mode";
 import type { Gym } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
 const VIEWS = ["list", "card", "grid", "compact", "kanban"] as const;
 
 type Search = { q?: string; state?: string; view?: string };

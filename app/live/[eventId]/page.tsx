@@ -14,14 +14,10 @@ import type {
   SanctioningBody,
 } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
 export type ControlRoomFighter = {
-  id: string;
   full_name: string;
   nickname: string | null;
   gymLabel: string | null;
-  hometown: string | null;
   record: { wins: number; losses: number; draws: number } | null;
 };
 
@@ -34,7 +30,6 @@ export type ControlRoomBout = {
   round_length_minutes: number;
   bout_class: "pro" | "amateur";
   sport: string;
-  scheduled_start_time: string | null;
   result: string | null;
   red: ControlRoomFighter | null;
   blue: ControlRoomFighter | null;
@@ -55,7 +50,6 @@ type FighterRow = Pick<
   | "nickname"
   | "gym"
   | "gym_id"
-  | "hometown"
   | "pro_wins"
   | "pro_losses"
   | "pro_draws"
@@ -74,7 +68,6 @@ type RoomBoutRow = Pick<
   | "round_length_minutes"
   | "bout_class"
   | "sport"
-  | "scheduled_start_time"
   | "result"
   | "red_corner_fighter_id"
   | "blue_corner_fighter_id"
@@ -91,11 +84,9 @@ function fighterFromRow(
       ? { wins: f.pro_wins, losses: f.pro_losses, draws: f.pro_draws }
       : { wins: f.am_wins, losses: f.am_losses, draws: f.am_draws };
   return {
-    id: f.id,
     full_name: f.full_name,
     nickname: f.nickname,
     gymLabel: gymLabel ?? null,
-    hometown: f.hometown,
     record,
   };
 }
@@ -118,7 +109,7 @@ export default async function ControlRoomPage({
     supabase
       .from("bouts")
       .select(
-        "id, bout_order, weight_class, contracted_weight_lbs, rounds, round_length_minutes, bout_class, sport, scheduled_start_time, result, red_corner_fighter_id, blue_corner_fighter_id",
+        "id, bout_order, weight_class, contracted_weight_lbs, rounds, round_length_minutes, bout_class, sport, result, red_corner_fighter_id, blue_corner_fighter_id",
       )
       .eq("event_id", eventId)
       .order("bout_order", { ascending: true, nullsFirst: false }),
@@ -158,7 +149,7 @@ export default async function ControlRoomPage({
       ? supabase
           .from("fighters")
           .select(
-            "id, full_name, nickname, gym, gym_id, hometown, pro_wins, pro_losses, pro_draws, am_wins, am_losses, am_draws, gym_ref:gyms(name)",
+            "id, full_name, nickname, gym, gym_id, pro_wins, pro_losses, pro_draws, am_wins, am_losses, am_draws, gym_ref:gyms(name)",
           )
           .in("id", fighterIds)
       : Promise.resolve({ data: [] }),
@@ -193,7 +184,6 @@ export default async function ControlRoomPage({
       round_length_minutes: b.round_length_minutes ?? 3,
       bout_class: b.bout_class,
       sport: b.sport,
-      scheduled_start_time: b.scheduled_start_time,
       result: b.result,
       red: fighterFromRow(
         b.red_corner_fighter_id ? fighterMap.get(b.red_corner_fighter_id) : undefined,

@@ -40,3 +40,26 @@ export function fmtPersonNo(no: number | null | undefined): string {
   if (no == null) return "—";
   return `CP-${no}`;
 }
+
+// "CP-10000" / "10000" → 10000. Null when there are no digits.
+export function parsePersonNo(input: string | undefined | null): number | null {
+  if (!input) return null;
+  const n = Number.parseInt(input.replace(/[^0-9]/g, ""), 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+// "7:30 PM" from a full timestamp.
+export function fmtTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
+// "Sep 12, 2026, 7:30 PM" from a full timestamp.
+export function fmtDateTime(iso: string): string {
+  return new Date(iso).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}

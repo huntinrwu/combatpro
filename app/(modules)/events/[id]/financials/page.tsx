@@ -15,8 +15,6 @@ import {
   type Vendor,
 } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
 export default async function EventFinancialsTabPage({
   params,
 }: {

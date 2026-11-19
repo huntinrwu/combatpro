@@ -4,17 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { db, dbErr } from "@/lib/db/client";
-import { orNull as str, toInt } from "@/lib/form-utils";
+import { orNull as str, splitList, toInt } from "@/lib/form-utils";
 import { requireStaff, requireUser } from "@/lib/auth/session";
 import { PROMOTION_SCOPES, type PromotionScope, type PromotionStatus } from "@/lib/db/types";
-
-function splitList(raw: FormDataEntryValue | null): string[] {
-  if (typeof raw !== "string") return [];
-  return raw
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-}
 
 function scopeOr(raw: FormDataEntryValue | null, fallback: PromotionScope): PromotionScope {
   if (typeof raw !== "string") return fallback;
@@ -93,7 +85,7 @@ export async function setPromotionStatus(formData: FormData) {
   const staff = await requireStaff();
   const id = str(formData.get("id"));
   const status = str(formData.get("status"));
-  if (!id || !status || !["approved", "pending", "rejected"].includes(status)) {
+  if (!id || !status || !["approved", "rejected"].includes(status)) {
     throw new Error("Bad payload.");
   }
   const { error } = await db()

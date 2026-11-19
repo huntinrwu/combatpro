@@ -2,29 +2,20 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth/session";
 import type { PlatformRole } from "@/lib/auth/roles";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 // SVG is intentionally excluded — it can carry <script>/foreignObject that
 // executes when served from the same origin (stored XSS).
-const ALLOWED_MIME = new Set([
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "image/gif",
-]);
-
-function extFor(mime: string): string {
-  if (mime === "image/png") return "png";
-  if (mime === "image/jpeg") return "jpg";
-  if (mime === "image/webp") return "webp";
-  if (mime === "image/gif") return "gif";
-  return "bin";
-}
+const EXT = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+  "image/gif": "gif",
+} as const;
+type ImageMime = keyof typeof EXT;
+const ALLOWED_MIME = new Set<string>(Object.keys(EXT));
 
 // Magic-byte sniffing — client-supplied MIME is not trusted. Returns the
 // detected MIME or null if the bytes don't match one of the allowed formats.
-function sniffMime(bytes: Uint8Array): string | null {
+function sniffMime(bytes: Uint8Array): ImageMime | null {
   if (bytes.length < 12) return null;
   // PNG: 89 50 4E 47 0D 0A 1A 0A
   if (
@@ -49,8 +40,8 @@ function sniffMime(bytes: Uint8Array): string | null {
 type Kind = {
   folder: string;
   maxBytes: number;
-  // Roles allowed to upload (staff always allowed). Empty = any signed-in user.
-  requireRoles?: PlatformRole[];
+  // Roles allowed to upload (staff always allowed).
+  requireRoles: PlatformRole[];
 };
 
 // Whitelist — keeps the dynamic route from being a generic anonymous upload
@@ -119,7 +110,6 @@ export async function POST(
 
   const allowed =
     user.isStaff ||
-    !kind.requireRoles ||
     kind.requireRoles.some((r) => user.approvedRoles.includes(r));
   if (!allowed) return new Response("Forbidden", { status: 403 });
 
@@ -148,8 +138,7 @@ export async function POST(
     return new Response("File content does not match declared type", { status: 415 });
   }
 
-  const ext = extFor(sniffed);
-  const key = `${kind.folder}/${crypto.randomUUID()}.${ext}`;
+  const key = `${kind.folder}/${crypto.randomUUID()}.${EXT[sniffed]}`;
 
   const supabase = createAdminClient();
   const { error } = await supabase.storage

@@ -9,6 +9,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { fmtDateShortWithDay as fmtEventDate } from "@/lib/format-utils";
 import { OFFICIAL_ROLES, type OfficialPriorEvent } from "@/lib/db/types";
 
+// `events` must arrive newest-first (event_date desc).
 export function PriorEventsCard({
   officialId,
   events,
@@ -18,8 +19,6 @@ export function PriorEventsCard({
   events: OfficialPriorEvent[];
   canEdit: boolean;
 }) {
-  const sorted = [...events].sort((a, b) => b.event_date.localeCompare(a.event_date));
-
   return (
     <div className="space-y-4">
       {canEdit && (
@@ -63,7 +62,7 @@ export function PriorEventsCard({
         </form>
       )}
 
-      {sorted.length === 0 ? (
+      {events.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           {canEdit
             ? "No backfilled events yet. Add pre-CombatPro work above."
@@ -71,7 +70,7 @@ export function PriorEventsCard({
         </p>
       ) : (
         <ul className="divide-y divide-border/60 rounded-lg border border-border/70">
-          {sorted.map((e) => (
+          {events.map((e) => (
             <li key={e.id} className="flex flex-wrap items-center gap-3 p-3 text-sm">
               <Badge variant="secondary" className="capitalize">
                 {e.role}

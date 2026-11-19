@@ -15,8 +15,6 @@ import type {
   Official,
 } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
 const SCORE_OPTIONS = [10, 9, 8, 7, 6];
 
 function judgeTotalsFor(rows: BoutScorecard[]): { red: number; blue: number } {

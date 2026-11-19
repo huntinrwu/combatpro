@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -36,7 +36,6 @@ type Props = {
 export function LedgerDialog({ eventId, entryType, vendors }: Props) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
-  const formRef = useRef<HTMLFormElement>(null);
 
   const isRevenue = entryType === "revenue";
   const cats = isRevenue ? REVENUE_CATEGORIES : EXPENSE_CATEGORIES;
@@ -73,7 +72,7 @@ export function LedgerDialog({ eventId, entryType, vendors }: Props) {
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <form ref={formRef} onSubmit={handleSubmit} className="grid gap-3">
+        <form onSubmit={handleSubmit} className="grid gap-3">
           <input type="hidden" name="event_id" value={eventId} />
           <input type="hidden" name="entry_type" value={entryType} />
 

@@ -148,15 +148,9 @@ export async function adminUpdateOfficial(fd: FormData) {
     contact_phone: fd.get("contact_phone")?.toString().trim() || null,
     photo_url: fd.get("photo_url")?.toString().trim() || null,
     notes: fd.get("notes")?.toString().trim() || null,
-    sports: rawSports
-      ? rawSports.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
-      : [],
-    certifications: rawCerts
-      ? rawCerts.split(",").map((s) => s.trim()).filter(Boolean)
-      : [],
-    roles: rawRoles
-      ? rawRoles.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
-      : [],
+    sports: rawSports.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
+    certifications: rawCerts.split(",").map((s) => s.trim()).filter(Boolean),
+    roles: rawRoles.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
   };
 
   const { error } = await admin

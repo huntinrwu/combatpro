@@ -20,16 +20,8 @@ import {
   type Corner,
   type Fighter,
 } from "@/lib/db/types";
-
-function formatTimestamp(iso: string | null) {
-  if (!iso) return null;
-  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-}
-
-const CORNER_DOT: Record<Corner, string> = {
-  red: "bg-red-500",
-  blue: "bg-blue-500",
-};
+import { fmtTime } from "@/lib/format-utils";
+import { CORNER_DOT } from "@/lib/ui-config";
 
 const WEIGH_STATUS_VARIANT = {
   on: "default",
@@ -102,7 +94,7 @@ export function CheckinCorner({
           <div className="text-sm font-medium">Check-in</div>
           <div className="text-xs text-muted-foreground">
             {progress.checkedIn
-              ? `Checked in at ${formatTimestamp(check!.checked_in_at)}`
+              ? `Checked in at ${fmtTime(check!.checked_in_at!)}`
               : "Not yet checked in"}
           </div>
         </div>
@@ -143,7 +135,7 @@ export function CheckinCorner({
               </>
             )}
             {check?.weigh_in_at && (
-              <>{" · at "}{formatTimestamp(check.weigh_in_at)}</>
+              <>{" · at "}{fmtTime(check.weigh_in_at)}</>
             )}
           </div>
         )}
@@ -207,7 +199,7 @@ export function CheckinCorner({
           <div className="text-sm font-medium">Medical clearance</div>
           <div className="text-xs text-muted-foreground">
             {progress.medicalCleared
-              ? `Cleared at ${formatTimestamp(check!.medical_cleared_at)}`
+              ? `Cleared at ${fmtTime(check!.medical_cleared_at!)}`
               : "Awaiting ringside doctor"}
           </div>
           {check?.medical_notes && (
@@ -241,7 +233,7 @@ export function CheckinCorner({
           <div className="text-sm font-semibold">Cleared to fight</div>
           <div className="text-xs text-muted-foreground">
             {progress.clearedToFight
-              ? `Signed off at ${formatTimestamp(check!.cleared_to_fight_at)}`
+              ? `Signed off at ${fmtTime(check!.cleared_to_fight_at!)}`
               : allGatesReady(progress, status)
                 ? "All gates passed — ready to sign off"
                 : "Gates pending"}

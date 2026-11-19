@@ -3,9 +3,6 @@ import { getSessionUser } from "@/lib/auth/session";
 import type { SearchHit } from "@/app/_components/dashboard/search-types";
 import type { EventRow, Fighter } from "@/lib/db/types";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 export async function GET(req: Request) {
   const user = await getSessionUser();
   if (!user) return new Response("Unauthorized", { status: 401 });

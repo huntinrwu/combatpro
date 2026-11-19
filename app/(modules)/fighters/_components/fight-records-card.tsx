@@ -1,5 +1,3 @@
-"use client";
-
 import Link from "next/link";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 
@@ -8,8 +6,10 @@ import {
   setFightRecordConfidence,
 } from "../records-actions";
 import { backfillDeclaredFightRecords } from "../actions";
+import { ConfidenceSelect } from "./confidence-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { fmtDateShort as fmtDate } from "@/lib/format-utils";
 import {
   FIGHT_CONFIDENCE,
   FIGHT_CONFIDENCE_META,
@@ -48,14 +48,6 @@ function record(records: FightRecord[]): { w: number; l: number; d: number; nc: 
     else nc++;
   }
   return { w, l, d, nc };
-}
-
-function fmtDate(iso: string): string {
-  return new Date(iso + "T00:00:00").toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
 }
 
 export function FightRecordsCard({
@@ -266,19 +258,7 @@ export function FightRecordsCard({
                           <form action={setFightRecordConfidence}>
                             <input type="hidden" name="id" value={r.id} />
                             <input type="hidden" name="fighter_id" value={fighterId} />
-                            <select
-                              name="confidence"
-                              defaultValue={r.confidence}
-                              onChange={(e) => e.currentTarget.form?.requestSubmit()}
-                              className="rounded-md border border-border/60 bg-transparent px-1 py-0.5 text-xs"
-                              aria-label="Set confidence"
-                            >
-                              {FIGHT_CONFIDENCE.map((c) => (
-                                <option key={c} value={c}>
-                                  {FIGHT_CONFIDENCE_META[c].icon} {FIGHT_CONFIDENCE_META[c].label}
-                                </option>
-                              ))}
-                            </select>
+                            <ConfidenceSelect defaultValue={r.confidence} />
                           </form>
                           <Link
                             href={`/fighters/${fighterId}/records/${r.id}/edit`}

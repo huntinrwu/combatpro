@@ -4,16 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { db, dbErr } from "@/lib/db/client";
-import { orNull as str } from "@/lib/form-utils";
+import { orNull as str, splitList } from "@/lib/form-utils";
 import { requireStaff } from "@/lib/auth/session";
-
-function splitList(raw: FormDataEntryValue | null): string[] {
-  if (typeof raw !== "string") return [];
-  return raw
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-}
 
 // Public: anyone can propose a body — lands in `pending` for staff review.
 export async function submitSanctioningBody(formData: FormData) {
@@ -100,7 +92,7 @@ export async function updateCommission(formData: FormData) {
   redirect(`/registry/commissions/${id}`);
 }
 
-// ── Staff-only: sanctioning bodies (edit + approve/reject) ─────────────────
+// ── Staff-only: sanctioning bodies (edit) ──────────────────────────────────
 
 function bodyPayload(formData: FormData) {
   const name = str(formData.get("name"));
@@ -135,20 +127,4 @@ export async function updateSanctioningBody(formData: FormData) {
   revalidatePath("/registry");
   revalidatePath(`/sb/${id}`);
   redirect(`/sb/${id}`);
-}
-
-export async function setSanctioningBodyStatus(formData: FormData) {
-  await requireStaff();
-  const id = str(formData.get("id"));
-  const status = str(formData.get("status"));
-  if (!id || !status || !["approved", "pending", "rejected"].includes(status)) {
-    throw new Error("Bad payload.");
-  }
-  const { error } = await db()
-    .from("sanctioning_bodies")
-    .update({ status })
-    .eq("id", id);
-  if (error) dbErr(error);
-  revalidatePath("/registry");
-  revalidatePath(`/sb/${id}`);
 }

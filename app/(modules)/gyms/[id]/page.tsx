@@ -6,20 +6,10 @@ import { db } from "@/lib/db/client";
 import { fmtDateShortWithDay as fmtEventDate } from "@/lib/format-utils";
 import { getSessionUser } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
+import { DetailRow } from "@/components/detail-row";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Bout, EventRow, Fighter, Gym } from "@/lib/db/types";
-
-export const dynamic = "force-dynamic";
-
-function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex items-baseline justify-between gap-4 border-b border-border/50 py-1.5 last:border-b-0">
-      <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
-      <span className="text-right text-sm">{value ?? <em className="text-muted-foreground">—</em>}</span>
-    </div>
-  );
-}
 
 type UpcomingRow = {
   bout_id: string;

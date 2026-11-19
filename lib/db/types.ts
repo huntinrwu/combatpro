@@ -29,7 +29,7 @@ export type Commission = {
   created_at: string;
 };
 
-export type SanctioningBodyStatus = "approved" | "pending" | "rejected";
+type SanctioningBodyStatus = "approved" | "pending" | "rejected";
 
 export type SanctioningBody = {
   id: string;
@@ -449,8 +449,6 @@ export function weighInStatus(
   return "on";
 }
 
-export type CheckinGate = "check_in" | "weigh_in" | "medical" | "cleared";
-
 export type CheckinProgress = {
   checkedIn: boolean;
   weighedIn: boolean;
@@ -592,7 +590,7 @@ export function recordStatus(
 
 // Given a fighter's full history, return the most-recent (by issued_on) record
 // per kind — that's the one whose status matters.
-export function latestByKind(
+function latestByKind(
   records: FighterMedicalRecord[],
 ): Map<MedicalRecordKind, FighterMedicalRecord> {
   const map = new Map<MedicalRecordKind, FighterMedicalRecord>();
@@ -611,7 +609,7 @@ export type FighterClearanceSummary = {
   perKind: { kind: MedicalRecordKind; status: ClearanceStatus; record: FighterMedicalRecord | null }[];
 };
 
-const STATUS_RANK: Record<ClearanceStatus, number> = {
+export const CLEARANCE_STATUS_RANK: Record<ClearanceStatus, number> = {
   expired: 3,
   missing: 2,
   expiring: 1,
@@ -827,8 +825,6 @@ export function computeEventPnL(
     net: Math.round(net * 100) / 100,
   };
 }
-
-// ── Rulesets ──────────────────────────────────────────────────────────────
 
 // ── Fighter weight tracking ──────────────────────────────────────────────
 
@@ -1093,34 +1089,11 @@ export const SPONSORABLE_ITEMS: {
   { value: "custom", label: "Custom", hint: "Anything else — describe in the label field." },
 ];
 
-const SPONSORABLE_ITEM_RANK: Record<SponsorableItem, number> = {
-  ring: 0,
-  mat: 1,
-  blue_corner: 2,
-  red_corner: 3,
-  main_event: 4,
-  co_main: 5,
-  undercard: 6,
-  round_card: 7,
-  officials: 8,
-  ring_girls: 9,
-  broadcast: 10,
-  program: 11,
-  custom: 12,
-};
-
 // Widened to `string` so callers rendering an EventSponsor.item_type (which
 // may be a promoter-added custom key) don't have to narrow first. Falls back
 // to returning the raw key when nothing matches.
 export function sponsorableItemLabel(item: string): string {
   return SPONSORABLE_ITEMS.find((i) => i.value === item)?.label ?? item;
-}
-
-export function compareSponsorableItem(
-  a: SponsorableItem,
-  b: SponsorableItem,
-): number {
-  return SPONSORABLE_ITEM_RANK[a] - SPONSORABLE_ITEM_RANK[b];
 }
 
 // After migration 0032 the item_type column is opaque text: it holds either a
@@ -1153,14 +1126,6 @@ export function slugifySponsorItemKey(label: string): string {
 
 export function isBuiltInSponsorItem(key: string): key is SponsorableItem {
   return SPONSORABLE_ITEMS.some((i) => i.value === key);
-}
-
-export function resolveItemLabel(
-  key: string,
-  customItems: Pick<EventSponsorableItem, "key" | "label">[] = [],
-): string {
-  if (isBuiltInSponsorItem(key)) return sponsorableItemLabel(key);
-  return customItems.find((c) => c.key === key)?.label ?? key;
 }
 
 export type EventSponsor = {
@@ -1223,7 +1188,7 @@ export function fighterClearanceSummary(
   });
   let worstStatus: ClearanceStatus = "active";
   for (const { status } of perKind) {
-    if (STATUS_RANK[status] > STATUS_RANK[worstStatus]) worstStatus = status;
+    if (CLEARANCE_STATUS_RANK[status] > CLEARANCE_STATUS_RANK[worstStatus]) worstStatus = status;
   }
   return { worstStatus, counts, perKind };
 }

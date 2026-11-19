@@ -5,12 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/server";
 import { dbErr } from "@/lib/db/client";
 import { requireAdmin } from "@/lib/auth/session";
-
-function parsePersonNo(input: string | undefined | null): number | null {
-  if (!input) return null;
-  const n = Number.parseInt(input.replace(/[^0-9]/g, ""), 10);
-  return Number.isFinite(n) ? n : null;
-}
+import { parsePersonNo } from "@/lib/format-utils";
 
 export async function mergePersonsByNumber(fd: FormData) {
   await requireAdmin();

@@ -4,19 +4,19 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { db, dbErr } from "@/lib/db/client";
-import { orNull as str } from "@/lib/form-utils";
+import { idOrNull, orNull as str } from "@/lib/form-utils";
 import { requireStaff } from "@/lib/auth/session";
 import { extractRulesetFromPdf, type ExtractedRuleset } from "@/lib/ai/parse-ruleset";
 import { RULESET_PDF_BUCKET as BUCKET } from "./_lib/pdf-urls";
 
 const MAX_PDF_BYTES = 15 * 1024 * 1024;
 
-async function pdfBufferFromForm(fd: FormData, field = "pdf"): Promise<{
+async function pdfBufferFromForm(fd: FormData): Promise<{
   buffer: Buffer;
   size: number;
   filename: string;
 }> {
-  const file = fd.get(field);
+  const file = fd.get("pdf");
   if (!(file instanceof File) || file.size === 0) {
     throw new Error("Please choose a PDF file to upload.");
   }
@@ -57,10 +57,8 @@ export async function createRulesetFromPdf(formData: FormData) {
   const sport = str(formData.get("sport"));
   if (!name || !sport) throw new Error("Name and sport are required.");
 
-  const commRaw = str(formData.get("commission_id"));
-  const commission_id = commRaw && commRaw !== "__none__" ? commRaw : null;
-  const sbRaw = str(formData.get("sanctioning_body_id"));
-  const sanctioning_body_id = sbRaw && sbRaw !== "__none__" ? sbRaw : null;
+  const commission_id = idOrNull(formData.get("commission_id"));
+  const sanctioning_body_id = idOrNull(formData.get("sanctioning_body_id"));
 
   const { buffer, size, filename } = await pdfBufferFromForm(formData);
 
@@ -137,9 +135,9 @@ export async function uploadNewPdfVersion(formData: FormData) {
   const supabase = db();
   const { data: ruleset } = await supabase
     .from("rulesets")
-    .select("id, sport")
+    .select("sport")
     .eq("id", rulesetId)
-    .maybeSingle<{ id: string; sport: string }>();
+    .maybeSingle<{ sport: string }>();
   if (!ruleset) throw new Error("Ruleset not found.");
 
   // The storage upload doesn't depend on the (slow) AI extraction, so overlap
@@ -210,8 +208,7 @@ export async function assignBoutRuleset(formData: FormData) {
   const event_id = str(formData.get("event_id"));
   if (!bout_id || !event_id) throw new Error("Missing bout_id / event_id.");
 
-  const raw = str(formData.get("ruleset_id"));
-  const ruleset_id = raw && raw !== "__none__" ? raw : null;
+  const ruleset_id = idOrNull(formData.get("ruleset_id"));
 
   const { error } = await db()
     .from("bouts")

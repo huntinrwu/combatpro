@@ -47,23 +47,6 @@ export function feetInToCm(
   return totalIn * CM_PER_IN;
 }
 
-// Format cm as US-first height: `5'10" (1.78 m / 178 cm)`. Empty string if nullish.
-export function fmtHeight(cm: number | string | null | undefined): string {
-  const n = toNum(cm);
-  if (n == null) return "";
-  const parts = cmToFeetIn(n);
-  if (!parts) return "";
-  return `${parts.feet}'${parts.inches}" (${(n / 100).toFixed(2)} m / ${Math.round(n)} cm)`;
-}
-
-// Format cm as US-first reach: `72 in (183 cm)`.
-export function fmtReach(cm: number | string | null | undefined): string {
-  const n = toNum(cm);
-  if (n == null) return "";
-  const inches = Math.round(n / CM_PER_IN);
-  return `${inches} in (${Math.round(n)} cm)`;
-}
-
 // ── Weight ────────────────────────────────────────────────────────────────
 
 export function lbsToKg(lbs: number | string | null | undefined): number | null {
@@ -72,7 +55,8 @@ export function lbsToKg(lbs: number | string | null | undefined): number | null 
   return n / LBS_PER_KG;
 }
 
-function toNum(v: unknown): number | null {
+// Postgres numeric columns can come back as strings via PostgREST.
+export function toNum(v: unknown): number | null {
   if (v == null || v === "") return null;
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : null;

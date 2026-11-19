@@ -13,8 +13,6 @@ import { fighterProRecord, initials } from "@/lib/text-utils";
 import type { Fighter, Gym } from "@/lib/db/types";
 import { SPORTS } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
 const VIEWS = ["list", "card", "grid", "compact", "kanban", "gallery"] as const;
 
 type Search = { view?: string };

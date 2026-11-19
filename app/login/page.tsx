@@ -6,8 +6,6 @@ import { LoginForm } from "./_components/login-form";
 import { safeNext } from "@/lib/auth/safe-next";
 import { getSessionUser } from "@/lib/auth/session";
 
-export const dynamic = "force-dynamic";
-
 export default async function LoginPage({
   searchParams,
 }: {

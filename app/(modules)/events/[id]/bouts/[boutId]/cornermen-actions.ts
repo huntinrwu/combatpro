@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { db, dbErr } from "@/lib/db/client";
-import { orNull } from "@/lib/form-utils";
+import { orNull, requireCorner } from "@/lib/form-utils";
 import { requireStaff } from "@/lib/auth/session";
 import { CORNERMAN_ROLES, type CornermanRole } from "@/lib/db/types";
 
@@ -11,17 +11,15 @@ export async function addCornerman(formData: FormData) {
   await requireStaff();
   const bout_id = orNull(formData.get("bout_id"));
   const event_id = orNull(formData.get("event_id"));
-  const corner = orNull(formData.get("corner"));
   const name = orNull(formData.get("name"));
   const roleRaw = orNull(formData.get("role"));
 
   if (!bout_id || !event_id) throw new Error("Missing bout_id / event_id.");
-  if (corner !== "red" && corner !== "blue") throw new Error("Invalid corner.");
+  const corner = requireCorner(formData.get("corner"));
   if (!name) throw new Error("Cornerman name is required.");
 
   const role: CornermanRole =
-    (CORNERMAN_ROLES.find((r) => r.value === roleRaw)?.value as CornermanRole) ??
-    "head_coach";
+    CORNERMAN_ROLES.find((r) => r.value === roleRaw)?.value ?? "head_coach";
 
   const { error } = await db().from("bout_cornermen").insert({
     bout_id,

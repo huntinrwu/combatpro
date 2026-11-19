@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fmtDateShort as fmtEventDate } from "@/lib/format-utils";
 import type { Official } from "@/lib/db/types";
 
+export type OfficialProfile = Pick<Official, "id" | "full_name" | "roles">;
+
 export type OfficialUpcoming = {
   eventId: string;
   eventName: string;
@@ -19,7 +21,7 @@ export function OfficialWidget({
   profile,
   upcoming,
 }: {
-  profile: Official | null;
+  profile: OfficialProfile | null;
   upcoming: OfficialUpcoming[];
 }) {
   return (

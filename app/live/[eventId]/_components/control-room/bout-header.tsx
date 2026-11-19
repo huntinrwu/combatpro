@@ -73,11 +73,7 @@ function CornerBlock({
         <div className="mt-1 text-xs text-white/50">{fighter.gymLabel}</div>
       )}
       {fighter?.record && (
-        <div
-          className={`mt-1 font-mono text-xs text-white/40 ${
-            isRed ? "text-right" : "text-left"
-          }`}
-        >
+        <div className="mt-1 font-mono text-xs text-white/40">
           {fighter.record.wins}-{fighter.record.losses}-{fighter.record.draws}
         </div>
       )}

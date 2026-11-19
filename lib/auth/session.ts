@@ -30,7 +30,8 @@ export type SessionUser = {
   personNo: number | null;
 };
 
-const VIEW_AS_COOKIE = "cp:view-as";
+// Value is a PlatformRole, "employee", or absent.
+export const VIEW_AS_COOKIE = "cp:view-as";
 
 // Cached per request. Anon (unsigned) → null.
 export const getSessionUser = cache(async (): Promise<SessionUser | null> => {

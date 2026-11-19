@@ -2,13 +2,12 @@ import { notFound } from "next/navigation";
 import { AlertTriangle, Scale } from "lucide-react";
 
 import { PrintButton } from "../_components/print-button";
-import { fighterIdsOf, loadEventDetail } from "../_lib/event-detail";
+import { fighterLabel, loadEventDetail, type EventFighter } from "../_lib/event-detail";
 import {
   clearWeighIn,
   recordWeighIn,
 } from "../bouts/[boutId]/checkin-actions";
-import { db } from "@/lib/db/client";
-import { fmtDateLong as fmtEventDate } from "@/lib/format-utils";
+import { fmtDateLong as fmtEventDate, fmtTime } from "@/lib/format-utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,22 +16,7 @@ import {
   type Bout,
   type BoutFighterCheck,
   type Corner,
-  type Fighter,
 } from "@/lib/db/types";
-
-export const dynamic = "force-dynamic";
-
-type WeighInFighter = Pick<Fighter, "id" | "full_name" | "gym" | "gym_id"> & {
-  gym_ref: { name: string } | null;
-};
-
-function fmtTime(iso: string | null) {
-  if (!iso) return null;
-  return new Date(iso).toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
 
 export default async function WeighInsPage({
   params,
@@ -41,33 +25,15 @@ export default async function WeighInsPage({
 }) {
   const { id } = await params;
 
-  // Event, bouts, and checks come from the per-request cache the [id] layout
-  // already populated.
   const detail = await loadEventDetail(id);
   if (!detail) notFound();
-  const { event, bouts, checksByBout } = detail;
-
-  const fighterIds = fighterIdsOf(bouts);
-
-  // Gym name is embedded via fighters.gym_id → gyms instead of pulling the
-  // whole gyms table.
-  const { data: fighters } = fighterIds.length
-    ? await db()
-        .from("fighters")
-        .select("id, full_name, gym, gym_id, gym_ref:gyms(name)")
-        .in("id", fighterIds)
-    : { data: [] };
-
-  const fighterMap = new Map<string, WeighInFighter>();
-  for (const f of (fighters ?? []) as unknown as WeighInFighter[]) {
-    fighterMap.set(f.id, f);
-  }
+  const { event, bouts, checksByBout, fighterMap } = detail;
 
   type Row = {
     key: string;
     bout: Bout;
     corner: Corner;
-    fighter: WeighInFighter | null;
+    fighter: EventFighter | null;
     check: BoutFighterCheck | null;
     contracted: number | null;
     actual: number | null;
@@ -105,14 +71,6 @@ export default async function WeighInsPage({
   const overRows = rows.filter((r) => r.status === "over");
   const underRows = rows.filter((r) => r.status === "under");
   const onRows = rows.filter((r) => r.status === "on");
-
-  const fighterLabel = (row: Row): string => {
-    if (!row.fighter) return "TBD";
-    const gym = row.fighter.gym_id
-      ? row.fighter.gym_ref?.name
-      : row.fighter.gym;
-    return gym ? `${row.fighter.full_name} (${gym})` : row.fighter.full_name;
-  };
 
   return (
     <>
@@ -163,7 +121,7 @@ export default async function WeighInsPage({
           <ul className="ml-6 list-disc space-y-0.5 text-xs text-red-800 dark:text-red-200">
             {overRows.map((r) => (
               <li key={r.key}>
-                Bout {r.bout.bout_order ?? "?"} · {r.corner} · {fighterLabel(r)} —{" "}
+                Bout {r.bout.bout_order ?? "?"} · {r.corner} · {fighterLabel(r.fighter)} —{" "}
                 {r.actual} lbs vs {r.contracted} contracted{" "}
                 {r.overage != null && (
                   <span className="font-mono">(+{r.overage.toFixed(1)})</span>
@@ -233,7 +191,7 @@ export default async function WeighInsPage({
                       </span>
                     </td>
                     <td className="px-3 py-2 align-top">
-                      <div className="font-medium">{fighterLabel(r)}</div>
+                      <div className="font-medium">{fighterLabel(r.fighter)}</div>
                       {r.check?.weigh_in_notes && (
                         <div className="mt-0.5 text-[11px] italic text-muted-foreground">
                           {r.check.weigh_in_notes}
@@ -302,7 +260,7 @@ export default async function WeighInsPage({
                       )}
                     </td>
                     <td className="px-3 py-2 align-top text-xs text-muted-foreground print:hidden">
-                      {fmtTime(r.check?.weigh_in_at ?? null) ?? "—"}
+                      {r.check?.weigh_in_at ? fmtTime(r.check.weigh_in_at) : "—"}
                       {r.actual != null && (
                         <form action={clearWeighIn} className="mt-0.5">
                           <input type="hidden" name="bout_id" value={r.bout.id} />

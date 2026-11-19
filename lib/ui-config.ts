@@ -31,3 +31,27 @@ export const OFFICIAL_ROLE_ORDER: Record<string, number> = {
   timekeeper: 5,
   inspector: 6,
 };
+
+// Medical clearance status badge label + outline classes — shared by the
+// /medical dashboard and the fighter profile's clearances card.
+export const CLEARANCE_STATUS_META: Record<
+  import("@/lib/db/types").ClearanceStatus,
+  { label: string; className: string }
+> = {
+  active: {
+    label: "Active",
+    className: "border-emerald-500/40 text-emerald-700 dark:text-emerald-300",
+  },
+  expiring: {
+    label: "Expiring",
+    className: "border-amber-500/40 text-amber-700 dark:text-amber-300",
+  },
+  expired: {
+    label: "Expired",
+    className: "border-red-500/50 text-red-700 dark:text-red-300",
+  },
+  missing: {
+    label: "Missing",
+    className: "border-muted-foreground/40 text-muted-foreground",
+  },
+};

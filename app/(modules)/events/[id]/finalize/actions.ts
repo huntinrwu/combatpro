@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db, dbErr } from "@/lib/db/client";
 import { orNull } from "@/lib/form-utils";
 import { requireStaff } from "@/lib/auth/session";
-import type { EventStatus } from "@/lib/db/types";
+import { EVENT_STATUSES, type EventStatus } from "@/lib/db/types";
 
 function revalidate(event_id: string) {
   revalidatePath(`/events/${event_id}`);
@@ -43,10 +43,7 @@ export async function fileAllFightReports(formData: FormData) {
     .filter((b) => b.result != null)
     .map((b) => b.id);
 
-  if (declaredBouts.length === 0) {
-    revalidate(event_id);
-    return;
-  }
+  if (declaredBouts.length === 0) return;
 
   const [{ data: sb }, { data: existingDocs }] = await Promise.all([
     event?.sanctioning_body_id
@@ -68,10 +65,7 @@ export async function fileAllFightReports(formData: FormData) {
     ((existingDocs ?? []) as { bout_id: string }[]).map((d) => d.bout_id),
   );
   const missing = declaredBouts.filter((id) => !alreadyFiled.has(id));
-  if (missing.length === 0) {
-    revalidate(event_id);
-    return;
-  }
+  if (missing.length === 0) return;
 
   const payload = missing.map((bout_id) => ({
     bout_id,
@@ -91,7 +85,7 @@ export async function setEventStatus(formData: FormData) {
   const event_id = orNull(formData.get("event_id"));
   const status = orNull(formData.get("status")) as EventStatus | null;
   if (!event_id || !status) throw new Error("event + status required.");
-  if (!["draft", "scheduled", "complete", "canceled"].includes(status)) {
+  if (!EVENT_STATUSES.includes(status)) {
     throw new Error("invalid status");
   }
 

@@ -11,8 +11,6 @@ import { CompactList, TableShell, TileGrid } from "@/components/views/containers
 import { pickView } from "@/lib/view-mode";
 import type { Commission, SanctioningBody } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
 const VIEWS = ["list", "card", "grid", "compact"] as const;
 
 type Search = { submitted?: string; view?: string };

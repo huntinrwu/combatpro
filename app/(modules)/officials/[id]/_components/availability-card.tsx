@@ -6,20 +6,13 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/form-field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { fmtDateShortWithDay as fmtDate } from "@/lib/format-utils";
 import {
   AVAILABILITY_STATUSES,
   type OfficialAvailability,
 } from "@/lib/db/types";
 
-function fmtDate(iso: string): string {
-  return new Date(iso + "T00:00:00").toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
+// `blocks` must arrive sorted by block_date ascending.
 export function AvailabilityCard({
   officialId,
   blocks,
@@ -28,9 +21,7 @@ export function AvailabilityCard({
   blocks: OfficialAvailability[];
 }) {
   const today = new Date().toISOString().slice(0, 10);
-  const future = blocks
-    .filter((b) => b.block_date >= today)
-    .sort((a, b) => a.block_date.localeCompare(b.block_date));
+  const future = blocks.filter((b) => b.block_date >= today);
   const past = blocks.filter((b) => b.block_date < today);
 
   return (

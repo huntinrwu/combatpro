@@ -23,8 +23,6 @@ import { cmToFeetIn, cmToIn } from "@/lib/units";
 import { OFFICIAL_ROLES, SPORTS, STANCES } from "@/lib/db/types";
 import type { Fighter, Gym, Official, Person } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
 export default async function AdminPersonDetailPage({
   params,
 }: {

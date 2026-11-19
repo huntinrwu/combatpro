@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -35,8 +35,6 @@ type AddProps = {
   itemType: SponsorItemKey;
   itemLabel: string;
   existing?: undefined;
-  triggerLabel?: string;
-  size?: "sm" | "default";
 };
 
 type EditProps = {
@@ -45,21 +43,18 @@ type EditProps = {
   itemType?: never;
   itemLabel?: never;
   existing: EventSponsor;
-  triggerLabel?: string;
-  size?: "sm" | "default";
 };
 
 type Props = AddProps | EditProps;
 
 export function SponsorDialog(props: Props) {
-  const { eventId, sponsors, existing, size = "sm" } = props;
+  const { eventId, sponsors, existing } = props;
   const isEdit = !!existing;
   const itemType = (isEdit ? existing.item_type : props.itemType) as SponsorItemKey;
   const isLegacyCustom = isEdit && existing.item_type === "custom";
 
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
-  const formRef = useRef<HTMLFormElement>(null);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -84,7 +79,7 @@ export function SponsorDialog(props: Props) {
 
   if (!isEdit && sponsors.length === 0) {
     return (
-      <Button size={size} variant="outline" render={<Link href="/sponsors/new" />}>
+      <Button size="sm" variant="outline" render={<Link href="/sponsors/new" />}>
         <Plus className="h-3.5 w-3.5" />
         Add a sponsor first
       </Button>
@@ -110,9 +105,9 @@ export function SponsorDialog(props: Props) {
               <Pencil className="h-3 w-3" />
             </Button>
           ) : (
-            <Button size={size} variant="outline">
+            <Button size="sm" variant="outline">
               <Plus className="h-3.5 w-3.5" />
-              {props.triggerLabel ?? "Assign"}
+              Assign
             </Button>
           )
         }
@@ -121,7 +116,7 @@ export function SponsorDialog(props: Props) {
         <DialogHeader>
           <DialogTitle>{headline}</DialogTitle>
         </DialogHeader>
-        <form ref={formRef} onSubmit={handleSubmit} className="grid gap-3">
+        <form onSubmit={handleSubmit} className="grid gap-3">
           <input type="hidden" name="event_id" value={eventId} />
           <input type="hidden" name="item_type" value={itemType} />
           {isEdit && <input type="hidden" name="id" value={existing.id} />}

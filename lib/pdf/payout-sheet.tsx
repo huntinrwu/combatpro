@@ -1,7 +1,8 @@
 import { Document, Page, Text, View } from "@react-pdf/renderer";
 
 import { BrandLockup } from "./brand-mark";
-import { styles, colors, fmtDate } from "./theme";
+import { KV } from "./parts";
+import { styles, colors, fmtDate, type PdfEventWithSport } from "./theme";
 import {
   SPONSOR_TIERS,
   fmtMoney,
@@ -25,14 +26,7 @@ export type PayoutRow = {
 };
 
 export type PayoutSheetProps = {
-  event: {
-    name: string;
-    event_date: string;
-    venue: string | null;
-    city: string | null;
-    state: string | null;
-    primary_sport: string;
-  };
+  event: PdfEventWithSport;
   promoter: string | null;
   sanctioningBody: string | null;
   commission: string | null;
@@ -84,15 +78,6 @@ export function PayoutSheetPdf({
     },
     { gross: 0, mgr: 0, sanc: 0, tax: 0, other: 0, net: 0, paid: 0 },
   );
-  const {
-    gross: totalGross,
-    mgr: totalMgr,
-    sanc: totalSanc,
-    tax: totalTax,
-    other: totalOther,
-    net: totalNet,
-    paid: paidCount,
-  } = totals;
 
   return (
     <Document>
@@ -114,12 +99,12 @@ export function PayoutSheetPdf({
 
         <View style={styles.grid2}>
           <View style={styles.col}>
-            <View style={styles.kv}><Text style={styles.k}>Promoter</Text><Text style={styles.v}>{promoter ?? "—"}</Text></View>
-            <View style={styles.kv}><Text style={styles.k}>Commission</Text><Text style={styles.v}>{commission ?? "—"}</Text></View>
+            <KV k="Promoter">{promoter ?? "—"}</KV>
+            <KV k="Commission">{commission ?? "—"}</KV>
           </View>
           <View style={styles.col}>
-            <View style={styles.kv}><Text style={styles.k}>Sanctioning</Text><Text style={styles.v}>{sanctioningBody ?? "—"}</Text></View>
-            <View style={styles.kv}><Text style={styles.k}>Bouts</Text><Text style={styles.v}>{rows.length / 2} ({rows.length} corners) · {paidCount} paid</Text></View>
+            <KV k="Sanctioning">{sanctioningBody ?? "—"}</KV>
+            <KV k="Bouts">{rows.length / 2} ({rows.length} corners) · {totals.paid} paid</KV>
           </View>
         </View>
 
@@ -189,23 +174,23 @@ export function PayoutSheetPdf({
             <Text style={[styles.tCell, { flex: COL_FLEX.bout + COL_FLEX.corner + COL_FLEX.fighter }]}>
               TOTALS ({rows.length} corners)
             </Text>
-            <Text style={[styles.tCell, { flex: COL_FLEX.gross, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>{fmtMoney(totalGross)}</Text>
-            <Text style={[styles.tCell, { flex: COL_FLEX.mgr, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>{fmtMoney(totalMgr)}</Text>
-            <Text style={[styles.tCell, { flex: COL_FLEX.sanc, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>{fmtMoney(totalSanc)}</Text>
-            <Text style={[styles.tCell, { flex: COL_FLEX.tax, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>{fmtMoney(totalTax)}</Text>
-            <Text style={[styles.tCell, { flex: COL_FLEX.other, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>{fmtMoney(totalOther)}</Text>
+            <Text style={[styles.tCell, { flex: COL_FLEX.gross, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>{fmtMoney(totals.gross)}</Text>
+            <Text style={[styles.tCell, { flex: COL_FLEX.mgr, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>{fmtMoney(totals.mgr)}</Text>
+            <Text style={[styles.tCell, { flex: COL_FLEX.sanc, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>{fmtMoney(totals.sanc)}</Text>
+            <Text style={[styles.tCell, { flex: COL_FLEX.tax, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>{fmtMoney(totals.tax)}</Text>
+            <Text style={[styles.tCell, { flex: COL_FLEX.other, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>{fmtMoney(totals.other)}</Text>
             <Text style={[styles.tCell, { flex: COL_FLEX.net, textAlign: "right", fontFamily: "Helvetica-Bold", color: colors.emerald }]}>
-              {fmtMoney(totalNet)}
+              {fmtMoney(totals.net)}
             </Text>
             <Text style={[styles.tCellLast, { flex: COL_FLEX.paid, textAlign: "center", fontFamily: "Helvetica-Bold" }]}>
-              {paidCount}/{rows.length}
+              {totals.paid}/{rows.length}
             </Text>
           </View>
         </View>
 
         <View style={styles.callout}>
           <Text style={styles.calloutTitle}>Net payout to fighters</Text>
-          <Text style={styles.calloutValue}>{fmtMoney(totalNet)}</Text>
+          <Text style={styles.calloutValue}>{fmtMoney(totals.net)}</Text>
         </View>
 
         {orderedTiers.length > 0 && (

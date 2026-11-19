@@ -14,7 +14,7 @@ export type EventTab = {
 };
 
 export function EventTabs({ tabs, basePath }: { tabs: EventTab[]; basePath: string }) {
-  const pathname = usePathname() ?? basePath;
+  const pathname = usePathname();
 
   return (
     <nav

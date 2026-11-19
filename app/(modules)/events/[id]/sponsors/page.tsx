@@ -30,11 +30,6 @@ import {
   type SponsorItemKey,
 } from "@/lib/db/types";
 
-export const dynamic = "force-dynamic";
-
-const fmtWhen = (iso: string | null) =>
-  iso ? fmtDateShort(iso.slice(0, 10)) : "—";
-
 function builtInHint(key: string): string | null {
   return SPONSORABLE_ITEMS.find((i) => i.value === key)?.hint ?? null;
 }
@@ -61,16 +56,14 @@ async function ensureBootstrap(
     sort_order: i,
   }));
 
-  await db().from("event_sponsorable_items").insert(rows);
-
   const { data: fresh } = await db()
     .from("event_sponsorable_items")
-    .select("*")
-    .eq("event_id", eventId)
-    .order("sort_order", { ascending: true })
-    .order("created_at", { ascending: true });
+    .insert(rows)
+    .select("*");
 
-  return (fresh as EventSponsorableItem[]) ?? [];
+  return ((fresh ?? []) as EventSponsorableItem[]).sort(
+    (a, b) => a.sort_order - b.sort_order,
+  );
 }
 
 export default async function EventSponsorsPage({
@@ -113,11 +106,11 @@ export default async function EventSponsorsPage({
   }
 
   const sections = overrides.map((o) => ({
-    item: o.key as SponsorItemKey,
+    item: o.key,
     label: o.label,
     hint: o.hint ?? builtInHint(o.key),
     override: o,
-    slots: byItem.get(o.key as SponsorItemKey) ?? [],
+    slots: byItem.get(o.key) ?? [],
   }));
 
   const goalTotal = sections.reduce(
@@ -134,41 +127,23 @@ export default async function EventSponsorsPage({
             <Handshake className="h-4 w-4" />
             Sponsorable items
           </div>
-          <div className="flex items-center gap-2">
-            {canSeeAmounts && <SponsorableItemDialog eventId={event.id} />}
-          </div>
+          {canSeeAmounts && <SponsorableItemDialog eventId={event.id} />}
         </div>
-
-        {sections.length === 0 && (
-          <Card className="border-dashed">
-            <CardContent className="py-8 text-center text-sm text-muted-foreground">
-              <p className="mb-2 font-medium text-foreground">
-                No sponsorable items on this event yet.
-              </p>
-              <p className="text-xs">
-                Every event decides what it will sell. Click{" "}
-                <span className="font-medium">Add item</span> above to add
-                the ring, corners, ring girls, broadcast, weigh-in backdrop,
-                or anything else you want to line up sponsors for.
-              </p>
-            </CardContent>
-          </Card>
-        )}
 
         <div className="space-y-3">
           {sections.map((section) => {
             const { item, label, hint, slots, override } = section;
-            const isCustom = !isBuiltInSponsorItem(String(item));
+            const isCustom = !isBuiltInSponsorItem(item);
             const contracted = slots.reduce(
               (acc, s) => acc + num(s.contract_value),
               0,
             );
             const target = targetByItem.get(item) ?? 0;
             const delta = Math.round((contracted - target) * 100) / 100;
-            const editablePayload = { key: String(item), label, hint };
+            const editablePayload = { key: item, label, hint };
 
             return (
-              <Card key={String(item)}>
+              <Card key={item}>
                 <CardHeader className="flex-row items-start justify-between gap-3">
                   <div className="min-w-0">
                     <CardTitle className="flex items-center gap-2 text-sm">
@@ -230,7 +205,6 @@ export default async function EventSponsorsPage({
                       sponsors={sponsorList}
                       itemType={item}
                       itemLabel={label}
-                      triggerLabel="Assign"
                     />
                   </div>
                 </CardHeader>
@@ -274,12 +248,12 @@ export default async function EventSponsorsPage({
                               </td>
                               {canSeeAmounts && (
                                 <td className="py-2 pr-3 text-right font-mono tabular-nums">
-                                  {fmtMoney(Number(s.contract_value))}
+                                  {fmtMoney(num(s.contract_value))}
                                 </td>
                               )}
                               {canSeeAmounts && (
                                 <td className="py-2 pr-3 text-xs text-muted-foreground">
-                                  {s.paid_at ? fmtWhen(s.paid_at) : "Unpaid"}
+                                  {s.paid_at ? fmtDateShort(s.paid_at.slice(0, 10)) : "Unpaid"}
                                 </td>
                               )}
                               <td className="py-2 pr-3 text-xs italic text-muted-foreground/80">

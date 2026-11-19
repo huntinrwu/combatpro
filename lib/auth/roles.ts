@@ -55,7 +55,7 @@ export const MODULE_ACCESS: Record<string, PlatformRole[]> = {
 
 // Roles allowed to create/edit events. Staff bypasses. "Admin" tier collapses
 // into isStaff for now — add a distinct role here if that ever splits.
-export const ROLES_CAN_CREATE_EVENTS: PlatformRole[] = ["promoter"];
+const ROLES_CAN_CREATE_EVENTS: PlatformRole[] = ["promoter"];
 
 export function canCreateEvents(
   userRoles: PlatformRole[],
@@ -73,22 +73,4 @@ export function canEditEvent(
   if (user.isStaff) return true;
   if (!canCreateEvents(user.approvedRoles, user.isStaff)) return false;
   return event.created_by === user.id;
-}
-
-// Fighters/coaches without any operator-side role still land somewhere useful —
-// their own profile page — but see none of the operator modules.
-
-export function canAccessModule(
-  slug: string,
-  userRoles: PlatformRole[],
-  isStaff: boolean,
-): boolean {
-  if (isStaff) return true;
-  const allowed = MODULE_ACCESS[slug];
-  if (!allowed) return true; // unmapped module → open to any signed-in user
-  return userRoles.some((r) => allowed.includes(r));
-}
-
-export function hasAnyRole(userRoles: PlatformRole[], required: PlatformRole[]): boolean {
-  return userRoles.some((r) => required.includes(r));
 }

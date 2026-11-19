@@ -18,6 +18,7 @@ import { db } from "@/lib/db/client";
 import { fmtDateShortWithDay as fmtEventDate } from "@/lib/format-utils";
 import { getSessionUser } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
+import { DetailRow } from "@/components/detail-row";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -30,19 +31,6 @@ import type {
   RulesetPdfVersion,
   SanctioningBody,
 } from "@/lib/db/types";
-
-export const dynamic = "force-dynamic";
-
-function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex items-baseline justify-between gap-4 border-b border-border/50 py-1.5 last:border-b-0">
-      <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
-      <span className="text-right text-sm">
-        {value ?? <em className="text-muted-foreground">—</em>}
-      </span>
-    </div>
-  );
-}
 
 function YesNo({ v }: { v: boolean }) {
   return (
@@ -83,13 +71,25 @@ export default async function RulesetDetailPage({
       .eq("ruleset_id", id),
     supabase
       .from("ruleset_pdf_versions")
-      .select("*")
+      // Everything except extracted_json — the parsed blob is never rendered here.
+      .select(
+        "id, storage_path, original_filename, file_size_bytes, uploaded_at, extraction_error, is_current",
+      )
       .eq("ruleset_id", id)
       .order("uploaded_at", { ascending: false }),
   ]);
   if (!ruleset) notFound();
 
-  const versionList = (versions ?? []) as RulesetPdfVersion[];
+  const versionList = (versions ?? []) as Pick<
+    RulesetPdfVersion,
+    | "id"
+    | "storage_path"
+    | "original_filename"
+    | "file_size_bytes"
+    | "uploaded_at"
+    | "extraction_error"
+    | "is_current"
+  >[];
   const currentVersion = versionList.find((v) => v.is_current) ?? null;
   const historyVersions = versionList.filter((v) => !v.is_current);
 
@@ -237,7 +237,7 @@ export default async function RulesetDetailPage({
             <FileText className="h-4 w-4" />
             Current PDF
           </CardTitle>
-          {currentVersion && currentPdfUrl && (
+          {currentPdfUrl && (
             <Button
               size="sm"
               variant="outline"
@@ -271,7 +271,6 @@ export default async function RulesetDetailPage({
           {session?.isStaff && (
             <form
               action={uploadNewPdfVersion}
-              encType="multipart/form-data"
               className="flex flex-wrap items-end gap-2 rounded-md border border-dashed border-border/60 bg-muted/20 p-3"
             >
               <input type="hidden" name="ruleset_id" value={ruleset.id} />

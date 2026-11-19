@@ -3,14 +3,8 @@
 import { revalidatePath } from "next/cache";
 
 import { db, dbErr } from "@/lib/db/client";
-import { orNull, toNum } from "@/lib/form-utils";
+import { orNull, requireCorner, toNum } from "@/lib/form-utils";
 import { requireStaff } from "@/lib/auth/session";
-import type { Corner } from "@/lib/db/types";
-
-function requireCorner(raw: FormDataEntryValue | null): Corner {
-  if (raw === "red" || raw === "blue") return raw;
-  throw new Error("corner must be 'red' or 'blue'");
-}
 
 const toNumber = (raw: FormDataEntryValue | null) => toNum(raw) ?? 0;
 
