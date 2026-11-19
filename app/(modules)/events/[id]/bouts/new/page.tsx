@@ -208,7 +208,15 @@ export default async function NewBoutPage({
               />
             </FormField>
             <FormField label="Class" htmlFor="bout_class">
-              <NativeSelect id="bout_class" name="bout_class" defaultValue="pro">
+              <NativeSelect
+                id="bout_class"
+                name="bout_class"
+                defaultValue={
+                  event.event_type === "smoker" || event.event_type === "amateur_card"
+                    ? "amateur"
+                    : "pro"
+                }
+              >
                 {BOUT_CLASSES.map((c) => (
                   <option key={c.value} value={c.value}>
                     {c.label}

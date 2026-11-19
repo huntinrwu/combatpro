@@ -126,6 +126,17 @@ export type Official = {
 
 export type EventStatus = "draft" | "scheduled" | "complete" | "canceled";
 
+export const EVENT_TYPES = ["smoker", "amateur_card", "pro_card", "tournament", "other"] as const;
+export type EventType = (typeof EVENT_TYPES)[number];
+
+export const EVENT_TYPE_LABELS: Record<EventType, string> = {
+  smoker: "Smoker",
+  amateur_card: "Fight card — Amateur",
+  pro_card: "Fight card — Pro",
+  tournament: "Tournament",
+  other: "Other",
+};
+
 export type EventRow = {
   id: string;
   name: string;
@@ -137,6 +148,7 @@ export type EventRow = {
   promoter: string | null;
   promotion_id: string | null;
   primary_sport: string;
+  event_type: EventType | null;
   commission_id: string | null;
   sanctioning_body_id: string | null;
   status: EventStatus;

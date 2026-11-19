@@ -7,7 +7,14 @@ import { db, dbErr } from "@/lib/db/client";
 import { idOrNull, orNull, toInt, toNum } from "@/lib/form-utils";
 import { requireEventCreator, requireUser } from "@/lib/auth/session";
 import { canEditEvent } from "@/lib/auth/roles";
-import { makeEventSlug, type BoutClass, type EventRow, type EventStatus, type ScoringMode } from "@/lib/db/types";
+import {
+  EVENT_TYPES,
+  makeEventSlug,
+  type BoutClass,
+  type EventRow,
+  type EventStatus,
+  type ScoringMode,
+} from "@/lib/db/types";
 import { weightClassFor } from "@/lib/weight-classes";
 
 // Shared create/update field parsing. Throws on missing required fields.
@@ -15,14 +22,16 @@ function eventFieldsFrom(formData: FormData) {
   const name = formData.get("name")?.toString().trim();
   const event_date = formData.get("event_date")?.toString();
   const primary_sport = formData.get("primary_sport")?.toString().trim();
-  if (!name || !event_date || !primary_sport) {
-    throw new Error("Name, date, and sport are required.");
+  const event_type = EVENT_TYPES.find((t) => t === formData.get("event_type"));
+  if (!name || !event_date || !primary_sport || !event_type) {
+    throw new Error("Name, date, sport, and type of event are required.");
   }
 
   return {
     name,
     event_date,
     primary_sport,
+    event_type,
     venue: orNull(formData.get("venue")),
     city: orNull(formData.get("city")),
     state: orNull(formData.get("state")),

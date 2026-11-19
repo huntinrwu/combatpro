@@ -8,6 +8,8 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   EVENT_STATUSES,
+  EVENT_TYPES,
+  EVENT_TYPE_LABELS,
   SPORTS,
   type Commission,
   type EventRow,
@@ -77,6 +79,21 @@ export function EventForm({
               {SPORTS.map((s) => (
                 <option key={s} value={s} className="capitalize">
                   {s}
+                </option>
+              ))}
+            </NativeSelect>
+          </FormField>
+          <FormField label="Type of event" htmlFor="event_type" required>
+            <NativeSelect
+              id="event_type"
+              name="event_type"
+              required
+              defaultValue={defaults?.event_type ?? ""}
+            >
+              <option value="" disabled>Select type…</option>
+              {EVENT_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {EVENT_TYPE_LABELS[t]}
                 </option>
               ))}
             </NativeSelect>

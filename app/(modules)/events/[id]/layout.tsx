@@ -25,6 +25,7 @@ import { EVENT_STATUS_VARIANT as STATUS_VARIANT } from "@/lib/ui-config";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  EVENT_TYPE_LABELS,
   computeEventPnL,
   fmtMoney,
   purseBreakdown,
@@ -80,6 +81,9 @@ export default async function EventLayout({
           <Badge variant="secondary" className="capitalize">
             {event.primary_sport}
           </Badge>
+          {event.event_type && (
+            <Badge variant="outline">{EVENT_TYPE_LABELS[event.event_type]}</Badge>
+          )}
           <div className="ml-auto flex items-center gap-2">
             {canEdit && (
               <Button

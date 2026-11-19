@@ -12,7 +12,7 @@ import { ViewSwitcher } from "@/components/view-switcher";
 import { KanbanBoard } from "@/components/views/kanban";
 import { CardGrid, CompactList, TableShell, TileGrid } from "@/components/views/containers";
 import { pickView } from "@/lib/view-mode";
-import { EVENT_STATUSES, type EventRow } from "@/lib/db/types";
+import { EVENT_STATUSES, EVENT_TYPE_LABELS, type EventRow } from "@/lib/db/types";
 
 const VIEWS = [
   "list",
@@ -29,7 +29,16 @@ type Search = { view?: string };
 // Only the columns the list views render.
 type EventListRow = Pick<
   EventRow,
-  "id" | "name" | "promoter" | "event_date" | "primary_sport" | "venue" | "city" | "state" | "status"
+  | "id"
+  | "name"
+  | "promoter"
+  | "event_date"
+  | "primary_sport"
+  | "event_type"
+  | "venue"
+  | "city"
+  | "state"
+  | "status"
 >;
 
 export default async function EventsListPage({
@@ -43,7 +52,7 @@ export default async function EventsListPage({
   const [{ data: events, error }, session] = await Promise.all([
     db()
       .from("events")
-      .select("id, name, promoter, event_date, primary_sport, venue, city, state, status")
+      .select("id, name, promoter, event_date, primary_sport, event_type, venue, city, state, status")
       .order("event_date", { ascending: false }),
     getSessionUser(),
   ]);
@@ -129,6 +138,11 @@ function ListView({ events }: { events: EventListRow[] }) {
                 <Badge variant="secondary" className="capitalize">
                   {e.primary_sport}
                 </Badge>
+                {e.event_type && (
+                  <div className="mt-0.5 text-xs text-muted-foreground">
+                    {EVENT_TYPE_LABELS[e.event_type]}
+                  </div>
+                )}
               </td>
               <td className="px-3 py-2 text-muted-foreground">{locationOf(e)}</td>
               <td className="px-3 py-2">
@@ -167,9 +181,16 @@ function CardView({ events }: { events: EventListRow[] }) {
             <MapPin className="h-3 w-3" />
             <span className="truncate">{locationOf(e)}</span>
           </div>
-          <Badge variant="secondary" className="w-fit capitalize">
-            {e.primary_sport}
-          </Badge>
+          <div className="flex flex-wrap items-center gap-1">
+            <Badge variant="secondary" className="w-fit capitalize">
+              {e.primary_sport}
+            </Badge>
+            {e.event_type && (
+              <Badge variant="outline" className="w-fit">
+                {EVENT_TYPE_LABELS[e.event_type]}
+              </Badge>
+            )}
+          </div>
         </Link>
       ))}
     </CardGrid>
