@@ -17,6 +17,10 @@ const nextConfig: NextConfig = {
       // PDF ruleset uploads run through server actions; bump the default 1MB cap.
       bodySizeLimit: "15mb",
     },
+    // Requests pass through proxy.ts, which buffers the body and cuts it off
+    // at 10 MB by default. Keep this in step with bodySizeLimit so uploads
+    // between 10 and 15 MB arrive whole.
+    proxyClientMaxBodySize: "15mb",
   },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
