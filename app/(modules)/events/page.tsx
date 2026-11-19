@@ -2,6 +2,7 @@ import Link from "next/link";
 import { MapPin, Plus } from "lucide-react";
 
 import { db } from "@/lib/db/client";
+import { closePastEvents } from "@/lib/db/close-past-events";
 import { fmtDateShort as formatDate } from "@/lib/format-utils";
 import { EVENT_STATUS_VARIANT as STATUS_VARIANT } from "@/lib/ui-config";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +49,10 @@ export default async function EventsListPage({
 }) {
   const { view: rawView } = await searchParams;
   const view = pickView(rawView, VIEWS);
+
+  // Scheduled events whose date has passed are closed before the list is read,
+  // so what is shown here is always current (a daily cron covers other pages).
+  await closePastEvents();
 
   const [{ data: events, error }, session] = await Promise.all([
     db()
