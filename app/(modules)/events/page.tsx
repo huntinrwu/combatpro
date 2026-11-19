@@ -98,10 +98,24 @@ export default async function EventsListPage({
         </div>
       ) : (
         <>
-          {view === "list" && <ListView events={list} />}
-          {view === "card" && <CardView events={list} />}
-          {view === "grid" && <GridView events={list} />}
-          {view === "compact" && <CompactView events={list} />}
+          {(view === "list" || view === "card" || view === "grid" || view === "compact") && (
+            <div className="space-y-8">
+              {sectionsOf(list).map((section) => (
+                <section key={section.title}>
+                  <h2 className="mb-3 flex items-baseline gap-2 font-heading text-lg font-semibold">
+                    {section.title}
+                    <span className="text-sm font-normal text-muted-foreground">
+                      {section.events.length}
+                    </span>
+                  </h2>
+                  {view === "list" && <ListView events={section.events} />}
+                  {view === "card" && <CardView events={section.events} />}
+                  {view === "grid" && <GridView events={section.events} />}
+                  {view === "compact" && <CompactView events={section.events} />}
+                </section>
+              ))}
+            </div>
+          )}
           {view === "kanban" && <KanbanView events={list} />}
           {view === "calendar" && <CalendarView events={list} />}
           {view === "timeline" && <TimelineView events={list} />}
@@ -109,6 +123,18 @@ export default async function EventsListPage({
       )}
     </>
   );
+}
+
+// Split the list so what's coming up is never buried under what's done.
+// Events arrive newest-first; upcoming ones are flipped to soonest-first.
+function sectionsOf(events: EventListRow[]): { title: string; events: EventListRow[] }[] {
+  const by = (status: EventListRow["status"]) => events.filter((e) => e.status === status);
+  return [
+    { title: "Upcoming", events: by("scheduled").reverse() },
+    { title: "Drafts", events: by("draft").reverse() },
+    { title: "Past", events: by("complete") },
+    { title: "Canceled", events: by("canceled") },
+  ].filter((s) => s.events.length > 0);
 }
 
 function locationOf(e: EventListRow): string {
