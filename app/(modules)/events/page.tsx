@@ -8,6 +8,7 @@ import { EVENT_STATUS_VARIANT as STATUS_VARIANT } from "@/lib/ui-config";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getSessionUser, requireModuleAccess } from "@/lib/auth/session";
+import { eventOwnerScope } from "@/lib/auth/event-scope";
 import { canCreateEvents } from "@/lib/auth/roles";
 import { ViewSwitcher } from "@/components/view-switcher";
 import { KanbanBoard } from "@/components/views/kanban";
@@ -47,7 +48,8 @@ export default async function EventsListPage({
 }: {
   searchParams: Promise<Search>;
 }) {
-  await requireModuleAccess("events");
+  const viewer = await requireModuleAccess("events");
+  const ownerScope = eventOwnerScope(viewer);
   const { view: rawView } = await searchParams;
   const view = pickView(rawView, VIEWS);
 
@@ -55,11 +57,13 @@ export default async function EventsListPage({
   // so what is shown here is always current (a daily cron covers other pages).
   await closePastEvents();
 
+  const eventsQuery = db()
+    .from("events")
+    .select("id, name, promoter, event_date, primary_sport, event_type, venue, city, state, status")
+    .order("event_date", { ascending: false });
   const [{ data: events, error }, session] = await Promise.all([
-    db()
-      .from("events")
-      .select("id, name, promoter, event_date, primary_sport, event_type, venue, city, state, status")
-      .order("event_date", { ascending: false }),
+    // Promoters only get the events they created.
+    ownerScope ? eventsQuery.eq("created_by", ownerScope) : eventsQuery,
     getSessionUser(),
   ]);
   const canCreate = session ? canCreateEvents(session.approvedRoles, session.isStaff) : false;

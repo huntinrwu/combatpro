@@ -14,6 +14,7 @@ import type {
   SanctioningBody,
 } from "@/lib/db/types";
 import { requireModuleAccess } from "@/lib/auth/session";
+import { canViewEvent } from "@/lib/auth/event-scope";
 
 export type ControlRoomFighter = {
   full_name: string;
@@ -97,7 +98,7 @@ export default async function ControlRoomPage({
 }: {
   params: Promise<{ eventId: string }>;
 }) {
-  await requireModuleAccess("events");
+  const viewer = await requireModuleAccess("events");
   const { eventId } = await params;
   const supabase = db();
 
@@ -105,9 +106,11 @@ export default async function ControlRoomPage({
   const [{ data: event }, { data: rawBouts }, { data: judgeData }] = await Promise.all([
     supabase
       .from("events")
-      .select("id, name, sanctioning_body_id, current_bout_id")
+      .select("id, name, sanctioning_body_id, current_bout_id, created_by")
       .eq("id", eventId)
-      .maybeSingle<Pick<EventRow, "id" | "name" | "sanctioning_body_id" | "current_bout_id">>(),
+      .maybeSingle<
+        Pick<EventRow, "id" | "name" | "sanctioning_body_id" | "current_bout_id" | "created_by">
+      >(),
     supabase
       .from("bouts")
       .select(
@@ -121,7 +124,7 @@ export default async function ControlRoomPage({
       .eq("event_id", eventId)
       .eq("event_role", "judge"),
   ]);
-  if (!event) notFound();
+  if (!event || !canViewEvent(event, viewer)) notFound();
 
   const bouts = (rawBouts ?? []) as RoomBoutRow[];
 

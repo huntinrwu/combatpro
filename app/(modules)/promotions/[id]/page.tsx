@@ -16,6 +16,7 @@ import {
 import { db } from "@/lib/db/client";
 import { fmtDateShortWithDay as fmtEventDate } from "@/lib/format-utils";
 import { getSessionUser, requireModuleAccess } from "@/lib/auth/session";
+import { eventOwnerScope } from "@/lib/auth/event-scope";
 import { PromotionReviewButtons } from "../_components/promotion-review-buttons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,7 +41,8 @@ export default async function PromotionDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireModuleAccess("promotions");
+  const viewer = await requireModuleAccess("promotions");
+  const ownerScope = eventOwnerScope(viewer);
   const { id } = await params;
   const supabase = db();
 
@@ -52,11 +54,14 @@ export default async function PromotionDetailPage({
       .select("*")
       .eq("id", id)
       .maybeSingle<Promotion>(),
-    supabase
-      .from("events")
-      .select("id, name, status, event_date, venue, city, state")
-      .eq("promotion_id", id)
-      .order("event_date", { ascending: false }),
+    (() => {
+      const q = supabase
+        .from("events")
+        .select("id, name, status, event_date, venue, city, state")
+        .eq("promotion_id", id)
+        .order("event_date", { ascending: false });
+      return ownerScope ? q.eq("created_by", ownerScope) : q;
+    })(),
   ]);
   if (!promo) notFound();
 

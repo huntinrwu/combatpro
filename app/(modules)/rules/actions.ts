@@ -215,7 +215,8 @@ export async function assignBoutRuleset(formData: FormData) {
   const { error } = await db()
     .from("bouts")
     .update({ ruleset_id })
-    .eq("id", bout_id);
+    .eq("id", bout_id)
+    .eq("event_id", event_id);
 
   if (error) dbErr(error);
 

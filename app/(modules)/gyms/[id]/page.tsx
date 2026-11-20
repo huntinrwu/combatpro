@@ -5,6 +5,7 @@ import { CalendarClock, ClipboardList, Pencil, Users } from "lucide-react";
 import { db } from "@/lib/db/client";
 import { fmtDateShortWithDay as fmtEventDate } from "@/lib/format-utils";
 import { getSessionUser, requireModuleAccess } from "@/lib/auth/session";
+import { eventOwnerScope } from "@/lib/auth/event-scope";
 import { Badge } from "@/components/ui/badge";
 import { DetailRow } from "@/components/detail-row";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,8 @@ export default async function GymDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireModuleAccess("gyms");
+  const viewer = await requireModuleAccess("gyms");
+  const ownerScope = eventOwnerScope(viewer);
   const { id } = await params;
   const supabase = db();
 
@@ -53,13 +55,15 @@ export default async function GymDetailPage({
     // Inner-join the event so past events are filtered out in SQL. bouts and
     // events are linked twice (bouts.event_id + events.current_bout_id), so the
     // embed has to name the FK.
-    const { data: bouts } = await supabase
+    const boutsQuery = supabase
       .from("bouts")
       .select(
         "id, bout_order, red_corner_fighter_id, blue_corner_fighter_id, event:events!bouts_event_id_fkey!inner(id, name, event_date, venue)",
       )
-      .gte("event.event_date", today)
-      .or(
+      .gte("event.event_date", today);
+    const { data: bouts } = await (
+      ownerScope ? boutsQuery.eq("event.created_by", ownerScope) : boutsQuery
+    ).or(
         `red_corner_fighter_id.in.(${rosterIds.join(",")}),blue_corner_fighter_id.in.(${rosterIds.join(",")})`,
       );
     const boutList = (bouts ?? []) as unknown as (Pick<

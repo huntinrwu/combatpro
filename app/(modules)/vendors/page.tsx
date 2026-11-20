@@ -25,19 +25,26 @@ import {
   type Vendor,
 } from "@/lib/db/types";
 import { requireModuleAccess } from "@/lib/auth/session";
+import { eventOwnerScope } from "@/lib/auth/event-scope";
 
 export default async function VendorsPage() {
-  await requireModuleAccess("vendors");
+  const viewer = await requireModuleAccess("vendors");
+  const ownerScope = eventOwnerScope(viewer);
   const supabase = db();
   const [{ data: vendors }, { data: ledger }] = await Promise.all([
     supabase
       .from("vendors")
       .select("id, name, default_category, contact_name, contact_email, contact_phone")
       .order("name"),
-    supabase
-      .from("event_ledger")
-      .select("vendor_id, amount, event_id, received_at, payment_method")
-      .not("vendor_id", "is", null),
+    (() => {
+      // Promoters only see spend from their own events.
+      const q = supabase
+        .from("event_ledger")
+        // The event is joined only so the line can be filtered by who owns it.
+        .select("vendor_id, amount, event_id, received_at, payment_method, event:events!inner(created_by)")
+        .not("vendor_id", "is", null);
+      return ownerScope ? q.eq("event.created_by", ownerScope) : q;
+    })(),
   ]);
 
   const list = (vendors ?? []) as Pick<

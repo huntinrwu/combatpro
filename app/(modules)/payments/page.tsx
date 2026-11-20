@@ -17,6 +17,7 @@ import {
   type LedgerEntry,
 } from "@/lib/db/types";
 import { requireModuleAccess } from "@/lib/auth/session";
+import { eventOwnerScope } from "@/lib/auth/event-scope";
 
 // The lib helpers are typed against the full rows but only read these columns.
 type PurseRow = Pick<
@@ -32,14 +33,20 @@ type PurseRow = Pick<
 type LedgerRowData = Pick<LedgerEntry, "event_id" | "entry_type" | "amount">;
 
 export default async function PaymentsPage() {
-  await requireModuleAccess("payments");
+  const viewer = await requireModuleAccess("payments");
+  const ownerScope = eventOwnerScope(viewer);
   const supabase = db();
   const [{ data: events }, { data: bouts }, { data: purses }, { data: ledger }] =
     await Promise.all([
-      supabase
-        .from("events")
-        .select("id, name, status, event_date, venue")
-        .order("event_date", { ascending: false }),
+      (() => {
+        const q = supabase
+          .from("events")
+          .select("id, name, status, event_date, venue")
+          .order("event_date", { ascending: false });
+        // Promoters only see money for the events they created. Rows below are
+        // keyed by event, so anything outside this list is never shown or summed.
+        return ownerScope ? q.eq("created_by", ownerScope) : q;
+      })(),
       supabase.from("bouts").select("id, event_id"),
       // Only the columns purseBreakdown / computeEventPnL read.
       supabase

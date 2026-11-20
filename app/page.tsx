@@ -35,6 +35,7 @@ import {
 } from "./_components/dashboard/upcoming-events-widget";
 import { db } from "@/lib/db/client";
 import { getSessionUser } from "@/lib/auth/session";
+import { eventOwnerScope } from "@/lib/auth/event-scope";
 import { ROLE_LABELS } from "@/lib/auth/roles";
 import type { Bout, EventOfficial, EventRow, Fighter } from "@/lib/db/types";
 
@@ -71,13 +72,18 @@ export default async function Home() {
 
   // Universal: upcoming events + recent fighters
   const universalPromise = Promise.all([
-    supabase
-      .from("events")
-      .select(UPCOMING_EVENT_COLS)
-      .gte("event_date", today)
-      .in("status", ["draft", "scheduled"])
-      .order("event_date", { ascending: true })
-      .limit(5),
+    (() => {
+      const q = supabase
+        .from("events")
+        .select(UPCOMING_EVENT_COLS)
+        .gte("event_date", today)
+        .in("status", ["draft", "scheduled"])
+        .order("event_date", { ascending: true })
+        .limit(5);
+      // Promoters only see their own events.
+      const scope = eventOwnerScope(user);
+      return scope ? q.eq("created_by", scope) : q;
+    })(),
     supabase
       .from("fighters")
       .select(RECENT_FIGHTER_COLS)

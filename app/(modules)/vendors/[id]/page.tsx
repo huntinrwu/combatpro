@@ -35,13 +35,15 @@ import {
   type Vendor,
 } from "@/lib/db/types";
 import { requireModuleAccess } from "@/lib/auth/session";
+import { eventOwnerScope } from "@/lib/auth/event-scope";
 
 export default async function VendorDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireModuleAccess("vendors");
+  const viewer = await requireModuleAccess("vendors");
+  const ownerScope = eventOwnerScope(viewer);
   const { id } = await params;
   const supabase = db();
 
@@ -51,14 +53,18 @@ export default async function VendorDetailPage({
       .select("*")
       .eq("id", id)
       .maybeSingle<Vendor>(),
-    supabase
-      .from("event_ledger")
-      .select(
-        "id, event_id, label, amount, subcategory, payment_method, received_at, reference, notes, event:events(id, name, event_date)",
-      )
-      .eq("vendor_id", id)
-      .order("received_at", { ascending: false, nullsFirst: false })
-      .order("created_at", { ascending: false }),
+    (() => {
+      const q = supabase
+        .from("event_ledger")
+        .select(
+          "id, event_id, label, amount, subcategory, payment_method, received_at, reference, notes, event:events!inner(id, name, event_date)",
+        )
+        .eq("vendor_id", id)
+        .order("received_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false });
+      // Promoters only see spend from their own events.
+      return ownerScope ? q.eq("event.created_by", ownerScope) : q;
+    })(),
   ]);
   if (!vendor) notFound();
 

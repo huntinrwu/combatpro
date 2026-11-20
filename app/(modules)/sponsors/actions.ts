@@ -212,6 +212,7 @@ export async function updateEventSponsor(formData: FormData) {
       .from("event_sponsors")
       .select("ledger_entry_id")
       .eq("id", id)
+      .eq("event_id", event_id)
       .maybeSingle<{ ledger_entry_id: string | null }>(),
   ]);
   const item_type = item.key;
@@ -269,7 +270,8 @@ export async function updateEventSponsor(formData: FormData) {
       ledger_entry_id,
       notes,
     })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("event_id", event_id);
   if (error) dbErr(error);
 
   slotRevalidate(event_id);
@@ -287,6 +289,7 @@ export async function removeEventSponsor(formData: FormData) {
     .from("event_sponsors")
     .delete()
     .eq("id", id)
+    .eq("event_id", event_id)
     .select("ledger_entry_id")
     .maybeSingle<{ ledger_entry_id: string | null }>();
   if (error) dbErr(error);
@@ -358,6 +361,7 @@ export async function removeEventSponsorableItem(formData: FormData) {
     .select("key")
     .eq("id", id)
     .eq("event_id", event_id)
+    .eq("event_id", event_id)
     .maybeSingle<{ key: string }>();
   if (!item) throw new Error("Item not found.");
 
@@ -379,7 +383,8 @@ export async function removeEventSponsorableItem(formData: FormData) {
   const { error } = await supabase
     .from("event_sponsorable_items")
     .delete()
-    .eq("id", id);
+    .eq("id", id)
+    .eq("event_id", event_id);
   if (error) dbErr(error);
 
   revalidatePath(`/events/${event_id}/sponsors`);
@@ -425,6 +430,7 @@ export async function toggleEventSponsorPaid(formData: FormData) {
     .from("event_sponsors")
     .select("paid_at, ledger_entry_id")
     .eq("id", id)
+    .eq("event_id", event_id)
     .maybeSingle<{ paid_at: string | null; ledger_entry_id: string | null }>();
   if (!existing) throw new Error("Slot not found.");
 
@@ -433,7 +439,8 @@ export async function toggleEventSponsorPaid(formData: FormData) {
   const { error } = await supabase
     .from("event_sponsors")
     .update({ paid_at: nextPaidAt })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("event_id", event_id);
   if (error) dbErr(error);
 
   if (existing.ledger_entry_id) {

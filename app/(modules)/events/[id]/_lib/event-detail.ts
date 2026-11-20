@@ -1,6 +1,8 @@
 import { cache } from "react";
 
 import { db } from "@/lib/db/client";
+import { canViewEvent } from "@/lib/auth/event-scope";
+import { getSessionUser } from "@/lib/auth/session";
 import type {
   Bout,
   BoutFighterCheck,
@@ -71,8 +73,9 @@ export function fighterLabel(f: EventFighter | null | undefined): string {
 export const loadEventDetail = cache(async (id: string): Promise<EventDetail | null> => {
   const supabase = db();
 
-  const [{ data: eventRow }, { data: bouts }, { data: ledger }, { data: sponsorSlots }] =
+  const [viewer, { data: eventRow }, { data: bouts }, { data: ledger }, { data: sponsorSlots }] =
     await Promise.all([
+      getSessionUser(),
       // Commission + sanctioning body ride along via events.commission_id and
       // events.sanctioning_body_id (single FKs, so no embed hint needed).
       supabase
@@ -96,6 +99,9 @@ export const loadEventDetail = cache(async (id: string): Promise<EventDetail | n
       supabase.from("event_sponsors").select("*").eq("event_id", id),
     ]);
   if (!eventRow) return null;
+  // Every event page loads through here, so this is where a promoter is
+  // kept to their own events: someone else's simply doesn't exist for them.
+  if (!viewer || !canViewEvent(eventRow, viewer)) return null;
   const { commission, sanctioning_body: sanctioningBody, ...event } = eventRow;
 
   const boutList = (bouts ?? []) as Bout[];

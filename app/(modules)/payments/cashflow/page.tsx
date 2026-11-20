@@ -18,6 +18,7 @@ import {
   type Vendor,
 } from "@/lib/db/types";
 import { requireModuleAccess } from "@/lib/auth/session";
+import { eventOwnerScope } from "@/lib/auth/event-scope";
 
 const RANGE_DAYS: Record<string, number> = {
   "30d": 30,
@@ -84,7 +85,8 @@ export default async function CashFlowPage({
 }: {
   searchParams: Promise<Search>;
 }) {
-  await requireModuleAccess("payments");
+  const viewer = await requireModuleAccess("payments");
+  const ownerScope = eventOwnerScope(viewer);
   const { range: rawRange } = await searchParams;
   const range = rawRange && RANGE_DAYS[rawRange] ? rawRange : "90d";
   const days = RANGE_DAYS[range];
@@ -99,16 +101,19 @@ export default async function CashFlowPage({
   const query0 = db()
     .from("event_ledger")
     .select(
-      "event_id, entry_type, category, amount, received_at, vendor_id, payment_method, vendor:vendors(name), event:events(id, name, event_date)",
+      "event_id, entry_type, category, amount, received_at, vendor_id, payment_method, vendor:vendors(name), event:events!inner(id, name, event_date)",
     );
+  // Promoters only see ledger lines from their own events. (Every ledger
+  // line has an event, so the inner join drops nothing for anyone else.)
+  const query1 = ownerScope ? query0.eq("event.created_by", ownerScope) : query0;
   // `lt(today)` mirrors the previous JS string comparison against the
   // timestamptz value, which excluded entries dated today.
   const query =
     range === "all"
-      ? query0.or(
+      ? query1.or(
           `received_at.is.null,and(received_at.gte.${sinceIso},received_at.lt.${today})`,
         )
-      : query0.gte("received_at", sinceIso).lt("received_at", today);
+      : query1.gte("received_at", sinceIso).lt("received_at", today);
   const { data: ledger } = await query;
 
   const inRange = (ledger ?? []) as unknown as (CashFlowEntry & {

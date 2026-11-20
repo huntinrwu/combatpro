@@ -1,5 +1,6 @@
 import { db } from "@/lib/db/client";
 import { getSessionUser } from "@/lib/auth/session";
+import { eventOwnerScope } from "@/lib/auth/event-scope";
 import type { SearchHit } from "@/app/_components/dashboard/search-types";
 import type { EventRow, Fighter } from "@/lib/db/types";
 
@@ -20,12 +21,17 @@ export async function GET(req: Request) {
       .select("id, full_name, nickname, primary_sport, weight_class")
       .or(`full_name.ilike.${like},nickname.ilike.${like}`)
       .limit(5),
-    supabase
-      .from("events")
-      .select("id, name, event_date, city, state, slug")
-      .ilike("name", like)
-      .order("event_date", { ascending: false })
-      .limit(5),
+    (() => {
+      const q = supabase
+        .from("events")
+        .select("id, name, event_date, city, state, slug")
+        .ilike("name", like)
+        .order("event_date", { ascending: false })
+        .limit(5);
+      // Promoters only find their own events.
+      const scope = eventOwnerScope(user);
+      return scope ? q.eq("created_by", scope) : q;
+    })(),
   ]);
 
   const hits: SearchHit[] = [];
