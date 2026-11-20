@@ -276,3 +276,44 @@ export async function updateFighterLicenses(formData: FormData) {
 
   revalidatePath(`/fighters/${fighter_id}`);
 }
+
+// Staff-only, permanent. Refuses when the fighter is on a bout that already
+// has a declared result, because the database would blank their corner and
+// the finished bout would lose who fought in it. Everything else that hangs
+// off the fighter (roster entries, fight records, medicals, weight log) is
+// removed with them; open bouts keep running with that corner as TBD.
+export async function deleteFighter(formData: FormData) {
+  await requireStaff();
+  const fighter_id = formData.get("fighter_id")?.toString();
+  if (!fighter_id) throw new Error("Missing fighter.");
+
+  const supabase = db();
+  const [{ data: fighter }, { data: bouts }] = await Promise.all([
+    supabase.from("fighters").select("full_name").eq("id", fighter_id).maybeSingle<{
+      full_name: string;
+    }>(),
+    supabase
+      .from("bouts")
+      .select("event_id, result")
+      .or(`red_corner_fighter_id.eq.${fighter_id},blue_corner_fighter_id.eq.${fighter_id}`),
+  ]);
+  if (!fighter) throw new Error("That fighter no longer exists.");
+
+  const typed = formData.get("confirm_name")?.toString().trim().toLowerCase();
+  if (typed !== fighter.full_name.trim().toLowerCase()) {
+    throw new Error("The name you typed doesn't match.");
+  }
+
+  const onBouts = (bouts ?? []) as { event_id: string; result: string | null }[];
+  if (onBouts.some((b) => b.result)) {
+    throw new Error("This fighter is on a bout with a declared result and can't be deleted.");
+  }
+
+  const { error } = await supabase.from("fighters").delete().eq("id", fighter_id);
+  if (error) dbErr(error);
+
+  revalidatePath("/fighters");
+  for (const eventId of new Set(onBouts.map((b) => b.event_id))) {
+    revalidatePath(`/events/${eventId}`);
+  }
+}

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { FileText, HeartPulse, IdCard, Landmark, Pencil, Scale, Trophy } from "lucide-react";
 
 import { ClassPreferencesCard } from "../_components/class-preferences-card";
+import { DeleteFighterDialog } from "../_components/delete-fighter-dialog";
 import { FightRecordsCard } from "../_components/fight-records-card";
 import { MedicalClearancesCard } from "./_components/medical-clearances-card";
 import { WeightTrackingCard } from "../_components/weight-tracking-card";
@@ -97,7 +98,7 @@ export default async function FighterDetailPage({
     supabase
       .from("bouts")
       .select(
-        "event_id, event:events!bouts_event_id_fkey(event_date, promotion:promotions(id, name, abbreviation))",
+        "event_id, result, event:events!bouts_event_id_fkey(event_date, promotion:promotions(id, name, abbreviation))",
       )
       .or(`red_corner_fighter_id.eq.${id},blue_corner_fighter_id.eq.${id}`),
     // The class this fighter was entered at on each event.
@@ -110,6 +111,15 @@ export default async function FighterDetailPage({
   ]);
 
   if (!fighter) notFound();
+
+  // What the delete dialog warns about before a staff member confirms.
+  const boutRows = (rawBouts ?? []) as unknown as { result: string | null }[];
+  const deleteImpact = {
+    events: (rawEventClasses ?? []).length,
+    openBouts: boutRows.filter((b) => !b.result).length,
+    decidedBouts: boutRows.filter((b) => b.result).length,
+    fightRecords: (fightRecords ?? []).length,
+  };
 
   const eventClasses = ((rawEventClasses ?? []) as unknown as EventClassRow[])
     .filter((r) => r.event)
@@ -163,6 +173,13 @@ export default async function FighterDetailPage({
                     Edit
                   </Link>
                 }
+              />
+            )}
+            {session?.isStaff && (
+              <DeleteFighterDialog
+                fighterId={fighter.id}
+                fighterName={fighter.full_name}
+                impact={deleteImpact}
               />
             )}
             <Button
