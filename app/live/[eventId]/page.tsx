@@ -13,6 +13,7 @@ import type {
   Official,
   SanctioningBody,
 } from "@/lib/db/types";
+import { requireModuleAccess } from "@/lib/auth/session";
 
 export type ControlRoomFighter = {
   full_name: string;
@@ -96,6 +97,7 @@ export default async function ControlRoomPage({
 }: {
   params: Promise<{ eventId: string }>;
 }) {
+  await requireModuleAccess("events");
   const { eventId } = await params;
   const supabase = db();
 

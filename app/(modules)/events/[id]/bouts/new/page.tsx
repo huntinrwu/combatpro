@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { WeightClassSelect } from "@/components/weight-class-select";
 import { BOUT_CLASSES, SCORING_MODES, SPORTS } from "@/lib/db/types";
 import type { Fighter, Ruleset } from "@/lib/db/types";
+import { requireModuleAccess } from "@/lib/auth/session";
 
 type PickerFighter = Pick<Fighter, "id" | "full_name" | "primary_sport">;
 
@@ -29,6 +30,7 @@ export default async function NewBoutPage({
     cls?: string;
   }>;
 }) {
+  await requireModuleAccess("events");
   const [{ id }, preselect] = await Promise.all([params, searchParams]);
   const supabase = db();
 

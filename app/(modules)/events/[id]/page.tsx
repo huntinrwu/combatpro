@@ -13,6 +13,7 @@ import {
   type Corner,
   type Fighter,
 } from "@/lib/db/types";
+import { requireModuleAccess } from "@/lib/auth/session";
 
 type BoutWithFighters = Bout & {
   red?: Pick<Fighter, "id" | "full_name"> | null;
@@ -25,6 +26,7 @@ export default async function EventBoutsTabPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireModuleAccess("events");
   const { id } = await params;
   const detail = await loadEventDetail(id);
   if (!detail) notFound();

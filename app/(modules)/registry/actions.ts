@@ -5,10 +5,11 @@ import { redirect } from "next/navigation";
 
 import { db, dbErr } from "@/lib/db/client";
 import { orNull as str, splitList } from "@/lib/form-utils";
-import { requireStaff } from "@/lib/auth/session";
+import { requireApprovedUser, requireStaff } from "@/lib/auth/session";
 
 // Public: anyone can propose a body — lands in `pending` for staff review.
 export async function submitSanctioningBody(formData: FormData) {
+  await requireApprovedUser();
   const name = str(formData.get("name"));
   const abbreviation = str(formData.get("abbreviation"));
   const scope = str(formData.get("scope"));

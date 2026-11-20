@@ -14,12 +14,14 @@ import {
   purseBreakdown,
   type Vendor,
 } from "@/lib/db/types";
+import { requireModuleAccess } from "@/lib/auth/session";
 
 export default async function EventFinancialsTabPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireModuleAccess("events");
   const { id } = await params;
   const [detail, { data: vendors }] = await Promise.all([
     loadEventDetail(id),

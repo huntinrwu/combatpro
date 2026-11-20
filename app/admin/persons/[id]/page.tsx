@@ -22,12 +22,14 @@ import { fmtPersonNo } from "@/lib/format-utils";
 import { cmToFeetIn, cmToIn } from "@/lib/units";
 import { OFFICIAL_ROLES, SPORTS, STANCES } from "@/lib/db/types";
 import type { Fighter, Gym, Official, Person } from "@/lib/db/types";
+import { requireStaff } from "@/lib/auth/session";
 
 export default async function AdminPersonDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireStaff();
   const { id } = await params;
   const admin = createAdminClient();
 

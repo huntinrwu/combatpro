@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { db, dbErr } from "@/lib/db/client";
 import { idOrNull, orNull, toInt, toNum } from "@/lib/form-utils";
 import { requireEventCreator, requireUser } from "@/lib/auth/session";
+import { requireEventEditor } from "./[id]/_lib/require-editor";
 import { canEditEvent } from "@/lib/auth/roles";
 import {
   EVENT_TYPES,
@@ -102,6 +103,7 @@ export async function updateEvent(formData: FormData) {
 }
 
 export async function createBout(formData: FormData) {
+  await requireEventEditor(formData.get("event_id")?.toString() ?? "");
   const event_id = formData.get("event_id")?.toString();
   const sport = formData.get("sport")?.toString().trim();
 
@@ -163,6 +165,7 @@ export async function createBout(formData: FormData) {
 }
 
 export async function setCurrentBout(formData: FormData) {
+  await requireEventEditor(formData.get("event_id")?.toString() ?? "");
   const event_id = formData.get("event_id")?.toString();
   const bout_id = formData.get("bout_id")?.toString();
   if (!event_id || !bout_id) throw new Error("event_id and bout_id required.");
@@ -179,6 +182,7 @@ export async function setCurrentBout(formData: FormData) {
 }
 
 export async function clearCurrentBout(formData: FormData) {
+  await requireEventEditor(formData.get("event_id")?.toString() ?? "");
   const event_id = formData.get("event_id")?.toString();
   if (!event_id) throw new Error("event_id required.");
 
@@ -195,6 +199,7 @@ export async function clearCurrentBout(formData: FormData) {
 // End the current bout and jump to the next bout on the card that hasn't
 // declared a result yet. If no such bout exists, clears the pointer instead.
 export async function advanceToNextBout(formData: FormData) {
+  await requireEventEditor(formData.get("event_id")?.toString() ?? "");
   const event_id = formData.get("event_id")?.toString();
   const current_bout_id = formData.get("current_bout_id")?.toString();
   if (!event_id) throw new Error("event_id required.");

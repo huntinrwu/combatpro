@@ -17,6 +17,7 @@ import {
   type Official,
   type OfficialRole,
 } from "@/lib/db/types";
+import { requireModuleAccess } from "@/lib/auth/session";
 
 const VIEWS = ["list", "card", "grid", "compact", "kanban"] as const;
 
@@ -61,6 +62,7 @@ export default async function OfficialsListPage({
 }: {
   searchParams: Promise<Search>;
 }) {
+  await requireModuleAccess("officials");
   const {
     q = "",
     role = "",

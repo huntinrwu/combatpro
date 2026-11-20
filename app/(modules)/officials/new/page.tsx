@@ -1,7 +1,9 @@
 import { createOfficial } from "../actions";
 import { OfficialForm } from "../_components/official-form";
+import { requireModuleAccess } from "@/lib/auth/session";
 
-export default function NewOfficialPage() {
+export default async function NewOfficialPage() {
+  await requireModuleAccess("officials");
   return (
     <>
       <header className="mb-6">

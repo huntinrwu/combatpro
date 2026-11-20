@@ -11,6 +11,7 @@ import { KanbanBoard } from "@/components/views/kanban";
 import { CardGrid, CompactList, TableShell, TileGrid } from "@/components/views/containers";
 import { pickView } from "@/lib/view-mode";
 import { SPORTS, type Ruleset, type SanctioningBody } from "@/lib/db/types";
+import { requireModuleAccess } from "@/lib/auth/session";
 
 const VIEWS = ["list", "card", "grid", "compact", "kanban"] as const;
 
@@ -38,6 +39,7 @@ export default async function RulesListPage({
 }: {
   searchParams: Promise<Search>;
 }) {
+  await requireModuleAccess("rules");
   const { q = "", sport = "", sb = "", view: rawView } = await searchParams;
   const view = pickView(rawView, VIEWS);
 

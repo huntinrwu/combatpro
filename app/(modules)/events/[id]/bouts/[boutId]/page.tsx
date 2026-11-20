@@ -38,6 +38,7 @@ import {
   type Official,
   type Ruleset,
 } from "@/lib/db/types";
+import { requireModuleAccess } from "@/lib/auth/session";
 
 type RosterRow = Pick<EventOfficial, "id" | "official_id" | "event_role"> & {
   official: Pick<Official, "full_name"> | null;
@@ -48,6 +49,7 @@ export default async function BoutDetailPage({
 }: {
   params: Promise<{ id: string; boutId: string }>;
 }) {
+  await requireModuleAccess("events");
   const { id: eventId, boutId } = await params;
   const supabase = db();
 

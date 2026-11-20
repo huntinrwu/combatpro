@@ -5,7 +5,7 @@ import { deleteEventFile } from "./actions";
 import { FileUploader } from "./_components/file-uploader";
 import { loadEventDetail } from "../_lib/event-detail";
 import { db } from "@/lib/db/client";
-import { getSessionUser } from "@/lib/auth/session";
+import { getSessionUser, requireModuleAccess } from "@/lib/auth/session";
 import { canEditEvent } from "@/lib/auth/roles";
 import { fmtDateShort } from "@/lib/format-utils";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,7 @@ export default async function EventFilesPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireModuleAccess("events");
   const { id } = await params;
   const supabase = db();
   const [detail, session, filesRes] = await Promise.all([

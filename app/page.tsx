@@ -65,6 +65,9 @@ export default async function Home() {
   const today = new Date().toISOString().slice(0, 10);
   const roles = new Set(user.approvedRoles);
   const email = user.email.toLowerCase();
+  // ilike is only wanted for case-insensitivity; % and _ are legal in email
+  // addresses, so escape them or one account could match someone else's.
+  const exactEmail = email.replace(/[%_\\]/g, "\\$&");
 
   // Universal: upcoming events + recent fighters
   const universalPromise = Promise.all([
@@ -114,7 +117,7 @@ export default async function Home() {
         : supabase
             .from("officials")
             .select(OFFICIAL_PROFILE_COLS)
-            .ilike("contact_email", email)
+            .ilike("contact_email", exactEmail)
             .limit(1)
             .maybeSingle<OfficialProfile>())
     : null;
@@ -132,7 +135,7 @@ export default async function Home() {
         : supabase
             .from("fighters")
             .select(FIGHTER_PROFILE_COLS)
-            .ilike("contact_email", email)
+            .ilike("contact_email", exactEmail)
             .limit(1)
             .maybeSingle<FighterProfileRow>())
     : null;
@@ -168,7 +171,7 @@ export default async function Home() {
     ? supabase
         .from("gyms")
         .select(GYM_COLS)
-        .ilike("contact_email", email)
+        .ilike("contact_email", exactEmail)
         .limit(1)
         .maybeSingle<GymSummary>()
     : null;

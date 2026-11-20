@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { PLATFORM_ROLES, canCreateEvents, type PlatformRole } from "./roles";
+import { MODULE_ACCESS, PLATFORM_ROLES, canCreateEvents, type PlatformRole } from "./roles";
 
 // isStaff + approvedRoles are the EFFECTIVE view (respect the view-as
 // override). actualIsStaff + viewAsRole let staff-only UI reveal the override
@@ -109,6 +109,26 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
 export async function requireUser(): Promise<SessionUser> {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  return user;
+}
+
+// Signed in AND let in: staff, or at least one approved role. A brand-new
+// signup has neither and belongs on /pending. Pages and actions call this
+// themselves — a layout check alone can be skipped by a crafted request.
+export async function requireApprovedUser(): Promise<SessionUser> {
+  const user = await requireUser();
+  if (!user.isStaff && user.approvedRoles.length === 0) redirect("/pending");
+  return user;
+}
+
+// Approved, and holding a role that is allowed into this module (the same
+// map that decides which modules appear in the sidebar). Staff pass.
+export async function requireModuleAccess(slug: string): Promise<SessionUser> {
+  const user = await requireApprovedUser();
+  const allowed = MODULE_ACCESS[slug];
+  if (!user.isStaff && allowed && !user.approvedRoles.some((r) => allowed.includes(r))) {
+    redirect("/");
+  }
   return user;
 }
 

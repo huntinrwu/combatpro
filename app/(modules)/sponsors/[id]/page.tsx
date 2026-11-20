@@ -5,7 +5,7 @@ import { ArrowLeft, ExternalLink, Handshake, Lock } from "lucide-react";
 import { updateSponsor } from "../actions";
 import { db } from "@/lib/db/client";
 import { fmtDateShort as fmtEventDate } from "@/lib/format-utils";
-import { getSessionUser } from "@/lib/auth/session";
+import { getSessionUser, requireModuleAccess } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,6 +49,7 @@ export default async function SponsorDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireModuleAccess("sponsors");
   const { id } = await params;
   const supabase = db();
 

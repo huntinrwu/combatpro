@@ -1,7 +1,9 @@
 import { createGym } from "../actions";
 import { GymForm } from "../_components/gym-form";
+import { requireModuleAccess } from "@/lib/auth/session";
 
-export default function NewGymPage() {
+export default async function NewGymPage() {
+  await requireModuleAccess("gyms");
   return (
     <>
       <header className="mb-6">

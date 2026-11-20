@@ -12,7 +12,7 @@ import { SponsorableItemActionButton } from "../_components/sponsorable-item-del
 import { SponsorableItemDialog } from "../_components/sponsorable-item-dialog";
 import { loadEventDetail, loadEventSponsorExtras } from "../_lib/event-detail";
 import { db } from "@/lib/db/client";
-import { getSessionUser } from "@/lib/auth/session";
+import { getSessionUser, requireModuleAccess } from "@/lib/auth/session";
 import { fmtDateShort } from "@/lib/format-utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -71,6 +71,7 @@ export default async function EventSponsorsPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireModuleAccess("events");
   const { id } = await params;
   const [detail, extras, session] = await Promise.all([
     loadEventDetail(id),

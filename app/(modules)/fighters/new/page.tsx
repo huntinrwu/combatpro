@@ -2,8 +2,10 @@ import { createFighter } from "../actions";
 import { FighterForm } from "../_components/fighter-form";
 import { db } from "@/lib/db/client";
 import type { Gym } from "@/lib/db/types";
+import { requireModuleAccess } from "@/lib/auth/session";
 
 export default async function NewFighterPage() {
+  await requireModuleAccess("fighters");
   const { data: gyms } = await db().from("gyms").select("id, name").order("name");
   const gymList = (gyms ?? []) as Pick<Gym, "id" | "name">[];
 

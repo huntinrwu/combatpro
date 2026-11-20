@@ -4,7 +4,7 @@ import { CalendarClock, ClipboardList, Pencil, Users } from "lucide-react";
 
 import { db } from "@/lib/db/client";
 import { fmtDateShortWithDay as fmtEventDate } from "@/lib/format-utils";
-import { getSessionUser } from "@/lib/auth/session";
+import { getSessionUser, requireModuleAccess } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { DetailRow } from "@/components/detail-row";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ export default async function GymDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireModuleAccess("gyms");
   const { id } = await params;
   const supabase = db();
 

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronRight, CircleAlert, Plus, Search, ShieldCheck, X } from "lucide-react";
 
 import { db } from "@/lib/db/client";
-import { getSessionUser } from "@/lib/auth/session";
+import { getSessionUser, requireModuleAccess } from "@/lib/auth/session";
 import { PromotionReviewButtons } from "./_components/promotion-review-buttons";
 import { ZERO_COUNTS, countEventsBy, type EventCounts as Counts } from "@/app/_components/event-counts";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +51,7 @@ export default async function PromotionsListPage({
 }: {
   searchParams: Promise<Search>;
 }) {
+  await requireModuleAccess("promotions");
   const {
     q = "",
     state = "",

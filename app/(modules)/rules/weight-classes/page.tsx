@@ -5,8 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SPORTS } from "@/lib/db/types";
 import { weightClassesForSport, type WeightClass } from "@/lib/weight-classes";
+import { requireModuleAccess } from "@/lib/auth/session";
 
-export default function WeightClassesPage() {
+export default async function WeightClassesPage() {
+  await requireModuleAccess("rules");
   return (
     <>
       <header className="mb-6">

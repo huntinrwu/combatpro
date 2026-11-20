@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 
 import { db, dbErr } from "@/lib/db/client";
 import { idOrNull, orNull as str } from "@/lib/form-utils";
-import { requireStaff } from "@/lib/auth/session";
+import { requireModuleAccess, requireStaff } from "@/lib/auth/session";
 
 // Shared by create + update. Name is the only required field.
 function gymPayload(formData: FormData) {
@@ -26,6 +26,7 @@ function gymPayload(formData: FormData) {
 }
 
 export async function createGym(formData: FormData) {
+  await requireModuleAccess("gyms");
   const payload = gymPayload(formData);
 
   const { data, error } = await db().from("gyms").insert(payload).select("id").single();
@@ -52,6 +53,7 @@ export async function updateGym(formData: FormData) {
 }
 
 export async function assignFighterGym(formData: FormData) {
+  await requireStaff();
   const fighter_id = str(formData.get("fighter_id"));
   if (!fighter_id) throw new Error("Missing fighter_id.");
 

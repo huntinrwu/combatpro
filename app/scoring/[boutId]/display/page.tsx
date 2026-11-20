@@ -4,6 +4,7 @@ import { DisplayClient } from "./display-client";
 import { loadScoringBout, type ScoringJudge } from "../load-scoring-bout";
 import { db } from "@/lib/db/client";
 import type { BoutScorecard } from "@/lib/db/types";
+import { requireApprovedUser } from "@/lib/auth/session";
 
 export type JudgeSummary = ScoringJudge;
 
@@ -12,6 +13,7 @@ export default async function DisplayPage({
 }: {
   params: Promise<{ boutId: string }>;
 }) {
+  await requireApprovedUser();
   const { boutId } = await params;
 
   // Scorecards only depend on boutId, so fetch them alongside the bout.

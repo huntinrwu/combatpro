@@ -7,8 +7,10 @@ import { FormField } from "@/components/form-field";
 import { Input } from "@/components/ui/input";
 import { MediaField } from "@/components/forms/media-field";
 import { Textarea } from "@/components/ui/textarea";
+import { requireModuleAccess } from "@/lib/auth/session";
 
-export default function NewSponsorPage() {
+export default async function NewSponsorPage() {
+  await requireModuleAccess("sponsors");
   return (
     <>
       <header className="mb-6">

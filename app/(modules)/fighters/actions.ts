@@ -260,6 +260,7 @@ export async function backfillDeclaredFightRecords(formData: FormData) {
 }
 
 export async function updateFighterLicenses(formData: FormData) {
+  await requireStaff();
   const fighter_id = formData.get("fighter_id")?.toString();
   if (!fighter_id) throw new Error("fighter_id is required.");
 

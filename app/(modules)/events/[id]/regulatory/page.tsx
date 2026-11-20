@@ -4,12 +4,14 @@ import { BookOpen, ExternalLink } from "lucide-react";
 
 import { loadEventDetail } from "../_lib/event-detail";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { requireModuleAccess } from "@/lib/auth/session";
 
 export default async function EventRegulatoryTabPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireModuleAccess("events");
   const { id } = await params;
   const detail = await loadEventDetail(id);
   if (!detail) notFound();

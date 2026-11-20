@@ -1,8 +1,9 @@
 import { submitPromotion } from "../actions";
 import { PromotionForm } from "../_components/promotion-form";
-import { requireUser } from "@/lib/auth/session";
+import { requireModuleAccess, requireUser } from "@/lib/auth/session";
 
 export default async function SubmitPromotionPage() {
+  await requireModuleAccess("promotions");
   await requireUser();
   return (
     <>

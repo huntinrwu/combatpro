@@ -27,6 +27,7 @@ import {
   type BoutDocument,
   type Fighter,
 } from "@/lib/db/types";
+import { requireModuleAccess } from "@/lib/auth/session";
 
 type BoutRow = Bout & {
   red?: Pick<Fighter, "id" | "full_name"> | null;
@@ -39,6 +40,7 @@ export default async function EventFinalizePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireModuleAccess("events");
   const { id } = await params;
 
   const detail = await loadEventDetail(id);

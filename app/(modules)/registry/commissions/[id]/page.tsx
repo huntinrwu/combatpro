@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowUpRight, BookOpenText, Pencil, Plus, Star } from "lucide-react";
 
 import { db } from "@/lib/db/client";
-import { getSessionUser } from "@/lib/auth/session";
+import { getSessionUser, requireModuleAccess } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,7 @@ export default async function CommissionDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireModuleAccess("registry");
   const { id } = await params;
   const supabase = db();
 

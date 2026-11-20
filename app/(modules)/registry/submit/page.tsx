@@ -8,8 +8,10 @@ import { FormField } from "@/components/form-field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
+import { requireModuleAccess } from "@/lib/auth/session";
 
-export default function SubmitSanctioningBodyPage() {
+export default async function SubmitSanctioningBodyPage() {
+  await requireModuleAccess("registry");
   return (
     <>
       <header className="mb-6">

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowUpRight, CheckCircle2, Clock, Plus } from "lucide-react";
 
 import { db } from "@/lib/db/client";
-import { getSessionUser } from "@/lib/auth/session";
+import { getSessionUser, requireModuleAccess } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,6 +28,7 @@ export default async function RegistryPage({
 }: {
   searchParams: Promise<Search>;
 }) {
+  await requireModuleAccess("registry");
   const { submitted, view: rawView } = await searchParams;
   const view = pickView(rawView, VIEWS);
 

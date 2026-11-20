@@ -17,6 +17,7 @@ import {
   type PaymentMethod,
   type Vendor,
 } from "@/lib/db/types";
+import { requireModuleAccess } from "@/lib/auth/session";
 
 const RANGE_DAYS: Record<string, number> = {
   "30d": 30,
@@ -83,6 +84,7 @@ export default async function CashFlowPage({
 }: {
   searchParams: Promise<Search>;
 }) {
+  await requireModuleAccess("payments");
   const { range: rawRange } = await searchParams;
   const range = rawRange && RANGE_DAYS[rawRange] ? rawRange : "90d";
   const days = RANGE_DAYS[range];

@@ -16,6 +16,7 @@ import {
 } from "@/lib/db/types";
 import { fmtDateShort } from "@/lib/format-utils";
 import { CLEARANCE_STATUS_META as STATUS_META } from "@/lib/ui-config";
+import { requireModuleAccess } from "@/lib/auth/session";
 
 type FighterRow = Pick<Fighter, "id" | "full_name" | "primary_sport">;
 
@@ -44,6 +45,7 @@ function soonestExpiry(records: RecordRow[]): RecordRow | null {
 }
 
 export default async function MedicalPage() {
+  await requireModuleAccess("medical");
   const supabase = db();
   const [{ data: fighters }, { data: records }] = await Promise.all([
     supabase.from("fighters").select("id, full_name, primary_sport").order("full_name"),

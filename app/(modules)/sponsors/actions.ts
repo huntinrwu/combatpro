@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 
 import { db, dbErr } from "@/lib/db/client";
 import { orNull as str, toNum } from "@/lib/form-utils";
-import { requireStaff } from "@/lib/auth/session";
+import { requireModuleAccess, requireStaff } from "@/lib/auth/session";
+import { requireEventEditor } from "../events/[id]/_lib/require-editor";
 import {
   SPONSOR_TIERS,
   isBuiltInSponsorItem,
@@ -57,6 +58,7 @@ function sponsorPayload(formData: FormData, name: string) {
 }
 
 export async function createSponsor(formData: FormData) {
+  await requireModuleAccess("sponsors");
   const name = str(formData.get("name"));
   if (!name) throw new Error("Sponsor name is required.");
 
@@ -133,6 +135,7 @@ function ledgerLabelFor(
 }
 
 export async function addEventSponsor(formData: FormData) {
+  await requireEventEditor(formData.get("event_id")?.toString() ?? "");
   const event_id = str(formData.get("event_id"));
   const sponsor_id = str(formData.get("sponsor_id"));
   if (!event_id || !sponsor_id) throw new Error("event + sponsor required.");
@@ -194,6 +197,7 @@ export async function addEventSponsor(formData: FormData) {
 }
 
 export async function updateEventSponsor(formData: FormData) {
+  await requireEventEditor(formData.get("event_id")?.toString() ?? "");
   const id = str(formData.get("id"));
   const event_id = str(formData.get("event_id"));
   if (!id || !event_id) throw new Error("slot id + event required.");
@@ -272,6 +276,7 @@ export async function updateEventSponsor(formData: FormData) {
 }
 
 export async function removeEventSponsor(formData: FormData) {
+  await requireEventEditor(formData.get("event_id")?.toString() ?? "");
   const id = str(formData.get("id"));
   const event_id = str(formData.get("event_id"));
   if (!id || !event_id) throw new Error("slot id + event required.");
@@ -294,6 +299,7 @@ export async function removeEventSponsor(formData: FormData) {
 }
 
 export async function addEventSponsorableItem(formData: FormData) {
+  await requireEventEditor(formData.get("event_id")?.toString() ?? "");
   const event_id = str(formData.get("event_id"));
   if (!event_id) throw new Error("event required.");
   const label = str(formData.get("label"));
@@ -322,6 +328,7 @@ export async function addEventSponsorableItem(formData: FormData) {
 // upsert. Built-ins that have never been edited get an override row created;
 // existing rows are updated in-place. Preserves `hidden` state.
 export async function updateEventSponsorableItem(formData: FormData) {
+  await requireEventEditor(formData.get("event_id")?.toString() ?? "");
   const event_id = str(formData.get("event_id"));
   const key = str(formData.get("key"));
   if (!event_id || !key) throw new Error("event + key required.");
@@ -340,6 +347,7 @@ export async function updateEventSponsorableItem(formData: FormData) {
 }
 
 export async function removeEventSponsorableItem(formData: FormData) {
+  await requireEventEditor(formData.get("event_id")?.toString() ?? "");
   const id = str(formData.get("id"));
   const event_id = str(formData.get("event_id"));
   if (!id || !event_id) throw new Error("id + event required.");
@@ -378,6 +386,7 @@ export async function removeEventSponsorableItem(formData: FormData) {
 }
 
 export async function setEventSponsorTarget(formData: FormData) {
+  await requireEventEditor(formData.get("event_id")?.toString() ?? "");
   const event_id = str(formData.get("event_id"));
   if (!event_id) throw new Error("event required.");
   const { key: item_type } = await requireItemForEvent(formData.get("item_type"), event_id);
@@ -406,6 +415,7 @@ export async function setEventSponsorTarget(formData: FormData) {
 }
 
 export async function toggleEventSponsorPaid(formData: FormData) {
+  await requireEventEditor(formData.get("event_id")?.toString() ?? "");
   const id = str(formData.get("id"));
   const event_id = str(formData.get("event_id"));
   if (!id || !event_id) throw new Error("slot id + event required.");

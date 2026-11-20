@@ -10,7 +10,7 @@ import {
 } from "../actions";
 import { db } from "@/lib/db/client";
 import { fmtDateShort, fmtDateShortWithDay as fmtEventDate } from "@/lib/format-utils";
-import { getSessionUser } from "@/lib/auth/session";
+import { getSessionUser, requireModuleAccess } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { DetailRow } from "@/components/detail-row";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,7 @@ export default async function OfficialDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireModuleAccess("officials");
   const { id } = await params;
   const supabase = db();
 

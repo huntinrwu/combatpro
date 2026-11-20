@@ -3,7 +3,7 @@ import { ExternalLink, Handshake, Lock, Plus } from "lucide-react";
 
 import { deleteSponsor } from "./actions";
 import { db } from "@/lib/db/client";
-import { getSessionUser } from "@/lib/auth/session";
+import { getSessionUser, requireModuleAccess } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ViewSwitcher } from "@/components/view-switcher";
@@ -43,6 +43,7 @@ export default async function SponsorsListPage({
 }: {
   searchParams: Promise<Search>;
 }) {
+  await requireModuleAccess("sponsors");
   const { view: rawView } = await searchParams;
   const view = pickView(rawView, VIEWS);
 

@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getSessionUser } from "@/lib/auth/session";
+import { getSessionUser, requireModuleAccess } from "@/lib/auth/session";
 import { cmToFeetIn, cmToIn } from "@/lib/units";
 import type {
   Fighter,
@@ -55,6 +55,7 @@ type MyOfficial = Pick<
 >;
 
 export default async function MyProfilePage() {
+  await requireModuleAccess("me");
   const user = await getSessionUser();
   if (!user) redirect("/login");
   if (!user.personId) {

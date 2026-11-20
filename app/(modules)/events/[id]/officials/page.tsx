@@ -4,7 +4,7 @@ import { UserPlus, X } from "lucide-react";
 import { assignEventOfficial, unassignEventOfficial } from "./actions";
 import { loadEventDetail } from "../_lib/event-detail";
 import { db } from "@/lib/db/client";
-import { getSessionUser } from "@/lib/auth/session";
+import { getSessionUser, requireModuleAccess } from "@/lib/auth/session";
 import { canEditEvent } from "@/lib/auth/roles";
 import { OFFICIAL_ROLE_ORDER } from "@/lib/ui-config";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,7 @@ export default async function EventOfficialsPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireModuleAccess("events");
   const { id } = await params;
   const [detail, session] = await Promise.all([loadEventDetail(id), getSessionUser()]);
   if (!detail) notFound();

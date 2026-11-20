@@ -34,12 +34,14 @@ import {
   type PaymentMethod,
   type Vendor,
 } from "@/lib/db/types";
+import { requireModuleAccess } from "@/lib/auth/session";
 
 export default async function VendorDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireModuleAccess("vendors");
   const { id } = await params;
   const supabase = db();
 

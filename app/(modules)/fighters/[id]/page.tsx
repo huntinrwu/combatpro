@@ -10,7 +10,7 @@ import { WeightTrackingCard } from "../_components/weight-tracking-card";
 import { assignFighterGym } from "../../gyms/actions";
 import { updateFighterLicenses } from "../actions";
 import { db } from "@/lib/db/client";
-import { getSessionUser } from "@/lib/auth/session";
+import { getSessionUser, requireModuleAccess } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { DetailRow } from "@/components/detail-row";
 import { Button } from "@/components/ui/button";
@@ -50,6 +50,7 @@ export default async function FighterDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireModuleAccess("fighters");
   const { id } = await params;
   const supabase = db();
   const [
@@ -239,6 +240,7 @@ export default async function FighterDetailPage({
                 )
               }
             />
+            {session?.isStaff && (
             <div className="border-b border-border/50 py-1.5 last:border-b-0">
               <form action={assignFighterGym} className="flex items-center gap-2">
                 <input type="hidden" name="fighter_id" value={fighter.id} />
@@ -255,6 +257,7 @@ export default async function FighterDetailPage({
                 </Button>
               </form>
             </div>
+            )}
             <DetailRow label="Current weight class" value={fighter.weight_class} />
             <DetailRow
               label="Stance"
@@ -493,6 +496,7 @@ export default async function FighterDetailPage({
             <Textarea
               name="licenses"
               rows={3}
+              readOnly={!session?.isStaff}
               defaultValue={fighter.licenses ?? ""}
               placeholder="Free-form. e.g. WBC #12345 · FSBC lic. #6789 (exp 2027-03) · CSAC #4471"
             />
@@ -500,9 +504,11 @@ export default async function FighterDetailPage({
               <p className="text-xs text-muted-foreground">
                 Shown on the passport PDF for commission submissions.
               </p>
-              <Button type="submit" size="sm" variant="secondary">
-                Save licenses
-              </Button>
+              {session?.isStaff && (
+                <Button type="submit" size="sm" variant="secondary">
+                  Save licenses
+                </Button>
+              )}
             </div>
           </form>
         </CardContent>

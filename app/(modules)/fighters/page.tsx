@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import type { Fighter, Gym } from "@/lib/db/types";
 import { SPORTS } from "@/lib/db/types";
+import { requireModuleAccess } from "@/lib/auth/session";
 
 const VIEWS = ["list", "card", "grid", "compact", "kanban", "gallery"] as const;
 
@@ -77,6 +78,7 @@ export default async function FightersListPage({
 }: {
   searchParams: Promise<Search>;
 }) {
+  await requireModuleAccess("fighters");
   const sp = await searchParams;
   const view = pickView(sp.view, VIEWS);
   const q = (sp.q ?? "").trim().toLowerCase();

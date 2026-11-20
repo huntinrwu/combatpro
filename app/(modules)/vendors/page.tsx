@@ -24,8 +24,10 @@ import {
   type PaymentMethod,
   type Vendor,
 } from "@/lib/db/types";
+import { requireModuleAccess } from "@/lib/auth/session";
 
 export default async function VendorsPage() {
+  await requireModuleAccess("vendors");
   const supabase = db();
   const [{ data: vendors }, { data: ledger }] = await Promise.all([
     supabase

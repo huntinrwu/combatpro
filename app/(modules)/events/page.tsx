@@ -7,7 +7,7 @@ import { fmtDateShort as formatDate } from "@/lib/format-utils";
 import { EVENT_STATUS_VARIANT as STATUS_VARIANT } from "@/lib/ui-config";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { getSessionUser } from "@/lib/auth/session";
+import { getSessionUser, requireModuleAccess } from "@/lib/auth/session";
 import { canCreateEvents } from "@/lib/auth/roles";
 import { ViewSwitcher } from "@/components/view-switcher";
 import { KanbanBoard } from "@/components/views/kanban";
@@ -47,6 +47,7 @@ export default async function EventsListPage({
 }: {
   searchParams: Promise<Search>;
 }) {
+  await requireModuleAccess("events");
   const { view: rawView } = await searchParams;
   const view = pickView(rawView, VIEWS);
 

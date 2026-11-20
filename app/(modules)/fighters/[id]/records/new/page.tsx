@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { submitFightRecord } from "../../../records-actions";
 import { db } from "@/lib/db/client";
-import { requireUser } from "@/lib/auth/session";
+import { requireModuleAccess, requireUser } from "@/lib/auth/session";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormField } from "@/components/form-field";
@@ -17,6 +17,7 @@ export default async function SubmitFightRecordPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireModuleAccess("fighters");
   await requireUser();
   const { id } = await params;
   const supabase = db();

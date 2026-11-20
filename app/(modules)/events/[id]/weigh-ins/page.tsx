@@ -17,12 +17,14 @@ import {
   type BoutFighterCheck,
   type Corner,
 } from "@/lib/db/types";
+import { requireModuleAccess } from "@/lib/auth/session";
 
 export default async function WeighInsPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireModuleAccess("events");
   const { id } = await params;
 
   const detail = await loadEventDetail(id);

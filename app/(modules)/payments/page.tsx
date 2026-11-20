@@ -16,6 +16,7 @@ import {
   type EventRow,
   type LedgerEntry,
 } from "@/lib/db/types";
+import { requireModuleAccess } from "@/lib/auth/session";
 
 // The lib helpers are typed against the full rows but only read these columns.
 type PurseRow = Pick<
@@ -31,6 +32,7 @@ type PurseRow = Pick<
 type LedgerRowData = Pick<LedgerEntry, "event_id" | "entry_type" | "amount">;
 
 export default async function PaymentsPage() {
+  await requireModuleAccess("payments");
   const supabase = db();
   const [{ data: events }, { data: bouts }, { data: purses }, { data: ledger }] =
     await Promise.all([

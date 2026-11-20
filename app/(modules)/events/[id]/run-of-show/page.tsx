@@ -10,6 +10,7 @@ import { OFFICIAL_ROLE_ORDER as OFFICIAL_ORDER } from "@/lib/ui-config";
 import { Badge } from "@/components/ui/badge";
 import { EVENT_ROLE_LABELS } from "@/lib/db/types";
 import type { EventRole, Official, Ruleset } from "@/lib/db/types";
+import { requireModuleAccess } from "@/lib/auth/session";
 
 type ShowAssignment = {
   event_role: EventRole;
@@ -21,6 +22,7 @@ export default async function RunOfShowPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireModuleAccess("events");
   const { id } = await params;
   const supabase = db();
 

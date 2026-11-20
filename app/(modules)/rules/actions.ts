@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { db, dbErr } from "@/lib/db/client";
 import { idOrNull, orNull as str } from "@/lib/form-utils";
 import { requireStaff } from "@/lib/auth/session";
+import { requireEventEditor } from "../events/[id]/_lib/require-editor";
 import { extractRulesetFromPdf, type ExtractedRuleset } from "@/lib/ai/parse-ruleset";
 import { RULESET_PDF_BUCKET as BUCKET } from "./_lib/pdf-urls";
 
@@ -204,6 +205,7 @@ export async function deleteRuleset(formData: FormData) {
 }
 
 export async function assignBoutRuleset(formData: FormData) {
+  await requireEventEditor(formData.get("event_id")?.toString() ?? "");
   const bout_id = str(formData.get("bout_id"));
   const event_id = str(formData.get("event_id"));
   if (!bout_id || !event_id) throw new Error("Missing bout_id / event_id.");

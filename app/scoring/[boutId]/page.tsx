@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import type { BoutScorecard } from "@/lib/db/types";
+import { requireApprovedUser } from "@/lib/auth/session";
 
 const SCORE_OPTIONS = [10, 9, 8, 7, 6];
 
@@ -27,6 +28,7 @@ export default async function JudgeScoringPage({
   params: Promise<{ boutId: string }>;
   searchParams: Promise<{ judge?: string; round?: string }>;
 }) {
+  await requireApprovedUser();
   const { boutId } = await params;
   const { judge: judgeParam, round: roundParam } = await searchParams;
 

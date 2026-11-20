@@ -13,7 +13,7 @@ import {
 import { AddFightersPanel, type FighterCandidate } from "./_components/add-fighters-panel";
 import { loadEventDetail } from "../_lib/event-detail";
 import { db } from "@/lib/db/client";
-import { getSessionUser } from "@/lib/auth/session";
+import { getSessionUser, requireModuleAccess } from "@/lib/auth/session";
 import { canEditEvent } from "@/lib/auth/roles";
 import { CLEARANCE_STATUS_META } from "@/lib/ui-config";
 import { fighterProRecord } from "@/lib/text-utils";
@@ -96,6 +96,7 @@ export default async function EventFightersPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireModuleAccess("events");
   const { id } = await params;
   const supabase = db();
 

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { createAdminClient } from "@/lib/supabase/server";
 import { fmtPersonNo, parsePersonNo } from "@/lib/format-utils";
 import type { Person } from "@/lib/db/types";
+import { requireStaff } from "@/lib/auth/session";
 
 type PersonRow = Pick<
   Person,
@@ -32,6 +33,7 @@ export default async function PersonsAdminPage({
 }: {
   searchParams: Promise<{ q?: string; show_merged?: string }>;
 }) {
+  await requireStaff();
   const { q: qParam, show_merged } = await searchParams;
   const q = (qParam ?? "").trim();
   const includeMerged = show_merged === "1";
