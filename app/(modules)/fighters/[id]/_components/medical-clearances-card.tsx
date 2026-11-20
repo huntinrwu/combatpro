@@ -87,34 +87,40 @@ export function MedicalClearancesCard({
               </div>
             </div>
 
-            <form
-              action={addMedicalRecord}
-              className="mt-3 grid gap-2 border-t border-border/60 pt-3 sm:grid-cols-[1fr_1fr_1fr_1fr_auto]"
-            >
-              <input type="hidden" name="fighter_id" value={fighterId} />
-              <input type="hidden" name="kind" value={kind} />
-              <FormField label="Issued" htmlFor={`${kind}_issued`}>
-                <Input id={`${kind}_issued`} name="issued_on" type="date" required />
-              </FormField>
-              <FormField
-                label="Expires"
-                htmlFor={`${kind}_expires`}
-                hint={`Default: +${spec.default_expiry_months}mo`}
+            <details className="group mt-3 border-t border-border/60 pt-2">
+              <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground [&::-webkit-details-marker]:hidden">
+                <span className="group-open:hidden">+ Add a record</span>
+                <span className="hidden group-open:inline">Cancel</span>
+              </summary>
+              <form
+                action={addMedicalRecord}
+                className="mt-2 grid gap-2 sm:grid-cols-[1fr_1fr_1fr_1fr_auto]"
               >
-                <Input id={`${kind}_expires`} name="expires_on" type="date" />
-              </FormField>
-              <FormField label="Physician" htmlFor={`${kind}_phys`}>
-                <Input id={`${kind}_phys`} name="issuing_physician" placeholder="Dr. Ruiz" />
-              </FormField>
-              <FormField label="Facility / Ref" htmlFor={`${kind}_ref`}>
-                <Input id={`${kind}_ref`} name="reference" placeholder="Broward Med. Center" />
-              </FormField>
-              <div className="flex items-end">
-                <Button type="submit" size="sm">
-                  Add
-                </Button>
-              </div>
-            </form>
+                <input type="hidden" name="fighter_id" value={fighterId} />
+                <input type="hidden" name="kind" value={kind} />
+                <FormField label="Issued" htmlFor={`${kind}_issued`}>
+                  <Input id={`${kind}_issued`} name="issued_on" type="date" required />
+                </FormField>
+                <FormField
+                  label="Expires"
+                  htmlFor={`${kind}_expires`}
+                  hint={`Default: +${spec.default_expiry_months}mo`}
+                >
+                  <Input id={`${kind}_expires`} name="expires_on" type="date" />
+                </FormField>
+                <FormField label="Physician" htmlFor={`${kind}_phys`}>
+                  <Input id={`${kind}_phys`} name="issuing_physician" placeholder="Dr. Ruiz" />
+                </FormField>
+                <FormField label="Facility / Ref" htmlFor={`${kind}_ref`}>
+                  <Input id={`${kind}_ref`} name="reference" placeholder="Broward Med. Center" />
+                </FormField>
+                <div className="flex items-end">
+                  <Button type="submit" size="sm">
+                    Add
+                  </Button>
+                </div>
+              </form>
+            </details>
 
             {history.length > 1 && (
               <details className="mt-3 border-t border-border/60 pt-2 text-xs">

@@ -3,11 +3,19 @@ import type { Corner } from "@/lib/db/types";
 // Badge variant lookups used across event/payment pages. Centralized so
 // event-status colors stay consistent as we add new statuses.
 
-type BadgeVariant = "default" | "secondary" | "outline" | "destructive";
+type BadgeVariant =
+  | "default"
+  | "secondary"
+  | "outline"
+  | "destructive"
+  | "success"
+  | "warning"
+  | "info";
 
+// Draft = still being set up, scheduled = on, complete = done, canceled = off.
 export const EVENT_STATUS_VARIANT: Record<string, BadgeVariant> = {
-  draft: "outline",
-  scheduled: "default",
+  draft: "warning",
+  scheduled: "success",
   complete: "secondary",
   canceled: "destructive",
 };

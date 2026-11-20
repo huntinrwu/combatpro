@@ -11,7 +11,7 @@ import {
   type GymSummary,
   type RosterFighter,
 } from "./_components/dashboard/gym-widget";
-import { ModulesStrip } from "./_components/dashboard/modules-strip";
+import { WelcomeHero } from "./_components/dashboard/welcome-hero";
 import {
   OfficialWidget,
   type OfficialProfile,
@@ -36,7 +36,7 @@ import {
 import { db } from "@/lib/db/client";
 import { getSessionUser } from "@/lib/auth/session";
 import { eventOwnerScope } from "@/lib/auth/event-scope";
-import { ROLE_LABELS } from "@/lib/auth/roles";
+import { ROLE_LABELS, canCreateEvents } from "@/lib/auth/roles";
 import type { Bout, EventOfficial, EventRow, Fighter } from "@/lib/db/types";
 
 type EventRef = Pick<EventRow, "id" | "name" | "event_date" | "slug">;
@@ -89,6 +89,26 @@ export default async function Home() {
       .select(RECENT_FIGHTER_COLS)
       .order("created_at", { ascending: false })
       .limit(5),
+  ]);
+
+  // Headline numbers for the welcome panel (counts only, no rows).
+  const statsPromise = Promise.all([
+    (() => {
+      const q = supabase
+        .from("events")
+        .select("id", { count: "exact", head: true })
+        .gte("event_date", today)
+        .in("status", ["draft", "scheduled"]);
+      const scope = eventOwnerScope(user);
+      return scope ? q.eq("created_by", scope) : q;
+    })(),
+    supabase.from("fighters").select("id", { count: "exact", head: true }),
+    user.isStaff
+      ? supabase
+          .from("event_registrations")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "pending")
+      : Promise.resolve({ count: null }),
   ]);
 
   // Promoter widget
@@ -189,6 +209,7 @@ export default async function Home() {
     fighterProfile,
     regulatorData,
     gymRecord,
+    [upcomingCount, fighterCount, signupCount],
   ] = await Promise.all([
     universalPromise,
     promoterPromise,
@@ -196,6 +217,7 @@ export default async function Home() {
     fighterProfilePromise,
     regulatorPromise,
     gymPromise,
+    statsPromise,
   ]);
 
   // Follow-up queries that depend on the results above. The three chains
@@ -277,32 +299,23 @@ export default async function Home() {
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-10">
-      <section className="mb-8">
-        <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-          Welcome, {user.fullName ?? user.email.split("@")[0]}
-        </h1>
-        <p className="mt-2 flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
-          {user.isStaff && (
-            <span className="rounded-full border border-border/60 bg-muted/50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-foreground">
-              Staff
-            </span>
-          )}
-          {user.approvedRoles.map((r) => (
-            <span
-              key={r}
-              className="rounded-full border border-border/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider"
-            >
-              {ROLE_LABELS[r]}
-            </span>
-          ))}
-        </p>
-      </section>
+      <WelcomeHero
+        name={user.fullName ?? user.email.split("@")[0]}
+        roles={[...(user.isStaff ? ["Staff"] : []), ...user.approvedRoles.map((r) => ROLE_LABELS[r])]}
+        stats={{
+          upcomingEvents: upcomingCount.count ?? 0,
+          fighters: fighterCount.count ?? 0,
+          pendingSignups: user.isStaff ? (signupCount.count ?? 0) : null,
+        }}
+        canCreateEvent={canCreateEvents(user.approvedRoles, user.isStaff)}
+        canAddFighter={user.isStaff}
+      />
 
       <section className="mb-8">
         <GlobalSearch />
       </section>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid items-start gap-4 md:grid-cols-2">
         <UpcomingEventsWidget events={(upcomingEvents ?? []) as UpcomingEvent[]} />
         <RecentFightersWidget fighters={(recentFighters ?? []) as RecentFighter[]} />
       </div>
@@ -346,13 +359,6 @@ export default async function Home() {
           </div>
         </section>
       )}
-
-      <section className="mt-10 border-t border-border/60 pt-8">
-        <h2 className="mb-4 font-heading text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-          Modules
-        </h2>
-        <ModulesStrip approvedRoles={user.approvedRoles} isStaff={user.isStaff} />
-      </section>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { closePastEvents } from "@/lib/db/close-past-events";
 import { fmtDateShort as formatDate } from "@/lib/format-utils";
 import { EVENT_STATUS_VARIANT as STATUS_VARIANT } from "@/lib/ui-config";
 import { Badge } from "@/components/ui/badge";
+import { DateTile } from "@/components/date-tile";
 import { Button } from "@/components/ui/button";
 import { getSessionUser, requireModuleAccess } from "@/lib/auth/session";
 import { eventOwnerScope } from "@/lib/auth/event-scope";
@@ -162,12 +163,17 @@ function ListView({ events }: { events: EventListRow[] }) {
       {events.map((e) => (
             <tr key={e.id} className="hover:bg-muted/40">
               <td className="px-3 py-2">
-                <Link href={`/events/${e.id}`} className="font-medium hover:underline">
-                  {e.name}
-                </Link>
-                {e.promoter && (
-                  <div className="text-xs text-muted-foreground">{e.promoter}</div>
-                )}
+                <div className="flex items-center gap-3">
+                  <DateTile iso={e.event_date} size="sm" />
+                  <div>
+                    <Link href={`/events/${e.id}`} className="font-medium hover:underline">
+                      {e.name}
+                    </Link>
+                    {e.promoter && (
+                      <div className="text-xs text-muted-foreground">{e.promoter}</div>
+                    )}
+                  </div>
+                </div>
               </td>
               <td className="px-3 py-2 text-muted-foreground">{formatDate(e.event_date)}</td>
               <td className="px-3 py-2">

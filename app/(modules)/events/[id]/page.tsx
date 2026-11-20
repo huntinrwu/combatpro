@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Clock, Plus } from "lucide-react";
+import { Clock, Plus, Swords } from "lucide-react";
 
 import { loadEventDetail } from "./_lib/event-detail";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   checkinProgress,
   type Bout,
@@ -41,22 +41,43 @@ export default async function EventBoutsTabPage({
   }));
 
   return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between">
-        <CardTitle className="text-base">Card</CardTitle>
-        <Button
-          size="sm"
-          render={
-            <Link href={`/events/${id}/bouts/new`}>
-              <Plus className="h-3.5 w-3.5" />
-              Add bout
-            </Link>
-          }
-        />
+    <Card collapsible={false}>
+      <CardHeader>
+        <CardTitle className="text-base">Fight card ({bouts.length})</CardTitle>
+        <CardAction>
+          <Button
+            size="sm"
+            render={
+              <Link href={`/events/${id}/bouts/new`}>
+                <Plus className="h-3.5 w-3.5" />
+                Add bout
+              </Link>
+            }
+          />
+        </CardAction>
       </CardHeader>
       <CardContent>
         {bouts.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No bouts on this card yet.</p>
+          <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border py-10 text-center">
+            <Swords className="h-6 w-6 text-muted-foreground/60" />
+            <p className="text-sm font-medium">No bouts yet</p>
+            <p className="max-w-sm text-xs text-muted-foreground">
+              Add fighters on the Fighters tab, then let Matchmaking suggest pairings or add a
+              bout by hand.
+            </p>
+            <div className="mt-1 flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                render={<Link href={`/events/${id}/fighters`}>Add fighters</Link>}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                render={<Link href={`/events/${id}/matchmaking`}>Matchmaking</Link>}
+              />
+            </div>
+          </div>
         ) : (
           <ol className="space-y-3">
             {bouts.map((b, idx) => (

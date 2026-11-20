@@ -6,6 +6,8 @@
 
 @theme inline {
   --color-background: var(--background);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
@@ -52,6 +54,10 @@
   color-scheme: light;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
+  /* Championship gold: the one accent colour. Kept clear of red and blue,
+     which always mean the corners. */
+  --brand: oklch(0.8 0.15 80);
+  --brand-foreground: oklch(0.25 0.05 80);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
@@ -88,6 +94,8 @@
   color-scheme: dark;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
+  --brand: oklch(0.82 0.15 82);
+  --brand-foreground: oklch(0.25 0.05 80);
   --card: oklch(0.205 0 0);
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);

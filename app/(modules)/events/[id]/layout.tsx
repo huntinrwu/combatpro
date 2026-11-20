@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import {
   BookOpen,
   CalendarDays,
+  ChevronDown,
   DollarSign,
   Gavel,
   Handshake,
@@ -26,6 +27,14 @@ import { canEditEvent } from "@/lib/auth/roles";
 import { EVENT_STATUS_VARIANT as STATUS_VARIANT } from "@/lib/ui-config";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DateTile } from "@/components/date-tile";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { db } from "@/lib/db/client";
+import { EVENT_FILES_BUCKET } from "@/lib/event-files";
 import {
   EVENT_TYPE_LABELS,
   computeEventPnL,
@@ -42,8 +51,27 @@ export default async function EventLayout({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [detail, session] = await Promise.all([loadEventDetail(id), getSessionUser()]);
+  const [detail, session, posterRes] = await Promise.all([
+    loadEventDetail(id),
+    getSessionUser(),
+    // Latest poster, for the thumbnail beside the title.
+    db()
+      .from("event_files")
+      .select("storage_path")
+      .eq("event_id", id)
+      .eq("category", "poster")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<{ storage_path: string }>(),
+  ]);
   if (!detail) notFound();
+  const posterUrl = posterRes.data
+    ? ((
+        await db()
+          .storage.from(EVENT_FILES_BUCKET)
+          .createSignedUrl(posterRes.data.storage_path, 60 * 60)
+      ).data?.signedUrl ?? null)
+    : null;
   const { event, bouts, checks, purses, ledger, sponsorSlots } = detail;
   const canEdit = session ? canEditEvent(event, session) : false;
 
@@ -59,6 +87,23 @@ export default async function EventLayout({
   const sponsorTotals = sponsorshipTotals(sponsorSlots);
 
   const basePath = `/events/${event.id}`;
+  const moreLinks = [
+    { href: `${basePath}/run-of-show`, label: "Run of show", Icon: ListOrdered, external: false },
+    { href: `${basePath}/finalize`, label: "Finalize results", Icon: Trophy, external: false },
+    ...(event.sanctioning_body_id
+      ? [
+          {
+            href: `/sb/${event.sanctioning_body_id}`,
+            label: "Sanctioning body view",
+            Icon: ShieldCheck,
+            external: false,
+          },
+        ]
+      : []),
+    ...(event.slug && (event.status === "scheduled" || event.status === "complete")
+      ? [{ href: `/e/${event.slug}`, label: "Public page", Icon: Share2, external: true }]
+      : []),
+  ];
   const iconClass = "h-3.5 w-3.5";
   const tabs: EventTab[] = [
     { slug: "bouts", label: "Bouts", icon: <CalendarDays className={iconClass} />, href: basePath },
@@ -75,23 +120,48 @@ export default async function EventLayout({
   return (
     <>
       <header className="mb-4 print:hidden">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
-            {event.name}
-          </h1>
-          <Badge variant={STATUS_VARIANT[event.status] ?? "outline"} className="capitalize">
-            {event.status}
-          </Badge>
-          <Badge variant="secondary" className="capitalize">
-            {event.primary_sport}
-          </Badge>
-          {event.event_type && (
-            <Badge variant="outline">{EVENT_TYPE_LABELS[event.event_type]}</Badge>
+        <div className="flex flex-wrap items-start gap-4">
+          {posterUrl ? (
+            <Link href={`${basePath}/files`} title="Event poster" className="shrink-0">
+              {/* Signed URL, so next/image caching doesn't apply. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={posterUrl}
+                alt=""
+                className="h-20 w-[3.75rem] rounded-md border border-border object-cover shadow-sm"
+              />
+            </Link>
+          ) : (
+            <DateTile iso={event.event_date} />
           )}
-          {event.medicals_required === false && (
-            <Badge variant="outline">No medicals required</Badge>
-          )}
-          <div className="ml-auto flex items-center gap-2">
+
+          <div className="min-w-0 flex-1">
+            <h1 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
+              {event.name}
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {formatDate(event.event_date)}
+              {event.venue ? ` · ${event.venue}` : ""}
+              {event.city ? `, ${event.city}` : ""}
+              {event.state ? `, ${event.state}` : ""}
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <Badge variant={STATUS_VARIANT[event.status] ?? "outline"} className="capitalize">
+                {event.status}
+              </Badge>
+              <Badge variant="secondary" className="capitalize">
+                {event.primary_sport}
+              </Badge>
+              {event.event_type && (
+                <Badge variant="outline">{EVENT_TYPE_LABELS[event.event_type]}</Badge>
+              )}
+              {event.medicals_required === false && (
+                <Badge variant="outline">No medicals required</Badge>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
             {canEdit && (
               <Button
                 size="sm"
@@ -106,16 +176,6 @@ export default async function EventLayout({
             )}
             <Button
               size="sm"
-              variant="outline"
-              render={
-                <Link href={`${basePath}/run-of-show`}>
-                  <ListOrdered className="h-3.5 w-3.5" />
-                  Run of show
-                </Link>
-              }
-            />
-            <Button
-              size="sm"
               render={
                 <Link href={`/live/${event.id}`}>
                   <Radio className="h-3.5 w-3.5" />
@@ -123,48 +183,43 @@ export default async function EventLayout({
                 </Link>
               }
             />
-            <Button
-              size="sm"
-              variant="outline"
-              render={
-                <Link href={`${basePath}/finalize`}>
-                  <Trophy className="h-3.5 w-3.5" />
-                  Finalize
-                </Link>
-              }
-            />
-            {event.sanctioning_body_id && (
-              <Button
-                size="sm"
-                variant="outline"
-                render={
-                  <Link href={`/sb/${event.sanctioning_body_id}`}>
-                    <ShieldCheck className="h-3.5 w-3.5" />
-                    SB view
-                  </Link>
-                }
-              />
-            )}
-            {event.slug && (event.status === "scheduled" || event.status === "complete") && (
-              <Button
-                size="sm"
-                variant="outline"
-                render={
-                  <a href={`/e/${event.slug}`} target="_blank" rel="noopener">
-                    <Share2 className="h-3.5 w-3.5" />
-                    Public page
-                  </a>
-                }
-              />
-            )}
+            {/* Less-used destinations live in one menu so the header stays calm. */}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2.5 text-[0.8rem] font-medium hover:bg-muted"
+                aria-label="More event pages"
+              >
+                More
+                <ChevronDown className="h-3.5 w-3.5" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[200px] p-1">
+                {moreLinks.map(({ href, label, Icon, external }) =>
+                  external ? (
+                    <a
+                      key={href}
+                      href={href}
+                      target="_blank"
+                      rel="noopener"
+                      className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+                    >
+                      <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                      {label}
+                    </a>
+                  ) : (
+                    <Link
+                      key={href}
+                      href={href}
+                      className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+                    >
+                      <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                      {label}
+                    </Link>
+                  ),
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {formatDate(event.event_date)}
-          {event.venue ? ` · ${event.venue}` : ""}
-          {event.city ? `, ${event.city}` : ""}
-          {event.state ? `, ${event.state}` : ""}
-        </p>
       </header>
 
       <MetricsStrip

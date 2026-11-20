@@ -390,7 +390,7 @@ function CardView({ fighters, gymMap }: { fighters: FighterRow[]; gymMap: Map<st
           <div className="flex items-start gap-3">
             <Avatar size="lg">
               {f.photo_url && <AvatarImage src={f.photo_url} alt={f.full_name} />}
-              <AvatarFallback>{initials(f.full_name)}</AvatarFallback>
+              <AvatarFallback seed={f.full_name}>{initials(f.full_name)}</AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
               <div className="truncate font-heading font-medium">{f.full_name}</div>
@@ -443,7 +443,7 @@ function GridView({ fighters, gymMap }: { fighters: FighterRow[]; gymMap: Map<st
         >
           <Avatar size="lg" className="mb-2 !size-16">
             {f.photo_url && <AvatarImage src={f.photo_url} alt={f.full_name} />}
-            <AvatarFallback>{initials(f.full_name)}</AvatarFallback>
+            <AvatarFallback seed={f.full_name}>{initials(f.full_name)}</AvatarFallback>
           </Avatar>
           <div className="w-full truncate text-sm font-medium">{f.full_name}</div>
           <div className="w-full truncate text-[10px] capitalize text-muted-foreground">

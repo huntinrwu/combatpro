@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -20,6 +19,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { PLATFORM_ROLES, ROLE_LABELS, type PlatformRole } from "@/lib/auth/roles";
 import { setViewAsRole } from "@/lib/auth/view-as";
@@ -146,7 +146,7 @@ export function Sidebar({
           )}
           title="CombatPro"
         >
-          <Image src="/logo-mark.svg" alt="" width={22} height={22} loading="eager" />
+          <Logo size={24} />
           {!iconOnly && <span>CombatPro</span>}
         </Link>
         {/* Mobile close — only inside the drawer. */}
@@ -209,7 +209,7 @@ export function Sidebar({
                           "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
                           iconOnly && "justify-center",
                           active
-                            ? "bg-muted text-foreground"
+                            ? "bg-muted font-medium text-foreground shadow-[inset_3px_0_0_var(--brand)]"
                             : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                         )}
                       >
@@ -241,7 +241,7 @@ export function Sidebar({
                     "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
                     iconOnly && "justify-center",
                     pathname.startsWith("/admin")
-                      ? "bg-muted text-foreground"
+                      ? "bg-muted font-medium text-foreground shadow-[inset_3px_0_0_var(--brand)]"
                       : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                   )}
                 >

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ClipboardList, Plus, Swords, UserPlus, Users, X } from "lucide-react";
+import { ClipboardList, Pencil, Plus, Swords, UserPlus, Users, X } from "lucide-react";
 
 import {
   acceptRegistration,
@@ -16,7 +16,8 @@ import { db } from "@/lib/db/client";
 import { getSessionUser, requireModuleAccess } from "@/lib/auth/session";
 import { canEditEvent } from "@/lib/auth/roles";
 import { CLEARANCE_STATUS_META } from "@/lib/ui-config";
-import { fighterProRecord } from "@/lib/text-utils";
+import { fighterProRecord, initials } from "@/lib/text-utils";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,9 +82,9 @@ const STATUS_ORDER: Record<EventFighterStatus, number> = {
   withdrawn: 2,
 };
 
-const STATUS_BADGE: Record<EventFighterStatus, "default" | "outline" | "destructive"> = {
-  confirmed: "default",
-  pending: "outline",
+const STATUS_BADGE: Record<EventFighterStatus, "success" | "warning" | "destructive"> = {
+  confirmed: "success",
+  pending: "warning",
   withdrawn: "destructive",
 };
 
@@ -230,8 +231,7 @@ export default async function EventFightersPage({
           <CardContent>
             {canEdit && rows.length > 0 && (
               <p className="mb-3 text-xs text-muted-foreground">
-                Weight class is set per event. Enter a target weight and leave the class on
-                &quot;none&quot; to have it worked out for you, or pick a class to override.
+                Weight class is set per event. Use Edit on a fighter to set their target weight.
               </p>
             )}
             {rows.length === 0 ? (
@@ -247,7 +247,12 @@ export default async function EventFightersPage({
                   const meta = clearance ? CLEARANCE_STATUS_META[clearance.worstStatus] : null;
                   return (
                     <li key={entry.id} className="space-y-2 px-3 py-3">
-                      <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+                      <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
+                        <Avatar className="mt-0.5 size-9">
+                          <AvatarFallback seed={f?.full_name ?? "?"} className="text-xs">
+                            {f ? initials(f.full_name) : "?"}
+                          </AvatarFallback>
+                        </Avatar>
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             {f ? (
@@ -364,6 +369,13 @@ export default async function EventFightersPage({
                       </div>
 
                       {canEdit && (
+                        <details className="group">
+                          <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground [&::-webkit-details-marker]:hidden">
+                            <Pencil className="h-3 w-3" />
+                            <span className="group-open:hidden">Edit status, weight, notes</span>
+                            <span className="hidden group-open:inline">Hide</span>
+                          </summary>
+                          <div className="mt-2">
                         <ToastedForm
                           action={updateEventFighter}
                           successMessage="Saved"
@@ -423,6 +435,8 @@ export default async function EventFightersPage({
                             Save
                           </Button>
                         </ToastedForm>
+                          </div>
+                        </details>
                       )}
                     </li>
                   );

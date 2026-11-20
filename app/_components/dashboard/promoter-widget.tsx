@@ -47,7 +47,7 @@ export function PromoterWidget({
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{e.name}</span>
-                        <Badge variant={STATUS_VARIANT[e.status] ?? "outline"}>
+                        <Badge variant={STATUS_VARIANT[e.status] ?? "outline"} className="capitalize">
                           {e.status}
                         </Badge>
                       </div>

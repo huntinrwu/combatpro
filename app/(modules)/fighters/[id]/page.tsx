@@ -397,7 +397,7 @@ export default async function FighterDetailPage({
         </CardContent>
       </Card>
 
-      <Card className="mt-6">
+      <Card className="mt-6" defaultOpen={false}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Landmark className="h-4 w-4" />
@@ -465,7 +465,7 @@ export default async function FighterDetailPage({
           </CardContent>
         </Card>
 
-        <Card>
+        <Card defaultOpen={false}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Scale className="h-4 w-4" />
@@ -483,7 +483,7 @@ export default async function FighterDetailPage({
         </Card>
       </div>
 
-      <Card className="mt-6">
+      <Card className="mt-6" defaultOpen={false}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <IdCard className="h-4 w-4" />

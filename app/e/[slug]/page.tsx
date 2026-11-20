@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -28,6 +27,7 @@ import {
   type Sponsor,
   type SponsorTier,
 } from "@/lib/db/types";
+import { Logo } from "@/components/logo";
 
 // cache()d so generateMetadata and the page share one query per request.
 const loadEvent = cache(async (slug: string) => {
@@ -185,13 +185,7 @@ export default async function PublicEventPage({
       <header className="border-b border-border/60 bg-neutral-950 text-white">
         <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2.5 font-heading text-sm tracking-wide">
-            <Image
-              src="/logo-mark.svg"
-              alt=""
-              width={22}
-              height={22}
-              className="text-white [&_rect]:fill-white [&_path]:stroke-neutral-950"
-            />
+            <Logo size={24} />
             <span>CombatPro</span>
           </Link>
           <div className="flex items-center gap-3 text-white/50">

@@ -38,15 +38,34 @@ function AvatarImage({ className, ...props }: AvatarPrimitive.Image.Props) {
   )
 }
 
+// Soft tints for initials avatars. `seed` (usually the person's name) picks
+// one, so the same person is always the same colour.
+const AVATAR_TONES = [
+  "bg-amber-500/15 text-amber-800 dark:text-amber-200",
+  "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200",
+  "bg-sky-500/15 text-sky-800 dark:text-sky-200",
+  "bg-violet-500/15 text-violet-800 dark:text-violet-200",
+  "bg-rose-500/15 text-rose-800 dark:text-rose-200",
+  "bg-teal-500/15 text-teal-800 dark:text-teal-200",
+]
+
+function avatarTone(seed: string): string {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
+  return AVATAR_TONES[h % AVATAR_TONES.length]
+}
+
 function AvatarFallback({
   className,
+  seed,
   ...props
-}: AvatarPrimitive.Fallback.Props) {
+}: AvatarPrimitive.Fallback.Props & { seed?: string }) {
   return (
     <AvatarPrimitive.Fallback
       data-slot="avatar-fallback"
       className={cn(
-        "flex size-full items-center justify-center rounded-full bg-muted text-sm text-muted-foreground group-data-[size=sm]/avatar:text-xs",
+        "flex size-full items-center justify-center rounded-full text-sm font-medium group-data-[size=sm]/avatar:text-xs",
+        seed ? avatarTone(seed) : "bg-muted text-muted-foreground",
         className
       )}
       {...props}

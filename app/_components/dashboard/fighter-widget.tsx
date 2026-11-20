@@ -75,7 +75,7 @@ export function FighterWidget({
                 {profile.photo_url && (
                   <AvatarImage src={profile.photo_url} alt={profile.full_name} />
                 )}
-                <AvatarFallback>{initials(profile.full_name)}</AvatarFallback>
+                <AvatarFallback seed={profile.full_name}>{initials(profile.full_name)}</AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
                 <div className="font-medium truncate">{profile.full_name}</div>

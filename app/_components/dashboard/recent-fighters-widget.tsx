@@ -39,7 +39,7 @@ export function RecentFightersWidget({ fighters }: { fighters: RecentFighter[] }
                 <Link href={`/fighters/${f.id}`} className="flex items-center gap-3">
                   <Avatar className="h-9 w-9">
                     {f.photo_url && <AvatarImage src={f.photo_url} alt={f.full_name} />}
-                    <AvatarFallback className="text-xs">
+                    <AvatarFallback className="text-xs" seed={f.full_name}>
                       {initials(f.full_name)}
                     </AvatarFallback>
                   </Avatar>
