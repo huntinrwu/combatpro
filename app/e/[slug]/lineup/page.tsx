@@ -8,9 +8,8 @@ import { RealtimeRefresher } from "../_components/realtime-refresher";
 import { db } from "@/lib/db/client";
 import { fmtDateLong } from "@/lib/format-utils";
 import { parseBoard } from "@/lib/matchmaking";
-import { weightClassesForSport } from "@/lib/weight-classes";
 import { Logo } from "@/components/logo";
-import type { EventRow, EventRosterEntry, Fighter, Gym } from "@/lib/db/types";
+import { num, type EventRow, type EventRosterEntry, type Fighter, type Gym } from "@/lib/db/types";
 
 type LineupEvent = Pick<
   EventRow,
@@ -37,9 +36,9 @@ export async function generateMetadata({
   return { title: event ? `Fighters & matchups — ${event.name}` : "Event not found — CombatPro" };
 }
 
-// Only what is fine to show the public: name, gym, weight class. No ages,
+// Only what is fine to show the public: name, gym, target weight. No ages,
 // contact details or medical information.
-type RosterRow = Pick<EventRosterEntry, "id" | "fighter_id" | "weight_class"> & {
+type RosterRow = Pick<EventRosterEntry, "id" | "fighter_id" | "target_weight_lbs"> & {
   fighter:
     | (Pick<Fighter, "full_name" | "gym" | "gym_id"> & { gym_ref: Pick<Gym, "name"> | null })
     | null;
@@ -47,7 +46,7 @@ type RosterRow = Pick<EventRosterEntry, "id" | "fighter_id" | "weight_class"> & 
 
 type BoutRow = {
   id: string;
-  weight_class: string | null;
+  contracted_weight_lbs: number | string | null;
   red_corner_fighter_id: string | null;
   blue_corner_fighter_id: string | null;
   red: Pick<Fighter, "full_name"> | null;
@@ -71,14 +70,14 @@ export default async function PublicLineupPage({
     supabase
       .from("event_fighters")
       .select(
-        "id, fighter_id, weight_class, fighter:fighters(full_name, gym, gym_id, gym_ref:gyms(name))",
+        "id, fighter_id, target_weight_lbs, fighter:fighters(full_name, gym, gym_id, gym_ref:gyms(name))",
       )
       .eq("event_id", event.id)
       .neq("status", "withdrawn"),
     supabase
       .from("bouts")
       .select(
-        "id, weight_class, red_corner_fighter_id, blue_corner_fighter_id, red:fighters!red_corner_fighter_id(full_name), blue:fighters!blue_corner_fighter_id(full_name)",
+        "id, contracted_weight_lbs, red_corner_fighter_id, blue_corner_fighter_id, red:fighters!red_corner_fighter_id(full_name), blue:fighters!blue_corner_fighter_id(full_name)",
       )
       .eq("event_id", event.id)
       .order("bout_order", { ascending: true, nullsFirst: false }),
@@ -91,8 +90,10 @@ export default async function PublicLineupPage({
       fighterId: r.fighter_id,
       name: r.fighter!.full_name,
       gym: (r.fighter!.gym_id ? r.fighter!.gym_ref?.name : r.fighter!.gym) ?? null,
-      weightClass: r.weight_class,
-    }));
+      lbs: r.target_weight_lbs != null ? num(r.target_weight_lbs) : null,
+    }))
+    // Lightest first; fighters with no target weight yet go last.
+    .sort((a, b) => (a.lbs ?? 9999) - (b.lbs ?? 9999) || a.name.localeCompare(b.name));
   const byEntry = new Map(roster.map((r) => [r.id, r]));
   const bouts = (boutsRes.data ?? []) as unknown as BoutRow[];
 
@@ -104,12 +105,12 @@ export default async function PublicLineupPage({
 
   // Matchups: bouts already on the card, then the matchmaker's saved pairings
   // for fighters who aren't on a bout yet.
-  const matchups: { key: string; red: string; blue: string; weightClass: string | null }[] =
+  const matchups: { key: string; red: string; blue: string; weight: string | null }[] =
     bouts.map((b) => ({
       key: b.id,
       red: b.red?.full_name ?? "TBD",
       blue: b.blue?.full_name ?? "TBD",
-      weightClass: b.weight_class,
+      weight: b.contracted_weight_lbs != null ? `${num(b.contracted_weight_lbs)} lbs` : null,
     }));
   const board = parseBoard((event.matchmaking as { board?: unknown } | null)?.board);
   const used = new Set<string>();
@@ -124,35 +125,14 @@ export default async function PublicLineupPage({
       key: `${a.id}|${b.id}`,
       red: a.name,
       blue: b.name,
-      weightClass:
-        a.weightClass && a.weightClass === b.weightClass
-          ? a.weightClass
-          : ([a.weightClass, b.weightClass].filter(Boolean).join(" / ") || null),
+      weight:
+        a.lbs != null && a.lbs === b.lbs
+          ? `${a.lbs} lbs`
+          : a.lbs != null || b.lbs != null
+            ? `${a.lbs != null ? `${a.lbs} lbs` : "TBD"} vs ${b.lbs != null ? `${b.lbs} lbs` : "TBD"}`
+            : null,
     });
   }
-
-  // Brackets: everyone registered, grouped by weight class, lightest first.
-  const classes = weightClassesForSport(event.primary_sport) ?? [];
-  const rank = (name: string) => {
-    const i = classes.findIndex((c) => c.name.toLowerCase() === name.toLowerCase());
-    return i < 0 ? classes.length : i;
-  };
-  const groups = new Map<string, typeof roster>();
-  for (const r of roster) {
-    const key = r.weightClass ?? "";
-    groups.set(key, [...(groups.get(key) ?? []), r]);
-  }
-  const brackets = [...groups.entries()]
-    .map(([name, members]) => ({
-      name,
-      members: members.sort((a, b) => a.name.localeCompare(b.name)),
-    }))
-    .sort(
-      (a, b) =>
-        Number(a.name === "") - Number(b.name === "") ||
-        rank(a.name) - rank(b.name) ||
-        a.name.localeCompare(b.name),
-    );
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
@@ -216,9 +196,9 @@ export default async function PublicLineupPage({
                       {m.blue}
                     </span>
                   </div>
-                  {m.weightClass && (
+                  {m.weight && (
                     <div className="mt-1 text-center text-xs text-muted-foreground">
-                      {m.weightClass}
+                      {m.weight}
                     </div>
                   )}
                 </li>
@@ -237,26 +217,19 @@ export default async function PublicLineupPage({
               No fighters registered yet.
             </div>
           ) : (
-            <div className="space-y-5">
-              {brackets.map((g) => (
-                <div key={g.name}>
-                  <div className="mb-1.5 flex items-baseline gap-2 text-sm font-medium">
-                    {g.name || "Weight class to be decided"}
-                    <span className="text-xs font-normal text-muted-foreground">
-                      {g.members.length}
-                    </span>
-                  </div>
-                  <ul className="divide-y divide-border rounded-lg border border-border/70 text-sm">
-                    {g.members.map((f) => (
-                      <li key={f.id} className="flex flex-wrap justify-between gap-2 px-4 py-2">
-                        <span>{f.name}</span>
-                        {f.gym && <span className="text-xs text-muted-foreground">{f.gym}</span>}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+            <ul className="divide-y divide-border rounded-lg border border-border/70 text-sm">
+              {roster.map((f) => (
+                <li key={f.id} className="flex items-baseline justify-between gap-3 px-4 py-2">
+                  <span>
+                    {f.name}
+                    {f.gym && <span className="ml-2 text-xs text-muted-foreground">{f.gym}</span>}
+                  </span>
+                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                    {f.lbs != null ? `${f.lbs} lbs` : "Weight TBD"}
+                  </span>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
         </section>
 
