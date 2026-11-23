@@ -320,3 +320,30 @@ export function pairFlags(a: Candidate, b: Candidate, s: MatchmakingSettings): s
   if (a.gym && b.gym && a.gym === b.gym) flags.push("Same gym");
   return flags;
 }
+
+// The matchmaker's board as saved on the event (events.matchmaking.board), so
+// it is shared between devices and can be shown on the public lineup page.
+export type SavedBoard = {
+  priorities: MatchKey[];
+  // Roster entry ids; a slot can be empty while a pairing is being built.
+  pairs: [string | null, string | null][];
+  bench: string[];
+};
+
+export function parseBoard(raw: unknown): SavedBoard | null {
+  const r = raw as { priorities?: unknown; pairs?: unknown; bench?: unknown } | null;
+  if (!r || typeof r !== "object" || !Array.isArray(r.pairs) || !Array.isArray(r.bench)) {
+    return null;
+  }
+  const id = (v: unknown) => (typeof v === "string" && v.length <= 64 ? v : null);
+  return {
+    priorities: (Array.isArray(r.priorities) ? r.priorities : []).filter((k): k is MatchKey =>
+      (MATCH_KEYS as readonly unknown[]).includes(k),
+    ),
+    pairs: r.pairs
+      .filter((p): p is unknown[] => Array.isArray(p))
+      .slice(0, 500)
+      .map((p) => [id(p[0]), id(p[1])] as [string | null, string | null]),
+    bench: r.bench.map(id).filter((v): v is string => v != null).slice(0, 1000),
+  };
+}

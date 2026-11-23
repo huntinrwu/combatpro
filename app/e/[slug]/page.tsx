@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { cache } from "react";
+import { headers } from "next/headers";
+import QRCode from "qrcode";
 import {
   CalendarDays,
   Clock,
@@ -179,6 +181,18 @@ export default async function PublicEventPage({
   const sb = sbRes.data;
 
   const declared = enriched.filter((b) => b.result).length;
+
+  // QR code for the fighters-and-matchups page, built from the address this
+  // page was reached on so it works on any domain.
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const lineupPath = `/e/${slug}/lineup`;
+  const lineupQr = host
+    ? await QRCode.toString(
+        `${h.get("x-forwarded-proto") ?? "https"}://${host}${lineupPath}`,
+        { type: "svg", margin: 1, errorCorrectionLevel: "M" },
+      ).catch(() => null)
+    : null;
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
@@ -374,6 +388,37 @@ export default async function PublicEventPage({
             </div>
           </section>
         )}
+        <section className="mb-2">
+          <div className="flex flex-col items-center gap-5 rounded-lg border border-border/60 bg-muted/20 p-5 sm:flex-row">
+            {lineupQr && (
+              <Link href={lineupPath} aria-label="Fighters and tentative matchups" className="shrink-0">
+                {/* SVG produced by the qrcode library from our own URL. */}
+                <div
+                  className="h-36 w-36 rounded-md bg-white p-1"
+                  dangerouslySetInnerHTML={{ __html: lineupQr }}
+                />
+              </Link>
+            )}
+            <div className="text-center sm:text-left">
+              <h2 className="font-heading text-lg font-semibold tracking-tight">
+                Fighters &amp; tentative matchups
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Scan the code or tap the link to see who is registered and the current brackets,
+                updated live.
+              </p>
+              <Link
+                href={lineupPath}
+                className="mt-3 inline-flex h-9 items-center rounded-lg border border-border bg-background px-4 text-sm font-medium hover:bg-muted"
+              >
+                View fighters and matchups
+              </Link>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Brackets are temporary and are not guaranteed on the day of the event.
+              </p>
+            </div>
+          </div>
+        </section>
       </main>
 
       <footer className="border-t border-border/60 bg-muted/20">

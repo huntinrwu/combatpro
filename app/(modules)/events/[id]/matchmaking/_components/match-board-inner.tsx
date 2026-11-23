@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
+
+import { saveMatchBoard } from "../../fighters/actions";
 import { Plus } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +15,7 @@ import {
   MATCH_KEY_LABELS,
   arrangeFighters,
   pairFlags,
+  parseBoard,
   type Candidate,
   type MatchKey,
   type MatchmakingSettings,
@@ -49,20 +53,7 @@ function reconcile(board: Board, candidates: Candidate[]): Board {
 
 function load(key: string): Board | null {
   try {
-    const raw = JSON.parse(window.localStorage.getItem(key) ?? "null");
-    if (!raw || !Array.isArray(raw.pairs) || !Array.isArray(raw.bench)) return null;
-    return {
-      priorities: (Array.isArray(raw.priorities) ? raw.priorities : []).filter((k: unknown) =>
-        (MATCH_KEYS as readonly unknown[]).includes(k),
-      ),
-      pairs: raw.pairs
-        .filter((p: unknown) => Array.isArray(p))
-        .map((p: unknown[]) => [
-          typeof p[0] === "string" ? p[0] : null,
-          typeof p[1] === "string" ? p[1] : null,
-        ]),
-      bench: raw.bench.filter((id: unknown) => typeof id === "string"),
-    };
+    return parseBoard(JSON.parse(window.localStorage.getItem(key) ?? "null"));
   } catch {
     return null;
   }
@@ -87,15 +78,18 @@ export default function MatchBoardInner({
   candidates,
   settings,
   canEdit,
+  savedBoard,
 }: {
   eventId: string;
   candidates: Candidate[];
   settings: MatchmakingSettings;
   canEdit: boolean;
+  // The board last saved on the event, if any.
+  savedBoard: Board | null;
 }) {
   const storageKey = `combatpro-matchboard-${eventId}`;
   const [saved, setSaved] = useState<Board>(
-    () => load(storageKey) ?? fresh(candidates, [], settings),
+    () => savedBoard ?? load(storageKey) ?? fresh(candidates, [], settings),
   );
   // Fighter picked up by tapping, waiting for a place to go.
   const [picked, setPicked] = useState<string | null>(null);
@@ -113,6 +107,9 @@ export default function MatchBoardInner({
     } catch {
       // Private browsing or a full disk: the board still works for this visit.
     }
+    if (!canEdit) return;
+    // Saved on the event too, so other devices and the public lineup page see it.
+    saveMatchBoard(eventId, next).catch(() => toast.error("Couldn't save the board."));
   }
 
   function togglePriority(key: MatchKey | null) {
@@ -317,6 +314,7 @@ export default function MatchBoardInner({
             ? "Balanced suggestions using the rules for this event."
             : "Fighters are lined up in the order you picked, and neighbours are paired."}{" "}
           Drag a fighter to move them, or tap one and then tap where they should go.
+          {canEdit && " Pairings here show on the public lineup page as tentative."}
         </p>
       </div>
 

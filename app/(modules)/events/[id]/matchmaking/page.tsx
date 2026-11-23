@@ -7,7 +7,7 @@ import { MatchBoard } from "./_components/match-board";
 import { db } from "@/lib/db/client";
 import { getSessionUser, requireModuleAccess } from "@/lib/auth/session";
 import { canEditEvent } from "@/lib/auth/roles";
-import { parseMatchmaking, totalFights, totalWins, type Candidate } from "@/lib/matchmaking";
+import { parseBoard, parseMatchmaking, totalFights, totalWins, type Candidate } from "@/lib/matchmaking";
 import { weightClassesForSport } from "@/lib/weight-classes";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -124,6 +124,7 @@ export default async function EventMatchmakingPage({
                 candidates={available}
                 settings={settings}
                 canEdit={canEdit}
+                savedBoard={parseBoard((event.matchmaking as { board?: unknown } | null)?.board)}
               />
             </CardContent>
           </Card>

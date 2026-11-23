@@ -6,7 +6,12 @@ import { db, dbErr } from "@/lib/db/client";
 import { syncFighterWeightClass } from "@/lib/db/fighter-weight-class";
 import { requireEventEditor, type EditableEvent } from "../_lib/require-editor";
 import { idOrNull, orNull, toNum } from "@/lib/form-utils";
-import { defaultCompetingAs, parseMatchmaking, type MatchmakingSettings } from "@/lib/matchmaking";
+import {
+  defaultCompetingAs,
+  parseBoard,
+  parseMatchmaking,
+  type MatchmakingSettings,
+} from "@/lib/matchmaking";
 import { weightClassFor } from "@/lib/weight-classes";
 import {
   EVENT_FIGHTER_STATUSES,
@@ -231,9 +236,35 @@ export async function saveMatchmakingSettings(formData: FormData) {
     allowSameGym: formData.get("allowSameGym") === "on",
   });
 
-  const { error } = await db().from("events").update({ matchmaking: settings }).eq("id", event_id);
-  if (error) dbErr(error);
+  await writeMatchmaking(event_id, settings);
   revalidatePath(`/events/${event_id}/matchmaking`);
+}
+
+// events.matchmaking holds both the rules and the saved board; each is
+// written without disturbing the other.
+async function writeMatchmaking(eventId: string, patch: Record<string, unknown>) {
+  const supabase = db();
+  const { data } = await supabase
+    .from("events")
+    .select("matchmaking")
+    .eq("id", eventId)
+    .maybeSingle<{ matchmaking: unknown }>();
+  const current =
+    data?.matchmaking && typeof data.matchmaking === "object" ? data.matchmaking : {};
+  const { error } = await supabase
+    .from("events")
+    .update({ matchmaking: { ...current, ...patch } })
+    .eq("id", eventId);
+  if (error) dbErr(error);
+}
+
+// Save the matchmaking board. Its pairings appear on the public lineup page.
+export async function saveMatchBoard(eventId: string, board: unknown) {
+  if (!eventId) throw new Error("Missing event.");
+  await requireEventEditor(eventId);
+  const parsed = parseBoard(board);
+  if (!parsed) throw new Error("Invalid board.");
+  await writeMatchmaking(eventId, { board: parsed });
 }
 
 // ── Public sign-ups ────────────────────────────────────────────────────────
