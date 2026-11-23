@@ -41,6 +41,7 @@ export const MODULE_ACCESS: Record<string, PlatformRole[]> = {
   events: [...PLATFORM_ROLES],
   fighters: [...PLATFORM_ROLES],
   gyms: ["promoter", "commission", "sanctioning_body", "coach", "gym_owner"],
+  coaches: ["promoter", "commission", "sanctioning_body", "coach", "gym_owner"],
   officials: ["promoter", "commission", "sanctioning_body", "official"],
   promotions: ["promoter", "commission", "sanctioning_body", "coach", "gym_owner", "fighter", "official"],
   medical: ["commission", "sanctioning_body", "official"],

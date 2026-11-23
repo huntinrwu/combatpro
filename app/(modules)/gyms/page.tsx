@@ -17,7 +17,10 @@ const VIEWS = ["list", "card", "grid", "compact", "kanban"] as const;
 type Search = { q?: string; state?: string; view?: string };
 
 // Only the columns the views render or the search filter reads.
-type GymRow = Pick<Gym, "id" | "name" | "city" | "state" | "head_coach" | "notes">;
+type GymRow = Pick<Gym, "id" | "name" | "city" | "state" | "notes"> & {
+  // Names of the gym's head coaches, joined for display and search.
+  head_coach: string | null;
+};
 
 export default async function GymsListPage({
   searchParams,
@@ -33,9 +36,21 @@ export default async function GymsListPage({
   // Roster size comes back as an embedded aggregate: fighters: [{ count }].
   const { data: gyms, error } = await supabase
     .from("gyms")
-    .select("id, name, city, state, head_coach, notes, fighters(count)")
+    .select("id, name, city, state, notes, fighters(count), coaches(full_name, role)")
     .order("name");
-  const gymRows = (gyms ?? []) as unknown as (GymRow & { fighters: { count: number }[] })[];
+  const gymRows = (
+    (gyms ?? []) as unknown as (Omit<GymRow, "head_coach"> & {
+      fighters: { count: number }[];
+      coaches: { full_name: string; role: string }[];
+    })[]
+  ).map((g) => ({
+    ...g,
+    head_coach:
+      g.coaches
+        .filter((c) => c.role === "head_coach")
+        .map((c) => c.full_name)
+        .join(", ") || null,
+  }));
 
   const rosterCount = new Map<string, number>();
   for (const g of gymRows) rosterCount.set(g.id, g.fighters[0]?.count ?? 0);

@@ -39,8 +39,12 @@ export function GymForm({
           <FormField label="Gym name" htmlFor="name" required>
             <Input id="name" name="name" required autoFocus defaultValue={defaults?.name ?? ""} />
           </FormField>
-          <FormField label="Head coach" htmlFor="head_coach">
-            <Input id="head_coach" name="head_coach" defaultValue={defaults?.head_coach ?? ""} />
+          <FormField
+            label="Owner(s)"
+            htmlFor="owners"
+            hint="Separate several names with commas. Coaches are added on the gym's page."
+          >
+            <Input id="owners" name="owners" defaultValue={defaults?.owners ?? ""} />
           </FormField>
           <FormField label="City" htmlFor="city">
             <Input id="city" name="city" defaultValue={defaults?.city ?? ""} />

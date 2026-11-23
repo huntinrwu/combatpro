@@ -1029,7 +1029,10 @@ export type Gym = {
   city: string | null;
   state: string | null;
   country: string | null;
+  // Legacy free text; coaches now live in the coaches table.
   head_coach: string | null;
+  // Owner name(s), free text. An owner isn't necessarily a coach.
+  owners: string | null;
   contact_email: string | null;
   contact_phone: string | null;
   website: string | null;
@@ -1037,6 +1040,27 @@ export type Gym = {
   notes: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export const COACH_ROLES = [
+  { value: "head_coach", label: "Head coach" },
+  { value: "jr_coach", label: "Jr. coach" },
+] as const;
+export type CoachRole = (typeof COACH_ROLES)[number]["value"];
+export const COACH_ROLE_LABELS: Record<CoachRole, string> = {
+  head_coach: "Head coach",
+  jr_coach: "Jr. coach",
+};
+
+export type Coach = {
+  id: string;
+  full_name: string;
+  role: CoachRole;
+  gym_id: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  notes: string | null;
+  created_at: string;
 };
 
 export type CornermanRole =

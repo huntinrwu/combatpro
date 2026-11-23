@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarClock, ClipboardList, Pencil, Users } from "lucide-react";
+import { CalendarClock, ClipboardList, Pencil, UserCog, Users, X } from "lucide-react";
 
 import { db } from "@/lib/db/client";
 import { fmtDateShortWithDay as fmtEventDate } from "@/lib/format-utils";
@@ -10,7 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { DetailRow } from "@/components/detail-row";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { Bout, EventRow, Fighter, Gym } from "@/lib/db/types";
+import { COACH_ROLE_LABELS, type Bout, type Coach, type EventRow, type Fighter, type Gym } from "@/lib/db/types";
+import { removeCoach } from "../../coaches/actions";
+import { AddCoachForm } from "../../coaches/_components/add-coach-form";
+import { ToastedForm } from "@/components/forms/toasted-form";
 
 type UpcomingRow = {
   bout_id: string;
@@ -30,7 +33,7 @@ export default async function GymDetailPage({
   const { id } = await params;
   const supabase = db();
 
-  const [session, { data: gym }, { data: roster }] = await Promise.all([
+  const [session, { data: gym }, { data: roster }, { data: coachRows }] = await Promise.all([
     getSessionUser(),
     supabase.from("gyms").select("*").eq("id", id).maybeSingle<Gym>(),
     supabase
@@ -38,9 +41,16 @@ export default async function GymDetailPage({
       .select("id, full_name, nickname, primary_sport, pro_wins, pro_losses, pro_draws, am_wins, am_losses, am_draws, weight_class")
       .eq("gym_id", id)
       .order("full_name"),
+    supabase.from("coaches").select("*").eq("gym_id", id).order("full_name"),
   ]);
 
   if (!gym) notFound();
+
+  // Head coaches first, then junior coaches.
+  const coaches = ((coachRows ?? []) as Coach[]).sort(
+    (a, b) => Number(a.role !== "head_coach") - Number(b.role !== "head_coach"),
+  );
+  const headCoaches = coaches.filter((c) => c.role === "head_coach").map((c) => c.full_name);
 
   const rosterList = (roster ?? []) as Pick<
     Fighter,
@@ -100,8 +110,14 @@ export default async function GymDetailPage({
         <div>
           <h1 className="font-heading text-3xl font-semibold tracking-tight">{gym.name}</h1>
           <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-            {gym.head_coach && <span>Head coach {gym.head_coach}</span>}
-            {gym.head_coach && (gym.city || gym.state) && <span>·</span>}
+            {gym.owners && <span>Owned by {gym.owners}</span>}
+            {gym.owners && <span>·</span>}
+            {headCoaches.length > 0 && (
+              <span>
+                Head coach{headCoaches.length === 1 ? "" : "es"} {headCoaches.join(", ")}
+              </span>
+            )}
+            {headCoaches.length > 0 && (gym.city || gym.state) && <span>·</span>}
             {(gym.city || gym.state) && (
               <span>{[gym.city, gym.state].filter(Boolean).join(", ")}</span>
             )}
@@ -168,6 +184,7 @@ export default async function GymDetailPage({
               }
             />
             <DetailRow label="Phone" value={gym.contact_phone} />
+            <DetailRow label="Owner(s)" value={gym.owners} />
             <DetailRow
               label="Notes"
               value={
@@ -179,6 +196,58 @@ export default async function GymDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <UserCog className="h-4 w-4" />
+            Coaches ({coaches.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-6 md:grid-cols-3">
+          <div className={session?.isStaff ? "md:col-span-2" : "md:col-span-3"}>
+            {coaches.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No coaches listed for this gym yet.</p>
+            ) : (
+              <ul className="divide-y divide-border rounded-lg border border-border/70">
+                {coaches.map((c) => (
+                  <li key={c.id} className="flex items-center gap-3 px-3 py-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                        {c.full_name}
+                        <Badge variant={c.role === "head_coach" ? "secondary" : "outline"}>
+                          {COACH_ROLE_LABELS[c.role]}
+                        </Badge>
+                      </div>
+                      {(c.contact_email || c.contact_phone) && (
+                        <div className="mt-0.5 text-xs text-muted-foreground">
+                          {[c.contact_email, c.contact_phone].filter(Boolean).join(" · ")}
+                        </div>
+                      )}
+                    </div>
+                    {session?.isStaff && (
+                      <ToastedForm action={removeCoach} successMessage="Coach removed">
+                        <input type="hidden" name="id" value={c.id} />
+                        <input type="hidden" name="gym_id" value={gym.id} />
+                        <Button
+                          type="submit"
+                          size="icon-sm"
+                          variant="ghost"
+                          aria-label={`Remove ${c.full_name}`}
+                          title="Remove coach"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </ToastedForm>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          {session?.isStaff && <AddCoachForm gymId={gym.id} />}
+        </CardContent>
+      </Card>
 
       <Card className="mt-6">
         <CardHeader>

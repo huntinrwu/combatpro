@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   CalendarDays,
+  ClipboardList,
   Dumbbell,
   Gavel,
   Handshake,
@@ -42,6 +43,12 @@ export const MODULES: Module[] = [
     slug: "gyms",
     title: "Gyms",
     Icon: Dumbbell,
+    section: "operations",
+  },
+  {
+    slug: "coaches",
+    title: "Coaches",
+    Icon: ClipboardList,
     section: "operations",
   },
   {
