@@ -63,3 +63,17 @@ export function fmtDateTime(iso: string): string {
     minute: "2-digit",
   });
 }
+
+// Age in whole years from a plain YYYY-MM-DD date of birth, as of today in US
+// Eastern time. Null when the date is missing or not believable.
+export function ageFromDob(dob: string | null | undefined): number | null {
+  const m = dob?.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  const [y, mo, d] = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" })
+    .format(new Date())
+    .split("-")
+    .map(Number);
+  let age = y - Number(m[1]);
+  if (mo < Number(m[2]) || (mo === Number(m[2]) && d < Number(m[3]))) age--;
+  return age >= 0 && age < 120 ? age : null;
+}
