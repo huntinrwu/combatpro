@@ -13,13 +13,25 @@ import { num, type EventRow, type EventRosterEntry, type Fighter, type Gym } fro
 
 type LineupEvent = Pick<
   EventRow,
-  "id" | "name" | "event_date" | "venue" | "city" | "state" | "status" | "primary_sport" | "matchmaking"
+  | "id"
+  | "name"
+  | "event_date"
+  | "venue"
+  | "city"
+  | "state"
+  | "status"
+  | "primary_sport"
+  | "matchmaking"
+  | "public_roster"
+  | "public_bouts"
 >;
 
 const loadEvent = cache(async (slug: string) => {
   const { data } = await db()
     .from("events")
-    .select("id, name, event_date, venue, city, state, status, primary_sport, matchmaking")
+    .select(
+      "id, name, event_date, venue, city, state, status, primary_sport, matchmaking, public_roster, public_bouts",
+    )
     .eq("slug", slug)
     .in("status", ["scheduled", "complete"])
     .maybeSingle<LineupEvent>();
@@ -33,7 +45,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const event = await loadEvent(slug);
-  return { title: event ? `Fighters & matchups — ${event.name}` : "Event not found — CombatPro" };
+  return { title: event ? `Lineup — ${event.name}` : "Event not found — CombatPro" };
 }
 
 // Only what is fine to show the public: name, gym, target weight. No ages,
@@ -95,6 +107,9 @@ export default async function PublicLineupPage({
     // Lightest first; fighters with no target weight yet go last.
     .sort((a, b) => (a.lbs ?? 9999) - (b.lbs ?? 9999) || a.name.localeCompare(b.name));
   const byEntry = new Map(roster.map((r) => [r.id, r]));
+  // What the promoter lets the public see.
+  const showRoster = event.public_roster === true;
+  const showBouts = event.public_bouts === true;
   const bouts = (boutsRes.data ?? []) as unknown as BoutRow[];
 
   const onCard = new Set<string>();
@@ -165,11 +180,20 @@ export default async function PublicLineupPage({
             ` · ${[event.venue, event.city, event.state].filter(Boolean).join(", ")}`}
         </p>
 
+        {!showRoster && !showBouts && (
+          <div className="mt-6 rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            The organizers haven&apos;t made the lineup for this event public.
+          </div>
+        )}
+
+        {showBouts && (
         <div className="mt-5 flex items-start gap-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
           <p>{DISCLAIMER}</p>
         </div>
+        )}
 
+        {showBouts && (
         <section className="mt-8">
           <h2 className="mb-3 font-heading text-lg font-semibold tracking-tight">
             Tentative matchups{" "}
@@ -206,7 +230,9 @@ export default async function PublicLineupPage({
             </ol>
           )}
         </section>
+        )}
 
+        {showRoster && (
         <section className="mt-10">
           <h2 className="mb-3 font-heading text-lg font-semibold tracking-tight">
             Registered fighters{" "}
@@ -232,8 +258,9 @@ export default async function PublicLineupPage({
             </ul>
           )}
         </section>
+        )}
 
-        <p className="mt-10 text-xs text-muted-foreground">{DISCLAIMER}</p>
+        {showBouts && <p className="mt-10 text-xs text-muted-foreground">{DISCLAIMER}</p>}
       </main>
 
       <footer className="border-t border-border/60 bg-muted/20">

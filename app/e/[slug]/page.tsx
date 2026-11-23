@@ -142,18 +142,24 @@ export default async function PublicEventPage({
       .order("created_at", { ascending: false }),
     // Kept out of the main event query so a missing column can't take the
     // whole public page down.
-    supabase.from("events").select("registration_open").eq("id", event.id).maybeSingle<{
-      registration_open: boolean;
-    }>(),
+    supabase
+      .from("events")
+      .select("registration_open, public_roster, public_bouts")
+      .eq("id", event.id)
+      .maybeSingle<{ registration_open: boolean; public_roster: boolean; public_bouts: boolean }>(),
   ]);
   const registrationOpen =
     event.status === "scheduled" && regRes.data?.registration_open === true;
+  // What the promoter lets the public see. If the setting can't be read,
+  // stay on the private side.
+  const showBouts = regRes.data?.public_bouts === true;
+  const showLineup = showBouts || regRes.data?.public_roster === true;
   const posters = ((rawPosters ?? []) as { id: string; filename: string }[]).map((p) => ({
     ...p,
     src: `/e/${slug}/poster/${p.id}`,
   }));
 
-  const enriched = (rawBouts ?? []) as unknown as BoutWithFighters[];
+  const enriched = showBouts ? ((rawBouts ?? []) as unknown as BoutWithFighters[]) : [];
 
   const slotList = (sponsorSlots ?? []) as unknown as {
     tier: EventSponsor["tier"];
@@ -302,6 +308,7 @@ export default async function PublicEventPage({
       </section>
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
+        {showBouts && (
         <section className="mb-10">
           <div className="mb-4 flex items-baseline justify-between gap-3">
             <h2 className="font-heading text-lg font-semibold tracking-tight">
@@ -326,6 +333,7 @@ export default async function PublicEventPage({
             </ol>
           )}
         </section>
+        )}
 
         {orderedTiers.length > 0 && (
           <section className="mb-10">
@@ -388,6 +396,7 @@ export default async function PublicEventPage({
             </div>
           </section>
         )}
+        {showLineup && (
         <section className="mb-2">
           <div className="flex flex-col items-center gap-5 rounded-lg border border-border/60 bg-muted/20 p-5 sm:flex-row">
             {lineupQr && (
@@ -401,24 +410,28 @@ export default async function PublicEventPage({
             )}
             <div className="text-center sm:text-left">
               <h2 className="font-heading text-lg font-semibold tracking-tight">
-                Fighters &amp; tentative matchups
+                {showBouts ? "Fighters & tentative matchups" : "Registered fighters"}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Scan the code or tap the link to see who is registered and the current brackets,
-                updated live.
+                {showBouts
+                  ? "Scan the code or tap the link to see who is registered and the current brackets, updated live."
+                  : "Scan the code or tap the link to see who is registered, updated live."}
               </p>
               <Link
                 href={lineupPath}
                 className="mt-3 inline-flex h-9 items-center rounded-lg border border-border bg-background px-4 text-sm font-medium hover:bg-muted"
               >
-                View fighters and matchups
+                {showBouts ? "View fighters and matchups" : "View fighters"}
               </Link>
-              <p className="mt-3 text-xs text-muted-foreground">
-                Brackets are temporary and are not guaranteed on the day of the event.
-              </p>
+              {showBouts && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Brackets are temporary and are not guaranteed on the day of the event.
+                </p>
+              )}
             </div>
           </div>
         </section>
+        )}
       </main>
 
       <footer className="border-t border-border/60 bg-muted/20">

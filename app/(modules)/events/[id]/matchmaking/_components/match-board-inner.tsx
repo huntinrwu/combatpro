@@ -314,7 +314,8 @@ export default function MatchBoardInner({
             ? "Balanced suggestions using the rules for this event."
             : "Fighters are lined up in the order you picked, and neighbours are paired."}{" "}
           Drag a fighter to move them, or tap one and then tap where they should go.
-          {canEdit && " Pairings here show on the public lineup page as tentative."}
+          {canEdit &&
+            " Pairings here show on the public lineup page as tentative, unless the bout list is hidden."}
         </p>
       </div>
 

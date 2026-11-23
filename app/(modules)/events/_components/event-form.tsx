@@ -173,6 +173,43 @@ export function EventForm({
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-base">Public page</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="public_roster"
+              className="mt-1"
+              defaultChecked={defaults?.public_roster ?? true}
+            />
+            <span>
+              Show registered fighters to the public
+              <span className="block text-xs text-muted-foreground">
+                The list of fighters on this event, with gym and target weight.
+              </span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="public_bouts"
+              className="mt-1"
+              defaultChecked={defaults?.public_bouts ?? true}
+            />
+            <span>
+              Show the bout list to the public
+              <span className="block text-xs text-muted-foreground">
+                The fight card, results and tentative matchups. Untick to keep matchups private
+                until you are ready.
+              </span>
+            </span>
+          </label>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base">Regulatory</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">

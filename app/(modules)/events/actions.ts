@@ -43,6 +43,8 @@ function eventFieldsFrom(formData: FormData) {
     commission_id: orNull(formData.get("commission_id")),
     sanctioning_body_id: orNull(formData.get("sanctioning_body_id")),
     medicals_required: formData.get("medicals_required") === "on",
+    public_roster: formData.get("public_roster") === "on",
+    public_bouts: formData.get("public_bouts") === "on",
     status: (formData.get("status")?.toString() as EventStatus) || "draft",
     notes: orNull(formData.get("notes")),
   };

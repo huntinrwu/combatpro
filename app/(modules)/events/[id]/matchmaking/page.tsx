@@ -217,7 +217,12 @@ export default async function EventMatchmakingPage({
           </CardContent>
         </Card>
           {event.slug && (event.status === "scheduled" || event.status === "complete") && (
-            <ShareLineupCard slug={event.slug} />
+            <ShareLineupCard
+              slug={event.slug}
+              eventId={event.id}
+              publicRoster={event.public_roster !== false}
+              publicBouts={event.public_bouts !== false}
+            />
           )}
         </div>
       </div>

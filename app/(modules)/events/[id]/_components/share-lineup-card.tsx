@@ -27,7 +27,17 @@ const chipOff = "border-border text-muted-foreground hover:bg-muted hover:text-f
 
 // QR codes for an event's public pages, with ways to take them elsewhere:
 // copy the link, copy the image, or download it, at a choice of sizes.
-export function ShareLineupCard({ slug }: { slug: string }) {
+export function ShareLineupCard({
+  slug,
+  eventId,
+  publicRoster,
+  publicBouts,
+}: {
+  slug: string;
+  eventId: string;
+  publicRoster: boolean;
+  publicBouts: boolean;
+}) {
   const [page, setPage] = useState<(typeof PAGES)[number]>(PAGES[0]);
   const [size, setSize] = useState<(typeof SIZES)[number]>(SIZES[2]);
   const pagePath = `/e/${slug}/${page.key}`;
@@ -108,6 +118,13 @@ export function ShareLineupCard({ slug }: { slug: string }) {
             the code and don&apos;t stretch it, or it may not scan.
           </p>
         </div>
+        <p className="text-xs text-muted-foreground">
+          Public right now: fighter list {publicRoster ? "shown" : "hidden"}, bout list{" "}
+          {publicBouts ? "shown" : "hidden"}.{" "}
+          <a href={`/events/${eventId}/edit`} className="underline hover:text-foreground">
+            Change
+          </a>
+        </p>
         <div className="flex flex-wrap gap-2">
           <Button type="button" size="sm" variant="outline" onClick={copyImage}>
             <Copy className="h-3 w-3" />
