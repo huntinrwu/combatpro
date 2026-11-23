@@ -34,6 +34,8 @@ export async function registerForEvent(
     const n = raw === "" ? Number.NaN : Number(raw);
     return Number.isInteger(n) && n >= 0 && n <= 500 ? n : null;
   };
+  const gender = text("gender");
+  const date_of_birth = text("date_of_birth");
   const wins = count("wins");
   const losses = count("losses");
   const draws = count("draws");
@@ -51,6 +53,13 @@ export async function registerForEvent(
   }
   if (!weight_class || weight_class.length > 60) {
     return { status: "error", message: "Please choose the weight class you want to fight at." };
+  }
+  if (gender !== "male" && gender !== "female") {
+    return { status: "error", message: "Please choose male or female." };
+  }
+  const born = /^\d{4}-\d{2}-\d{2}$/.test(date_of_birth) ? new Date(date_of_birth) : null;
+  if (!born || Number.isNaN(born.getTime()) || born > new Date() || born.getFullYear() < 1920) {
+    return { status: "error", message: "Please enter your date of birth." };
   }
   if (wins == null || losses == null || draws == null) {
     return { status: "error", message: "Please enter your record as whole numbers (use 0 if none)." };
@@ -101,6 +110,8 @@ export async function registerForEvent(
       wins,
       losses,
       draws,
+      gender,
+      date_of_birth,
     });
   if (error) {
     console.error("[register]", error.code, error.message);

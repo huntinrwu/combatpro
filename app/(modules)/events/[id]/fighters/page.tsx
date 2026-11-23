@@ -49,6 +49,7 @@ type RosterFighter = Pick<
   | "full_name"
   | "nickname"
   | "date_of_birth"
+  | "gender"
   | "primary_sport"
   | "weight_class"
   | "walking_weight_lbs"
@@ -76,7 +77,7 @@ type RegistryFighter = Pick<
 > & { gym_ref: Pick<Gym, "name"> | null };
 
 const ROSTER_SELECT =
-  "id, fighter_id, status, weight_class, competing_as, target_weight_lbs, notes, fighter:fighters(id, full_name, nickname, date_of_birth, primary_sport, weight_class, walking_weight_lbs, pro_wins, pro_losses, pro_draws, am_wins, am_losses, am_draws, gym, gym_id, gym_ref:gyms(name), medical:fighter_medical_records(kind, issued_on, expires_on))";
+  "id, fighter_id, status, weight_class, competing_as, target_weight_lbs, notes, fighter:fighters(id, full_name, nickname, date_of_birth, gender, primary_sport, weight_class, walking_weight_lbs, pro_wins, pro_losses, pro_draws, am_wins, am_losses, am_draws, gym, gym_id, gym_ref:gyms(name), medical:fighter_medical_records(kind, issued_on, expires_on))";
 
 const STATUS_ORDER: Record<EventFighterStatus, number> = {
   confirmed: 0,
@@ -287,6 +288,7 @@ export default async function EventFightersPage({
                             <div className="mt-0.5 text-xs capitalize text-muted-foreground">
                               {[
                                 f.primary_sport,
+                                f.gender,
                                 ageFromDob(f.date_of_birth) != null
                                   ? `age ${ageFromDob(f.date_of_birth)}`
                                   : null,
@@ -610,6 +612,18 @@ export default async function EventFightersPage({
                       ))}
                     </NativeSelect>
                   </FormField>
+                  <div className="grid grid-cols-2 gap-3">
+                    <FormField label="Gender" htmlFor="nf_gender">
+                      <NativeSelect id="nf_gender" name="gender" defaultValue="">
+                        <option value="">Not set</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                      </NativeSelect>
+                    </FormField>
+                    <FormField label="Date of birth" htmlFor="nf_dob">
+                      <Input id="nf_dob" name="date_of_birth" type="date" />
+                    </FormField>
+                  </div>
                   <FormField label="Weight class" htmlFor="nf_class">
                     <WeightClassSelect id="nf_class" name="weight_class" sport={event.primary_sport} />
                   </FormField>

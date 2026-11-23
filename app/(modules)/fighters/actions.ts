@@ -7,6 +7,7 @@ import { db, dbErr } from "@/lib/db/client";
 import { idOrNull, toInt, toNum } from "@/lib/form-utils";
 import { getSessionUser, requireStaff } from "@/lib/auth/session";
 import { feetInToCm, inToCm } from "@/lib/units";
+import { GENDERS } from "@/lib/db/types";
 
 type DeclaredCounts = Record<"pro" | "am", Record<"win" | "loss" | "draw", number>>;
 
@@ -116,6 +117,7 @@ function fighterPayload(formData: FormData) {
     full_name,
     nickname: formData.get("nickname")?.toString().trim() || null,
     date_of_birth: formData.get("date_of_birth")?.toString() || null,
+    gender: GENDERS.find((g) => g === formData.get("gender")) ?? null,
     nationality: formData.get("nationality")?.toString().trim() || null,
     gym: formData.get("gym")?.toString().trim() || null,
     gym_id: idOrNull(formData.get("gym_id")),

@@ -45,6 +45,13 @@ export function IdentityCard({
             defaultValue={defaults?.date_of_birth ?? ""}
           />
         </FormField>
+        <FormField label="Gender" htmlFor="gender">
+          <NativeSelect id="gender" name="gender" defaultValue={defaults?.gender ?? ""}>
+            <option value="">Not set</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+          </NativeSelect>
+        </FormField>
         <FormField label="Nationality" htmlFor="nationality">
           <Input
             id="nationality"

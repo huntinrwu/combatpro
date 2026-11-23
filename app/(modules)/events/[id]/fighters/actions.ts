@@ -10,6 +10,7 @@ import { defaultCompetingAs, parseMatchmaking, type MatchmakingSettings } from "
 import { weightClassFor } from "@/lib/weight-classes";
 import {
   EVENT_FIGHTER_STATUSES,
+  GENDERS,
   SPORTS,
   type BoutClass,
   type EventFighterStatus,
@@ -106,7 +107,14 @@ export async function createAndAddFighter(formData: FormData) {
   const supabase = db();
   const { data: fighter, error } = await supabase
     .from("fighters")
-    .insert({ full_name, primary_sport, weight_class, gym_id: idOrNull(formData.get("gym_id")) })
+    .insert({
+      full_name,
+      primary_sport,
+      weight_class,
+      gym_id: idOrNull(formData.get("gym_id")),
+      gender: GENDERS.find((g) => g === formData.get("gender")) ?? null,
+      date_of_birth: orNull(formData.get("date_of_birth")),
+    })
     .select("id")
     .single<{ id: string }>();
   if (error) dbErr(error);
@@ -241,13 +249,23 @@ export async function acceptRegistration(formData: FormData) {
   const supabase = db();
   const { data: reg } = await supabase
     .from("event_registrations")
-    .select("full_name, status, email, phone, gym_name, weight_class, wins, losses, draws")
+    .select("full_name, status, email, phone, gym_name, weight_class, wins, losses, draws, gender, date_of_birth")
     .eq("id", registration_id)
     .eq("event_id", event_id)
     .maybeSingle<
       Pick<
         EventRegistration,
-        "full_name" | "status" | "email" | "phone" | "gym_name" | "weight_class" | "wins" | "losses" | "draws"
+        | "full_name"
+        | "status"
+        | "email"
+        | "phone"
+        | "gym_name"
+        | "weight_class"
+        | "wins"
+        | "losses"
+        | "draws"
+        | "gender"
+        | "date_of_birth"
       >
     >();
   if (!reg) throw new Error("That sign-up no longer exists.");
@@ -287,6 +305,8 @@ export async function acceptRegistration(formData: FormData) {
         weight_class: reg.weight_class,
         contact_email: reg.email,
         contact_phone: reg.phone,
+        gender: reg.gender,
+        date_of_birth: reg.date_of_birth,
         gym_id,
         gym: gym_id ? null : reg.gym_name,
         [`${prefix}_wins`]: reg.wins ?? 0,

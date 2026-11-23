@@ -48,11 +48,15 @@ export type SanctioningBody = {
   created_at: string;
 };
 
+export const GENDERS = ["male", "female"] as const;
+export type Gender = (typeof GENDERS)[number];
+
 export type Fighter = {
   id: string;
   full_name: string;
   nickname: string | null;
   date_of_birth: string | null;
+  gender: Gender | null;
   nationality: string | null;
   gym: string | null;
   gym_id: string | null;
@@ -316,6 +320,8 @@ export type EventRegistration = {
   wins: number | null;
   losses: number | null;
   draws: number | null;
+  gender: Gender | null;
+  date_of_birth: string | null;
   status: "pending" | "added" | "dismissed";
   fighter_id: string | null;
   created_at: string;

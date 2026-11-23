@@ -62,6 +62,20 @@ export function RegisterForm({
       <FormField label="Phone" htmlFor="reg_phone" hint="Optional.">
         <Input id="reg_phone" name="phone" type="tel" maxLength={40} autoComplete="tel" />
       </FormField>
+      <div className="grid grid-cols-2 gap-3">
+        <FormField label="Date of birth" htmlFor="reg_dob" required>
+          <Input id="reg_dob" name="date_of_birth" type="date" required autoComplete="bday" />
+        </FormField>
+        <FormField label="Gender" htmlFor="reg_gender" required>
+          <NativeSelect id="reg_gender" name="gender" required defaultValue="">
+            <option value="" disabled>
+              Choose…
+            </option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+          </NativeSelect>
+        </FormField>
+      </div>
       <FormField
         label="Gym"
         htmlFor="reg_gym"

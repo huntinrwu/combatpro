@@ -1,4 +1,4 @@
-import type { BoutClass } from "./db/types";
+import type { BoutClass, Gender } from "./db/types";
 
 // Per-event matchmaking rules. Stored as JSON on events.matchmaking; anything
 // missing falls back to these defaults, so new rules can be added later
@@ -82,8 +82,10 @@ export type Candidate = {
   targetWeightLbs: number | null;
   fights: number;
   wins: number;
-  // Display only; not used when pairing.
   age?: number | null;
+  gender?: Gender | null;
+  // Weight to sort by: the target weight, else the top of the weight class.
+  sortLbs?: number | null;
 };
 
 export type Pairing = {
@@ -102,6 +104,8 @@ function blockedReason(a: Candidate, b: Candidate, s: MatchmakingSettings): stri
   // Without a target weight or a class there is nothing safe to match on.
   const hasWeight = (c: Candidate) => c.targetWeightLbs != null || Boolean(c.weightClass);
   if (!hasWeight(a) || !hasWeight(b)) return "weight not set";
+  const never = neverAuto(a, b);
+  if (never) return never;
   if (a.competingAs !== b.competingAs && !s.allowProAm) return "pro vs amateur";
   if (!s.allowSameGym && a.gym && b.gym && a.gym === b.gym) return "same gym";
   if (Math.abs(a.fights - b.fights) > s.maxFightGap) return "experience gap";
@@ -202,4 +206,117 @@ export function suggestMatchups(
     });
 
   return { suggested, all, unmatched };
+}
+
+// ── Matchmaking board ─────────────────────────────────────────────────────
+
+// What the matchmaker can ask the board to line fighters up by. Picked in
+// order: the first one matters most.
+export const MATCH_KEYS = ["gender", "age", "experience", "weight"] as const;
+export type MatchKey = (typeof MATCH_KEYS)[number];
+export const MATCH_KEY_LABELS: Record<MatchKey, string> = {
+  gender: "Gender",
+  age: "Age",
+  experience: "Experience",
+  weight: "Weight class",
+};
+
+const ADULT_AGE = 18;
+
+function compareBy(key: MatchKey, a: Candidate, b: Candidate): number {
+  // Unknown values sort last so they don't split the fighters we can place.
+  const n = (x: number | null | undefined, y: number | null | undefined) =>
+    (x ?? Number.MAX_SAFE_INTEGER) - (y ?? Number.MAX_SAFE_INTEGER);
+  switch (key) {
+    case "gender": {
+      const rank = (c: Candidate) => (c.gender === "female" ? 0 : c.gender === "male" ? 1 : 2);
+      return rank(a) - rank(b);
+    }
+    case "age":
+      return n(a.age, b.age);
+    case "experience":
+      return a.fights - b.fights || a.wins - b.wins;
+    case "weight":
+      return n(a.sortLbs, b.sortLbs);
+  }
+}
+
+// Pairings the board never makes by itself. A matchmaker can still drag two
+// such fighters together; the pairing is then flagged.
+function neverAuto(a: Candidate, b: Candidate): string | null {
+  if (a.gender && b.gender && a.gender !== b.gender) return "different gender";
+  if (a.age != null && b.age != null && a.age < ADULT_AGE !== b.age < ADULT_AGE) {
+    return "minor vs adult";
+  }
+  return null;
+}
+
+export type Arrangement = {
+  // Roster entry ids, red corner then blue.
+  pairs: [string, string][];
+  unpaired: string[];
+};
+
+// Line the fighters up for the board. With no priorities this is the balanced
+// suggestion under the event's rules; with priorities the fighters are sorted
+// by them, in order, and neighbours are paired.
+export function arrangeFighters(
+  candidates: Candidate[],
+  priorities: MatchKey[],
+  settings: MatchmakingSettings,
+): Arrangement {
+  if (priorities.length === 0) {
+    const { suggested, unmatched } = suggestMatchups(candidates, settings);
+    return {
+      pairs: suggested.map((p) => [p.a.id, p.b.id]),
+      unpaired: unmatched.map((u) => u.candidate.id),
+    };
+  }
+
+  const sorted = [...candidates].sort((a, b) => {
+    for (const key of priorities) {
+      const d = compareBy(key, a, b);
+      if (d !== 0) return d;
+    }
+    return a.name.localeCompare(b.name);
+  });
+
+  const used = new Set<string>();
+  const pairs: [string, string][] = [];
+  const unpaired: string[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    const a = sorted[i];
+    if (used.has(a.id)) continue;
+    used.add(a.id);
+    const b = sorted.slice(i + 1).find((c) => !used.has(c.id) && !neverAuto(a, c));
+    if (b) {
+      used.add(b.id);
+      pairs.push([a.id, b.id]);
+    } else {
+      unpaired.push(a.id);
+    }
+  }
+  return { pairs, unpaired };
+}
+
+// Everything a matchmaker should look at before booking these two.
+export function pairFlags(a: Candidate, b: Candidate, s: MatchmakingSettings): string[] {
+  const flags: string[] = [];
+  if (a.gender && b.gender && a.gender !== b.gender) flags.push("Different gender");
+  if (a.age != null && b.age != null && a.age < ADULT_AGE !== b.age < ADULT_AGE) {
+    flags.push("Minor vs adult");
+  }
+  if (a.targetWeightLbs != null && b.targetWeightLbs != null) {
+    const gap = Math.abs(a.targetWeightLbs - b.targetWeightLbs);
+    if (gap > s.maxWeightGapLbs) flags.push(`${gap} lbs apart`);
+  } else if (a.weightClass && b.weightClass) {
+    if (a.weightClass.toLowerCase() !== b.weightClass.toLowerCase()) flags.push("Different class");
+  } else if (a.sortLbs == null || b.sortLbs == null) {
+    flags.push("Weight not set");
+  }
+  const fightGap = Math.abs(a.fights - b.fights);
+  if (fightGap > s.maxFightGap) flags.push(`${fightGap} fights apart`);
+  if (a.competingAs !== b.competingAs) flags.push("Pro vs amateur");
+  if (a.gym && b.gym && a.gym === b.gym) flags.push("Same gym");
+  return flags;
 }

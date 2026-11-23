@@ -226,6 +226,10 @@ export default async function FighterDetailPage({
           </CardHeader>
           <CardContent>
             <DetailRow label="DOB" value={fighter.date_of_birth} />
+            <DetailRow
+              label="Gender"
+              value={fighter.gender ? <span className="capitalize">{fighter.gender}</span> : null}
+            />
             <DetailRow label="Nationality" value={fighter.nationality} />
             <DetailRow label="Hometown" value={fighter.hometown} />
             <DetailRow
