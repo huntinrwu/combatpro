@@ -77,7 +77,7 @@ export default async function RootLayout({
         >
           <div className="flex min-h-screen">
             <Sidebar user={navUser} visibleSlugs={visibleSlugs} />
-            <main className="flex min-w-0 flex-1 flex-col pt-14 md:pt-0">
+            <main data-app-main className="flex min-w-0 flex-1 flex-col">
               {session && (session.viewAsRole || session.viewAsEmployee) && (
                 <ViewAsBanner
                   role={session.viewAsRole}

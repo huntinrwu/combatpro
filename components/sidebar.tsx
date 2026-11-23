@@ -103,6 +103,7 @@ export function Sidebar({
       {/* Mobile hamburger — always floats top-left on narrow viewports. */}
       <button
         type="button"
+        data-app-menu
         onClick={() => setMobileOpen(true)}
         className="fixed left-3 top-3 z-30 flex h-9 w-9 items-center justify-center rounded-md border border-border/60 bg-background/95 text-foreground shadow-sm backdrop-blur md:hidden print:hidden"
         aria-label="Open menu"

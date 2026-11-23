@@ -37,7 +37,11 @@ export function RegisterForm({
   }
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form
+      action={formAction}
+      // Thumb-sized fields on phones; 16px text stops iPhones zooming in on tap.
+      className="space-y-4 max-md:[&_input:not([type=checkbox])]:h-11 max-md:[&_select]:h-11 max-md:[&_select]:text-base max-md:[&_button[type=submit]]:h-11"
+    >
       <input type="hidden" name="slug" value={slug} />
       {/* Honeypot — hidden from people, tempting to bots. */}
       <div className="hidden" aria-hidden>

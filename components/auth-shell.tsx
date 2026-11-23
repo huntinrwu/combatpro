@@ -16,7 +16,10 @@ export function AuthShell({ children, wide = false }: { children: ReactNode; wid
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       <div className="flex flex-col justify-center px-6 py-10">
-        <div className={`mx-auto w-full ${wide ? "max-w-xl" : "max-w-sm"}`}>
+        <div
+          // Thumb-sized fields on phones; 16px text stops iPhones zooming in on tap.
+          className={`mx-auto w-full max-md:[&_input:not([type=checkbox])]:h-11 max-md:[&_select]:h-11 max-md:[&_select]:text-base max-md:[&_button[type=submit]]:h-11 ${wide ? "max-w-xl" : "max-w-sm"}`}
+        >
           <Link href="/" className="mb-8 flex items-center gap-2 self-start">
             <Logo size={28} />
             <span className="font-heading text-base font-semibold tracking-wide">CombatPro</span>

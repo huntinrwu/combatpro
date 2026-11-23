@@ -151,7 +151,7 @@ export default async function PublicLineupPage({
       <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-8">
         <Link
           href={`/e/${slug}`}
-          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          className="-my-2 inline-flex items-center gap-1 py-2 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-3 w-3" />
           Event page
