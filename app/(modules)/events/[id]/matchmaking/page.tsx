@@ -4,6 +4,7 @@ import { Settings2, Swords } from "lucide-react";
 import { saveMatchmakingSettings } from "../fighters/actions";
 import { loadEventDetail } from "../_lib/event-detail";
 import { MatchBoard } from "./_components/match-board";
+import { ShareLineupCard } from "../_components/share-lineup-card";
 import { db } from "@/lib/db/client";
 import { getSessionUser, requireModuleAccess } from "@/lib/auth/session";
 import { canEditEvent } from "@/lib/auth/roles";
@@ -130,6 +131,7 @@ export default async function EventMatchmakingPage({
           </Card>
         </div>
 
+        <div className="space-y-6">
         <Card collapsible={false} className="h-fit">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -214,6 +216,10 @@ export default async function EventMatchmakingPage({
             </ToastedForm>
           </CardContent>
         </Card>
+          {event.slug && (event.status === "scheduled" || event.status === "complete") && (
+            <ShareLineupCard slug={event.slug} />
+          )}
+        </div>
       </div>
     </div>
   );
