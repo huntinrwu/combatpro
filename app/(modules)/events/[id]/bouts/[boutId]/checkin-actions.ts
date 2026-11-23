@@ -6,6 +6,7 @@ import { db, dbErr } from "@/lib/db/client";
 import { orNull, requireCorner, toNum as toNumericOrNull } from "@/lib/form-utils";
 import { requireStaff } from "@/lib/auth/session";
 import type { Corner } from "@/lib/db/types";
+import { setRosterWeighIn, type WeighInPatch } from "@/lib/db/roster-weigh-in";
 
 // One row per (bout, corner) — unique constraint makes this a single upsert.
 // Only the patched columns are written on conflict.
@@ -37,6 +38,26 @@ export async function toggleCheckIn(formData: FormData) {
   revalidate(event_id, bout_id);
 }
 
+// A weigh-in entered on a bout belongs to the fighter for the whole event:
+// it goes on their roster entry (which copies it to all their bouts). The
+// bout's own row is still written for a fighter who isn't on the roster.
+async function saveWeighIn(bout_id: string, corner: Corner, patch: WeighInPatch) {
+  const { data: bout } = await db()
+    .from("bouts")
+    .select("event_id, red_corner_fighter_id, blue_corner_fighter_id")
+    .eq("id", bout_id)
+    .maybeSingle<{
+      event_id: string;
+      red_corner_fighter_id: string | null;
+      blue_corner_fighter_id: string | null;
+    }>();
+  const fighterId =
+    corner === "red" ? bout?.red_corner_fighter_id : bout?.blue_corner_fighter_id;
+  const onRoster =
+    bout && fighterId ? await setRosterWeighIn(bout.event_id, fighterId, patch) : false;
+  if (!onRoster) await upsertCheck(bout_id, corner, patch);
+}
+
 export async function recordWeighIn(formData: FormData) {
   await requireStaff();
   const bout_id = formData.get("bout_id")?.toString();
@@ -49,7 +70,7 @@ export async function recordWeighIn(formData: FormData) {
   if (weigh_in_lbs == null) throw new Error("Weight is required.");
   if (weigh_in_lbs <= 0 || weigh_in_lbs > 600) throw new Error("Weight looks wrong.");
 
-  await upsertCheck(bout_id, corner, {
+  await saveWeighIn(bout_id, corner, {
     weigh_in_lbs,
     weigh_in_at: new Date().toISOString(),
     weigh_in_notes,
@@ -65,7 +86,7 @@ export async function clearWeighIn(formData: FormData) {
 
   if (!bout_id || !event_id) throw new Error("bout is required.");
 
-  await upsertCheck(bout_id, corner, {
+  await saveWeighIn(bout_id, corner, {
     weigh_in_lbs: null,
     weigh_in_at: null,
     weigh_in_notes: null,

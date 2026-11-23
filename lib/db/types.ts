@@ -303,6 +303,10 @@ export type EventRosterEntry = {
   weight_class: string | null;
   competing_as: BoutClass | null;
   target_weight_lbs: number | string | null;
+  // The fighter's official weigh-in for this event.
+  weigh_in_lbs: number | string | null;
+  weigh_in_at: string | null;
+  weigh_in_notes: string | null;
   notes: string | null;
   added_by: string | null;
   created_at: string;

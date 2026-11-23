@@ -1,5 +1,6 @@
 "use server";
 
+import { copyWeighInsToBouts } from "@/lib/db/roster-weigh-in";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -158,6 +159,8 @@ export async function createBout(formData: FormData) {
       { onConflict: "event_id,fighter_id", ignoreDuplicates: true },
     );
     if (rosterErr) console.error("[event_fighters]", rosterErr.code, rosterErr.message);
+    // A fighter who has already weighed in keeps that weigh-in on the new bout.
+    await copyWeighInsToBouts(event_id, corners);
   }
 
   revalidatePath(`/events/${event_id}`);

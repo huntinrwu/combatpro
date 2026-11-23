@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { db, dbErr } from "@/lib/db/client";
 import { syncFighterWeightClass } from "@/lib/db/fighter-weight-class";
+import { setRosterWeighIn } from "@/lib/db/roster-weigh-in";
 import { requireEventEditor, type EditableEvent } from "../_lib/require-editor";
 import { idOrNull, orNull, toNum } from "@/lib/form-utils";
 import {
@@ -404,4 +405,36 @@ export async function setRegistrationOpen(formData: FormData) {
     .eq("id", event_id);
   if (error) dbErr(error);
   done(event_id);
+}
+
+// ── Weigh-ins ──────────────────────────────────────────────────────────────
+
+// Record a roster fighter's weigh-in for the event. Leave the weight out
+// (`clear`) to remove it.
+async function writeWeighIn(formData: FormData, clear: boolean) {
+  const event_id = orNull(formData.get("event_id"));
+  const fighter_id = orNull(formData.get("fighter_id"));
+  if (!event_id || !fighter_id) throw new Error("Missing fields.");
+  await requireEventEditor(event_id);
+
+  const lbs = clear ? null : toNum(formData.get("weigh_in_lbs"));
+  if (!clear) {
+    if (lbs == null) throw new Error("Weight is required.");
+    if (lbs <= 0 || lbs > 600) throw new Error("Weight looks wrong.");
+  }
+  const saved = await setRosterWeighIn(event_id, fighter_id, {
+    weigh_in_lbs: lbs,
+    weigh_in_at: clear ? null : new Date().toISOString(),
+    weigh_in_notes: clear ? null : orNull(formData.get("weigh_in_notes")),
+  });
+  if (!saved) throw new Error("That fighter is no longer on this event.");
+  revalidatePath(`/events/${event_id}`, "layout");
+}
+
+export async function recordRosterWeighIn(formData: FormData) {
+  await writeWeighIn(formData, false);
+}
+
+export async function clearRosterWeighIn(formData: FormData) {
+  await writeWeighIn(formData, true);
 }

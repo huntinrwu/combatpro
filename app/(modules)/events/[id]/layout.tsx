@@ -51,7 +51,7 @@ export default async function EventLayout({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [detail, session, posterRes] = await Promise.all([
+  const [detail, session, posterRes, rosterRes] = await Promise.all([
     loadEventDetail(id),
     getSessionUser(),
     // Latest poster, for the thumbnail beside the title.
@@ -63,6 +63,12 @@ export default async function EventLayout({
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle<{ storage_path: string }>(),
+    // Weigh-in progress, counted over the roster.
+    db()
+      .from("event_fighters")
+      .select("weigh_in_lbs")
+      .eq("event_id", id)
+      .neq("status", "withdrawn"),
   ]);
   if (!detail) notFound();
   const posterUrl = posterRes.data
@@ -72,14 +78,12 @@ export default async function EventLayout({
           .createSignedUrl(posterRes.data.storage_path, 60 * 60)
       ).data?.signedUrl ?? null)
     : null;
-  const { event, bouts, checks, purses, ledger, sponsorSlots } = detail;
+  const { event, bouts, purses, ledger, sponsorSlots } = detail;
   const canEdit = session ? canEditEvent(event, session) : false;
 
-  const totalWeighInSlots = bouts.length * 2;
-  let weighedCorners = 0;
-  for (const c of checks) {
-    if (c.weigh_in_lbs != null) weighedCorners++;
-  }
+  const rosterWeighIns = (rosterRes.data ?? []) as { weigh_in_lbs: number | string | null }[];
+  const totalWeighInSlots = rosterWeighIns.length;
+  const weighedCorners = rosterWeighIns.filter((r) => r.weigh_in_lbs != null).length;
   let payoutNet = 0;
   for (const p of purses) payoutNet += purseBreakdown(p).net;
 

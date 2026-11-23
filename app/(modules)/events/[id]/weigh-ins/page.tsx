@@ -1,23 +1,32 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertTriangle, Scale } from "lucide-react";
 
 import { PrintButton } from "../_components/print-button";
-import { fighterLabel, loadEventDetail, type EventFighter } from "../_lib/event-detail";
-import {
-  clearWeighIn,
-  recordWeighIn,
-} from "../bouts/[boutId]/checkin-actions";
+import { loadEventDetail } from "../_lib/event-detail";
+import { clearRosterWeighIn, recordRosterWeighIn } from "../fighters/actions";
+import { db } from "@/lib/db/client";
 import { fmtDateLong as fmtEventDate, fmtTime } from "@/lib/format-utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  num,
   weighInStatus,
-  type Bout,
-  type BoutFighterCheck,
-  type Corner,
+  type EventRosterEntry,
+  type Fighter,
+  type Gym,
 } from "@/lib/db/types";
 import { requireModuleAccess } from "@/lib/auth/session";
+
+type RosterRow = Pick<
+  EventRosterEntry,
+  "id" | "fighter_id" | "target_weight_lbs" | "weigh_in_lbs" | "weigh_in_at" | "weigh_in_notes"
+> & {
+  fighter:
+    | (Pick<Fighter, "full_name" | "gym" | "gym_id"> & { gym_ref: Pick<Gym, "name"> | null })
+    | null;
+};
 
 export default async function WeighInsPage({
   params,
@@ -27,49 +36,73 @@ export default async function WeighInsPage({
   await requireModuleAccess("events");
   const { id } = await params;
 
-  const detail = await loadEventDetail(id);
+  // The sheet is the event's roster: every fighter weighs in, whether or not
+  // they have been matched on a bout yet.
+  const [detail, rosterRes] = await Promise.all([
+    loadEventDetail(id),
+    db()
+      .from("event_fighters")
+      .select(
+        "id, fighter_id, target_weight_lbs, weigh_in_lbs, weigh_in_at, weigh_in_notes, fighter:fighters(full_name, gym, gym_id, gym_ref:gyms(name))",
+      )
+      .eq("event_id", id)
+      .neq("status", "withdrawn"),
+  ]);
   if (!detail) notFound();
-  const { event, bouts, checksByBout, fighterMap } = detail;
+  const { event, bouts } = detail;
 
-  type Row = {
-    key: string;
-    bout: Bout;
-    corner: Corner;
-    fighter: EventFighter | null;
-    check: BoutFighterCheck | null;
-    contracted: number | null;
-    actual: number | null;
-    status: ReturnType<typeof weighInStatus>;
-    overage: number | null;
-  };
+  if (rosterRes.error) {
+    console.error("[weigh-ins]", rosterRes.error.code, rosterRes.error.message);
+    return (
+      <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+        Weigh-ins aren&apos;t available yet. The latest database migration (
+        <code>0048_roster_weigh_ins.sql</code>) needs to be applied.
+      </div>
+    );
+  }
 
-  const rows: Row[] = [];
-  for (const bout of bouts) {
-    for (const corner of ["red", "blue"] as const) {
-      const fid =
-        corner === "red" ? bout.red_corner_fighter_id : bout.blue_corner_fighter_id;
-      const check = checksByBout.get(bout.id)?.[corner] ?? null;
-      const fighter = fid ? fighterMap.get(fid) ?? null : null;
-      const contracted = bout.contracted_weight_lbs;
-      const actual = check?.weigh_in_lbs ?? null;
-      const status = weighInStatus(contracted, actual);
-      rows.push({
-        key: `${bout.id}:${corner}`,
-        bout,
-        corner,
-        fighter,
-        check,
-        contracted,
-        actual,
-        status,
-        overage:
-          contracted != null && actual != null ? actual - contracted : null,
-      });
+  // Where each fighter sits on the card, if they are on it.
+  const boutOf = new Map<string, { order: number | null; contracted: number | null }>();
+  for (const b of bouts) {
+    for (const fid of [b.red_corner_fighter_id, b.blue_corner_fighter_id]) {
+      if (fid && !boutOf.has(fid)) {
+        boutOf.set(fid, { order: b.bout_order, contracted: b.contracted_weight_lbs });
+      }
     }
   }
 
-  const totalCorners = rows.length;
-  const weighedCorners = rows.filter((r) => r.actual != null).length;
+  const rows = ((rosterRes.data ?? []) as unknown as RosterRow[])
+    .filter((r) => r.fighter)
+    .map((r) => {
+      const f = r.fighter!;
+      const bout = boutOf.get(r.fighter_id) ?? null;
+      // A booked bout's contracted weight is the limit; otherwise the
+      // fighter's target weight for this event.
+      const limit =
+        bout?.contracted != null
+          ? num(bout.contracted)
+          : r.target_weight_lbs != null
+            ? num(r.target_weight_lbs)
+            : null;
+      const actual = r.weigh_in_lbs != null ? num(r.weigh_in_lbs) : null;
+      return {
+        key: r.id,
+        fighterId: r.fighter_id,
+        name: f.full_name,
+        gym: (f.gym_id ? f.gym_ref?.name : f.gym) ?? null,
+        bout,
+        limit,
+        actual,
+        notes: r.weigh_in_notes,
+        at: r.weigh_in_at,
+        status: weighInStatus(limit, actual),
+        overage: limit != null && actual != null ? actual - limit : null,
+      };
+    })
+    // Lightest first; fighters with no weight set go last.
+    .sort((a, b) => (a.limit ?? 9999) - (b.limit ?? 9999) || a.name.localeCompare(b.name));
+
+  const weighed = rows.filter((r) => r.actual != null).length;
   const overRows = rows.filter((r) => r.status === "over");
   const underRows = rows.filter((r) => r.status === "under");
   const onRows = rows.filter((r) => r.status === "on");
@@ -103,8 +136,8 @@ export default async function WeighInsPage({
 
       {rows.length > 0 && (
         <div className="mb-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
-          <SummaryTile label="Weighed" value={`${weighedCorners} / ${totalCorners}`} />
-          <SummaryTile label="On contract" value={String(onRows.length)} tone="ok" />
+          <SummaryTile label="Weighed" value={`${weighed} / ${rows.length}`} />
+          <SummaryTile label="On weight" value={String(onRows.length)} tone="ok" />
           <SummaryTile label="Under" value={String(underRows.length)} tone="muted" />
           <SummaryTile
             label="Over weight"
@@ -118,170 +151,128 @@ export default async function WeighInsPage({
         <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/5 p-3 text-sm">
           <div className="mb-1 flex items-center gap-2 font-medium text-red-700 dark:text-red-300">
             <AlertTriangle className="h-4 w-4" />
-            {overRows.length} fighter{overRows.length === 1 ? "" : "s"} over contract
+            {overRows.length} fighter{overRows.length === 1 ? "" : "s"} over weight
           </div>
           <ul className="ml-6 list-disc space-y-0.5 text-xs text-red-800 dark:text-red-200">
             {overRows.map((r) => (
               <li key={r.key}>
-                Bout {r.bout.bout_order ?? "?"} · {r.corner} · {fighterLabel(r.fighter)} —{" "}
-                {r.actual} lbs vs {r.contracted} contracted{" "}
-                {r.overage != null && (
-                  <span className="font-mono">(+{r.overage.toFixed(1)})</span>
-                )}
+                {r.name} — {r.actual} lbs vs {r.limit}{" "}
+                {r.overage != null && <span className="font-mono">(+{r.overage.toFixed(1)})</span>}
               </li>
             ))}
           </ul>
         </div>
       )}
 
-      {bouts.length === 0 ? (
+      {rows.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-          No bouts on this card yet.
+          No fighters on this event yet.{" "}
+          <Link href={`/events/${event.id}/fighters`} className="underline print:hidden">
+            Add fighters
+          </Link>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border">
           <table className="w-full min-w-[600px] text-sm">
             <thead className="bg-muted/40 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th className="px-3 py-2 font-medium">Bout</th>
-                <th className="px-3 py-2 font-medium">Corner</th>
                 <th className="px-3 py-2 font-medium">Fighter</th>
-                <th className="px-3 py-2 font-medium text-right">Contract</th>
+                <th className="px-3 py-2 text-right font-medium">Target</th>
                 <th className="px-3 py-2 font-medium">Weigh-in</th>
                 <th className="px-3 py-2 font-medium">Status</th>
                 <th className="px-3 py-2 font-medium print:hidden">Recorded</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {rows.map((r, idx) => {
-                const isNewBout = idx === 0 || rows[idx - 1].bout.id !== r.bout.id;
-                return (
-                  <tr
-                    key={r.key}
-                    className={
-                      r.status === "over"
-                        ? "bg-red-500/5"
-                        : isNewBout
-                          ? "border-t-2 border-border"
-                          : ""
-                    }
-                  >
-                    <td className="px-3 py-2 align-top font-mono text-xs">
-                      {isNewBout ? (
-                        <div>
-                          <div className="font-semibold">
-                            #{r.bout.bout_order ?? "?"}
-                          </div>
-                          {r.bout.weight_class && (
-                            <div className="mt-0.5 text-[10px] font-normal text-muted-foreground">
-                              {r.bout.weight_class}
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground/50">·</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 align-top">
-                      <span className="inline-flex items-center gap-1.5 text-xs capitalize">
-                        <span
-                          className={`h-2 w-2 rounded-full ${
-                            r.corner === "red" ? "bg-red-500" : "bg-blue-500"
-                          }`}
-                        />
-                        {r.corner}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 align-top">
-                      <div className="font-medium">{fighterLabel(r.fighter)}</div>
-                      {r.check?.weigh_in_notes && (
-                        <div className="mt-0.5 text-[11px] italic text-muted-foreground">
-                          {r.check.weigh_in_notes}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 align-top text-right font-mono text-xs">
-                      {r.contracted ?? "—"}
-                    </td>
-                    <td className="px-3 py-2 align-top">
-                      <form
-                        action={recordWeighIn}
-                        className="flex flex-wrap items-center gap-1.5 print:hidden"
+              {rows.map((r) => (
+                <tr key={r.key} className={r.status === "over" ? "bg-red-500/5" : ""}>
+                  <td className="px-3 py-2 align-top">
+                    <div className="font-medium">{r.name}</div>
+                    <div className="mt-0.5 text-[11px] text-muted-foreground">
+                      {[r.gym, r.bout ? `Bout ${r.bout.order ?? "?"}` : "Not matched yet"]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </div>
+                    {r.notes && (
+                      <div className="mt-0.5 text-[11px] italic text-muted-foreground">
+                        {r.notes}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-right align-top font-mono text-xs">
+                    {r.limit ?? "—"}
+                  </td>
+                  <td className="px-3 py-2 align-top">
+                    <form
+                      action={recordRosterWeighIn}
+                      className="flex flex-wrap items-center gap-1.5 print:hidden"
+                    >
+                      <input type="hidden" name="event_id" value={event.id} />
+                      <input type="hidden" name="fighter_id" value={r.fighterId} />
+                      <Input
+                        name="weigh_in_lbs"
+                        type="number"
+                        step="0.1"
+                        min="1"
+                        max="600"
+                        defaultValue={r.actual ?? ""}
+                        placeholder="lbs"
+                        aria-label={`Weigh-in for ${r.name}, in pounds`}
+                        className="h-8 w-20 font-mono text-xs"
+                        required
+                      />
+                      <Input
+                        name="weigh_in_notes"
+                        defaultValue={r.notes ?? ""}
+                        placeholder="notes (e.g. 2nd attempt)"
+                        aria-label="Notes"
+                        className="h-8 w-40 text-xs"
+                      />
+                      <Button
+                        type="submit"
+                        size="xs"
+                        variant={r.actual != null ? "outline" : "default"}
                       >
-                        <input type="hidden" name="bout_id" value={r.bout.id} />
+                        {r.actual != null ? "Update" : "Record"}
+                      </Button>
+                    </form>
+                    <span className="hidden font-mono text-xs print:inline">
+                      {r.actual != null ? `${r.actual} lbs` : "________"}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 align-top text-xs">
+                    {r.status === "over" && r.overage != null && (
+                      <Badge variant="destructive" className="font-mono">
+                        +{r.overage.toFixed(1)} OVER
+                      </Badge>
+                    )}
+                    {r.status === "on" && <Badge variant="default">On</Badge>}
+                    {r.status === "under" && r.overage != null && (
+                      <Badge variant="secondary" className="font-mono">
+                        {r.overage.toFixed(1)}
+                      </Badge>
+                    )}
+                    {r.status === "unknown" && <span className="text-muted-foreground/60">—</span>}
+                  </td>
+                  <td className="px-3 py-2 align-top text-xs text-muted-foreground print:hidden">
+                    {r.at ? fmtTime(r.at) : "—"}
+                    {r.actual != null && (
+                      <form action={clearRosterWeighIn} className="mt-0.5">
                         <input type="hidden" name="event_id" value={event.id} />
-                        <input type="hidden" name="corner" value={r.corner} />
-                        <Input
-                          name="weigh_in_lbs"
-                          type="number"
-                          step="0.1"
-                          min="1"
-                          max="600"
-                          defaultValue={r.actual ?? ""}
-                          placeholder="lbs"
-                          className="h-8 w-20 font-mono text-xs"
-                          disabled={!r.fighter}
-                          required
-                        />
-                        <Input
-                          name="weigh_in_notes"
-                          defaultValue={r.check?.weigh_in_notes ?? ""}
-                          placeholder="notes (e.g. 2nd attempt)"
-                          className="h-8 w-40 text-xs"
-                          disabled={!r.fighter}
-                        />
+                        <input type="hidden" name="fighter_id" value={r.fighterId} />
                         <Button
                           type="submit"
                           size="xs"
-                          variant={r.actual != null ? "outline" : "default"}
-                          disabled={!r.fighter}
+                          variant="ghost"
+                          className="h-5 px-1 text-[10px] text-muted-foreground hover:text-destructive"
                         >
-                          {r.actual != null ? "Update" : "Record"}
+                          clear
                         </Button>
                       </form>
-                      <span className="hidden font-mono text-xs print:inline">
-                        {r.actual != null ? `${r.actual} lbs` : "________"}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 align-top text-xs">
-                      {r.status === "over" && r.overage != null && (
-                        <Badge variant="destructive" className="font-mono">
-                          +{r.overage.toFixed(1)} OVER
-                        </Badge>
-                      )}
-                      {r.status === "on" && (
-                        <Badge variant="default">On</Badge>
-                      )}
-                      {r.status === "under" && r.overage != null && (
-                        <Badge variant="secondary" className="font-mono">
-                          {r.overage.toFixed(1)}
-                        </Badge>
-                      )}
-                      {r.status === "unknown" && (
-                        <span className="text-muted-foreground/60">—</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 align-top text-xs text-muted-foreground print:hidden">
-                      {r.check?.weigh_in_at ? fmtTime(r.check.weigh_in_at) : "—"}
-                      {r.actual != null && (
-                        <form action={clearWeighIn} className="mt-0.5">
-                          <input type="hidden" name="bout_id" value={r.bout.id} />
-                          <input type="hidden" name="event_id" value={event.id} />
-                          <input type="hidden" name="corner" value={r.corner} />
-                          <Button
-                            type="submit"
-                            size="xs"
-                            variant="ghost"
-                            className="h-5 px-1 text-[10px] text-muted-foreground hover:text-destructive"
-                          >
-                            clear
-                          </Button>
-                        </form>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+                    )}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
