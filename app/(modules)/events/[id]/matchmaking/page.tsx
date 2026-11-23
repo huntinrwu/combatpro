@@ -23,12 +23,14 @@ import { FormField } from "@/components/form-field";
 import { ToastedForm } from "@/components/forms/toasted-form";
 import { Input } from "@/components/ui/input";
 import { SummaryTile } from "@/components/summary-tile";
+import { ageFromDob } from "@/lib/format-utils";
 import { num, type EventRosterEntry, type Fighter, type Gym } from "@/lib/db/types";
 
 type RosterFighter = Pick<
   Fighter,
   | "id"
   | "full_name"
+  | "date_of_birth"
   | "pro_wins"
   | "pro_losses"
   | "pro_draws"
@@ -45,10 +47,11 @@ type RosterRow = Pick<
 > & { fighter: RosterFighter | null };
 
 const ROSTER_SELECT =
-  "id, fighter_id, status, weight_class, competing_as, target_weight_lbs, fighter:fighters(id, full_name, pro_wins, pro_losses, pro_draws, am_wins, am_losses, am_draws, gym, gym_id, gym_ref:gyms(name))";
+  "id, fighter_id, status, weight_class, competing_as, target_weight_lbs, fighter:fighters(id, full_name, date_of_birth, pro_wins, pro_losses, pro_draws, am_wins, am_losses, am_draws, gym, gym_id, gym_ref:gyms(name))";
 
 function recordLine(c: Candidate): string {
-  return `${c.fights} fight${c.fights === 1 ? "" : "s"} · ${c.wins} win${c.wins === 1 ? "" : "s"}`;
+  const age = c.age != null ? `age ${c.age} · ` : "";
+  return `${age}${c.fights} fight${c.fights === 1 ? "" : "s"} · ${c.wins} win${c.wins === 1 ? "" : "s"}`;
 }
 
 // Link that opens the bout form with both corners and the terms prefilled.
@@ -112,6 +115,7 @@ export default async function EventMatchmakingPage({
         targetWeightLbs: r.target_weight_lbs != null ? num(r.target_weight_lbs) : null,
         fights: totalFights(f),
         wins: totalWins(f),
+        age: ageFromDob(f.date_of_birth),
       };
     });
 
@@ -390,6 +394,11 @@ function PairingList({
               <span className="normal-case">
                 {p.a.fights} vs {p.b.fights} fights
               </span>
+              {(p.a.age != null || p.b.age != null) && (
+                <span className="normal-case">
+                  ages {p.a.age ?? "?"} vs {p.b.age ?? "?"}
+                </span>
+              )}
               {p.notes.map((n) => (
                 <Badge key={n} variant="outline" className="border-amber-500/40 normal-case text-amber-700 dark:text-amber-300">
                   {n}

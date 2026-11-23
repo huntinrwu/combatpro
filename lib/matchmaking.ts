@@ -82,6 +82,8 @@ export type Candidate = {
   targetWeightLbs: number | null;
   fights: number;
   wins: number;
+  // Display only; not used when pairing.
+  age?: number | null;
 };
 
 export type Pairing = {
