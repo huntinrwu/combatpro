@@ -118,7 +118,7 @@ export function MediaField({
   const placeholder = label?.placeholder ?? "https://…/image.png";
 
   return (
-    <div className="space-y-2">
+    <div className="min-w-0 space-y-2">
       <input type="hidden" name={name} value={url} />
 
       <div className="relative">

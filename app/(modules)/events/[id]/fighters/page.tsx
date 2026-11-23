@@ -225,7 +225,7 @@ export default async function EventFightersPage({
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2" collapsible={false}>
+        <Card className="min-w-0 lg:col-span-2" collapsible={false}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Users className="h-4 w-4" />
@@ -458,7 +458,7 @@ export default async function EventFightersPage({
         </Card>
 
         {canEdit && (
-          <div className="space-y-6">
+          <div className="min-w-0 space-y-6">
             {signups && (
               <Card collapsible={false}>
                 <CardHeader>

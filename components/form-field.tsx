@@ -14,7 +14,7 @@ type Props = {
 
 export function FormField({ label, htmlFor, required, hint, className, children }: Props) {
   return (
-    <div className={cn("space-y-1.5", className)}>
+    <div className={cn("min-w-0 space-y-1.5", className)}>
       <Label htmlFor={htmlFor} className="text-xs font-medium text-muted-foreground">
         {label}
         {required && <span className="ml-0.5 text-destructive">*</span>}
