@@ -10,6 +10,7 @@ import { KanbanBoard } from "@/components/views/kanban";
 import { CardGrid, CompactList, TableShell, TileGrid } from "@/components/views/containers";
 import { pickView } from "@/lib/view-mode";
 import type { Gym } from "@/lib/db/types";
+import { GymLogo } from "@/components/gym-logo";
 import { requireModuleAccess } from "@/lib/auth/session";
 
 const VIEWS = ["list", "card", "grid", "compact", "kanban"] as const;
@@ -17,7 +18,7 @@ const VIEWS = ["list", "card", "grid", "compact", "kanban"] as const;
 type Search = { q?: string; state?: string; view?: string };
 
 // Only the columns the views render or the search filter reads.
-type GymRow = Pick<Gym, "id" | "name" | "city" | "state" | "notes"> & {
+type GymRow = Pick<Gym, "id" | "name" | "city" | "state" | "notes" | "logo_url"> & {
   // Names of the gym's head coaches, joined for display and search.
   head_coach: string | null;
 };
@@ -36,7 +37,7 @@ export default async function GymsListPage({
   // Roster size comes back as an embedded aggregate: fighters: [{ count }].
   const { data: gyms, error } = await supabase
     .from("gyms")
-    .select("id, name, city, state, notes, fighters(count), coaches(full_name, role)")
+    .select("id, name, city, state, notes, logo_url, fighters(count), coaches(full_name, role)")
     .order("name");
   const gymRows = (
     (gyms ?? []) as unknown as (Omit<GymRow, "head_coach"> & {
@@ -179,7 +180,11 @@ function ListView({ gyms, rosterCount }: { gyms: GymRow[]; rosterCount: Map<stri
       {gyms.map((g) => (
         <tr key={g.id} className="hover:bg-muted/40">
           <td className="px-3 py-2">
-            <Link href={`/gyms/${g.id}`} className="font-medium hover:underline">
+            <Link
+              href={`/gyms/${g.id}`}
+              className="inline-flex items-center gap-2.5 font-medium hover:underline"
+            >
+              <GymLogo src={g.logo_url} name={g.name} size={28} />
               {g.name}
             </Link>
           </td>
@@ -204,7 +209,8 @@ function CardView({ gyms, rosterCount }: { gyms: GymRow[]; rosterCount: Map<stri
           className="group flex flex-col gap-2 rounded-xl border border-border bg-card p-4 transition-all hover:-translate-y-0.5 hover:border-foreground/30"
         >
           <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
+            <GymLogo src={g.logo_url} name={g.name} size={40} />
+            <div className="min-w-0 flex-1">
               <div className="truncate font-heading font-medium">{g.name}</div>
               {g.head_coach && (
                 <div className="truncate text-xs text-muted-foreground">
@@ -236,9 +242,7 @@ function GridView({ gyms, rosterCount }: { gyms: GymRow[]; rosterCount: Map<stri
           href={`/gyms/${g.id}`}
           className="group rounded-xl border border-border bg-card p-3 text-center transition-all hover:-translate-y-0.5 hover:border-foreground/30"
         >
-          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-muted text-lg font-heading">
-            {g.name.charAt(0).toUpperCase()}
-          </div>
+          <GymLogo src={g.logo_url} name={g.name} size={48} className="mx-auto mb-2 flex" />
           <div className="truncate text-sm font-medium">{g.name}</div>
           <div className="truncate text-[10px] text-muted-foreground">{locationOf(g)}</div>
           <div className="mt-1 inline-flex items-center gap-1 text-[10px] text-muted-foreground">
@@ -260,6 +264,7 @@ function CompactView({ gyms, rosterCount }: { gyms: GymRow[]; rosterCount: Map<s
           href={`/gyms/${g.id}`}
           className="flex items-center gap-3 px-3 py-1.5 text-sm hover:bg-muted/40"
         >
+          <GymLogo src={g.logo_url} name={g.name} size={20} />
           <span className="min-w-0 flex-1 truncate font-medium">{g.name}</span>
           <span className="hidden w-32 shrink-0 truncate text-xs text-muted-foreground sm:block">
             {g.head_coach ?? ""}

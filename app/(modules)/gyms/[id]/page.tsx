@@ -14,6 +14,7 @@ import { COACH_ROLE_LABELS, type Bout, type Coach, type EventRow, type Fighter, 
 import { removeCoach } from "../../coaches/actions";
 import { AddCoachForm } from "../../coaches/_components/add-coach-form";
 import { ToastedForm } from "@/components/forms/toasted-form";
+import { GymLogo } from "@/components/gym-logo";
 
 type UpcomingRow = {
   bout_id: string;
@@ -107,7 +108,9 @@ export default async function GymDetailPage({
   return (
     <>
       <header className="mb-8 flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="flex items-start gap-4">
+          {gym.logo_url && <GymLogo src={gym.logo_url} name={gym.name} size={64} className="rounded-lg" />}
+          <div>
           <h1 className="font-heading text-3xl font-semibold tracking-tight">{gym.name}</h1>
           <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
             {gym.owners && <span>Owned by {gym.owners}</span>}
@@ -125,6 +128,7 @@ export default async function GymDetailPage({
             <span>{rosterList.length} on roster</span>
             <span>·</span>
             <span>{upcoming.length} upcoming bout{upcoming.length === 1 ? "" : "s"}</span>
+          </div>
           </div>
         </div>
         {session?.isStaff && (

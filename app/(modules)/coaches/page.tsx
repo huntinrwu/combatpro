@@ -11,10 +11,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ToastedForm } from "@/components/forms/toasted-form";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { GymLogo } from "@/components/gym-logo";
 import { COACH_ROLES, COACH_ROLE_LABELS, type Coach, type Gym } from "@/lib/db/types";
 
 type Search = { q?: string; role?: string };
-type CoachRow = Coach & { gym: Pick<Gym, "id" | "name"> | null };
+type CoachRow = Coach & { gym: Pick<Gym, "id" | "name" | "logo_url"> | null };
 
 export default async function CoachesPage({
   searchParams,
@@ -27,7 +28,7 @@ export default async function CoachesPage({
 
   const [session, coachRes, { data: gyms }] = await Promise.all([
     getSessionUser(),
-    supabase.from("coaches").select("*, gym:gyms(id, name)").order("full_name"),
+    supabase.from("coaches").select("*, gym:gyms(id, name, logo_url)").order("full_name"),
     supabase.from("gyms").select("id, name").order("name"),
   ]);
   const isStaff = session?.isStaff === true;
@@ -105,7 +106,11 @@ export default async function CoachesPage({
                     </div>
                     <div className="mt-0.5 text-xs text-muted-foreground">
                       {c.gym ? (
-                        <Link href={`/gyms/${c.gym.id}`} className="hover:underline">
+                        <Link
+                          href={`/gyms/${c.gym.id}`}
+                          className="inline-flex items-center gap-1.5 align-middle hover:underline"
+                        >
+                          {c.gym.logo_url && <GymLogo src={c.gym.logo_url} name={c.gym.name} size={16} />}
                           {c.gym.name}
                         </Link>
                       ) : (

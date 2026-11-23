@@ -9,6 +9,7 @@ import { db } from "@/lib/db/client";
 import { fmtDateLong } from "@/lib/format-utils";
 import { parseBoard } from "@/lib/matchmaking";
 import { Logo } from "@/components/logo";
+import { GymLogo } from "@/components/gym-logo";
 import { num, type EventRow, type EventRosterEntry, type Fighter, type Gym } from "@/lib/db/types";
 
 type LineupEvent = Pick<
@@ -52,7 +53,9 @@ export async function generateMetadata({
 // contact details or medical information.
 type RosterRow = Pick<EventRosterEntry, "id" | "fighter_id" | "target_weight_lbs"> & {
   fighter:
-    | (Pick<Fighter, "full_name" | "gym" | "gym_id"> & { gym_ref: Pick<Gym, "name"> | null })
+    | (Pick<Fighter, "full_name" | "gym" | "gym_id"> & {
+        gym_ref: Pick<Gym, "name" | "logo_url"> | null;
+      })
     | null;
 };
 
@@ -82,7 +85,7 @@ export default async function PublicLineupPage({
     supabase
       .from("event_fighters")
       .select(
-        "id, fighter_id, target_weight_lbs, fighter:fighters(full_name, gym, gym_id, gym_ref:gyms(name))",
+        "id, fighter_id, target_weight_lbs, fighter:fighters(full_name, gym, gym_id, gym_ref:gyms(name, logo_url))",
       )
       .eq("event_id", event.id)
       .neq("status", "withdrawn"),
@@ -102,6 +105,7 @@ export default async function PublicLineupPage({
       fighterId: r.fighter_id,
       name: r.fighter!.full_name,
       gym: (r.fighter!.gym_id ? r.fighter!.gym_ref?.name : r.fighter!.gym) ?? null,
+      gymLogo: (r.fighter!.gym_id ? r.fighter!.gym_ref?.logo_url : null) ?? null,
       lbs: r.target_weight_lbs != null ? num(r.target_weight_lbs) : null,
     }))
     // Lightest first; fighters with no target weight yet go last.
@@ -248,7 +252,12 @@ export default async function PublicLineupPage({
                 <li key={f.id} className="flex items-baseline justify-between gap-3 px-4 py-2">
                   <span>
                     {f.name}
-                    {f.gym && <span className="ml-2 text-xs text-muted-foreground">{f.gym}</span>}
+                    {f.gym && (
+                      <span className="ml-2 inline-flex items-center gap-1.5 align-middle text-xs text-muted-foreground">
+                        {f.gymLogo && <GymLogo src={f.gymLogo} name={f.gym} size={18} />}
+                        {f.gym}
+                      </span>
+                    )}
                   </span>
                   <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                     {f.lbs != null ? `${f.lbs} lbs` : "Weight TBD"}

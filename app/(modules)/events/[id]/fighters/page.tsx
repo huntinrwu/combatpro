@@ -27,6 +27,7 @@ import { ToastedForm } from "@/components/forms/toasted-form";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { SummaryTile } from "@/components/summary-tile";
+import { GymLogo } from "@/components/gym-logo";
 import { WeightClassSelect } from "@/components/weight-class-select";
 import {
   EVENT_FIGHTER_STATUSES,
@@ -62,7 +63,7 @@ type RosterFighter = Pick<
   | "gym"
   | "gym_id"
 > & {
-  gym_ref: Pick<Gym, "name"> | null;
+  gym_ref: Pick<Gym, "name" | "logo_url"> | null;
   medical: Pick<FighterMedicalRecord, "kind" | "issued_on" | "expires_on">[];
 };
 
@@ -77,7 +78,7 @@ type RegistryFighter = Pick<
 > & { gym_ref: Pick<Gym, "name"> | null };
 
 const ROSTER_SELECT =
-  "id, fighter_id, status, weight_class, competing_as, target_weight_lbs, notes, fighter:fighters(id, full_name, nickname, date_of_birth, gender, primary_sport, weight_class, walking_weight_lbs, pro_wins, pro_losses, pro_draws, am_wins, am_losses, am_draws, gym, gym_id, gym_ref:gyms(name), medical:fighter_medical_records(kind, issued_on, expires_on))";
+  "id, fighter_id, status, weight_class, competing_as, target_weight_lbs, notes, fighter:fighters(id, full_name, nickname, date_of_birth, gender, primary_sport, weight_class, walking_weight_lbs, pro_wins, pro_losses, pro_draws, am_wins, am_losses, am_draws, gym, gym_id, gym_ref:gyms(name, logo_url), medical:fighter_medical_records(kind, issued_on, expires_on))";
 
 const STATUS_ORDER: Record<EventFighterStatus, number> = {
   confirmed: 0,
@@ -285,7 +286,10 @@ export default async function EventFightersPage({
                             )}
                           </div>
                           {f && (
-                            <div className="mt-0.5 text-xs capitalize text-muted-foreground">
+                            <div className="mt-0.5 flex items-center gap-1.5 text-xs capitalize text-muted-foreground">
+                              {f.gym_id && f.gym_ref?.logo_url && (
+                                <GymLogo src={f.gym_ref.logo_url} name={f.gym_ref.name} size={16} />
+                              )}
                               {[
                                 f.primary_sport,
                                 f.gender,
