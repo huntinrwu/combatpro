@@ -16,7 +16,6 @@ function gymPayload(formData: FormData) {
     city: str(formData.get("city")),
     state: str(formData.get("state")),
     country: str(formData.get("country")),
-    owners: str(formData.get("owners")),
     contact_email: str(formData.get("contact_email")),
     contact_phone: str(formData.get("contact_phone")),
     website: str(formData.get("website")),

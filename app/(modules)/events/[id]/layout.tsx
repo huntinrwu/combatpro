@@ -66,9 +66,8 @@ export default async function EventLayout({
     // Weigh-in progress, counted over the roster.
     db()
       .from("event_fighters")
-      .select("weigh_in_lbs")
-      .eq("event_id", id)
-      .neq("status", "withdrawn"),
+      .select("fighter_id, status, weigh_in_lbs")
+      .eq("event_id", id),
   ]);
   if (!detail) notFound();
   const posterUrl = posterRes.data
@@ -81,7 +80,16 @@ export default async function EventLayout({
   const { event, bouts, purses, ledger, sponsorSlots } = detail;
   const canEdit = session ? canEditEvent(event, session) : false;
 
-  const rosterWeighIns = (rosterRes.data ?? []) as { weigh_in_lbs: number | string | null }[];
+  // Same people as the weigh-in sheet: the roster, minus withdrawn fighters
+  // who are no longer on a bout.
+  const booked = new Set(bouts.flatMap((b) => [b.red_corner_fighter_id, b.blue_corner_fighter_id]));
+  const rosterWeighIns = (
+    (rosterRes.data ?? []) as {
+      fighter_id: string;
+      status: string;
+      weigh_in_lbs: number | string | null;
+    }[]
+  ).filter((r) => r.status !== "withdrawn" || booked.has(r.fighter_id));
   const totalWeighInSlots = rosterWeighIns.length;
   const weighedCorners = rosterWeighIns.filter((r) => r.weigh_in_lbs != null).length;
   let payoutNet = 0;

@@ -152,10 +152,12 @@ function CardAction({ className, ...props }: React.ComponentProps<"div">) {
 
 function CardContent({ className, ...props }: React.ComponentProps<"div">) {
   const ctx = React.useContext(CardContext);
-  if (ctx && !ctx.open) return null;
+  // Collapsed content is hidden, not removed: a form field inside a collapsed
+  // card must still be submitted, or saving would blank it out.
   return (
     <div
       data-slot="card-content"
+      hidden={ctx ? !ctx.open : undefined}
       className={cn("px-(--card-spacing)", className)}
       {...props}
     />
@@ -164,10 +166,10 @@ function CardContent({ className, ...props }: React.ComponentProps<"div">) {
 
 function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
   const ctx = React.useContext(CardContext);
-  if (ctx && !ctx.open) return null;
   return (
     <div
       data-slot="card-footer"
+      hidden={ctx ? !ctx.open : undefined}
       className={cn(
         "flex items-center rounded-b-xl border-t bg-muted/50 p-(--card-spacing)",
         className,

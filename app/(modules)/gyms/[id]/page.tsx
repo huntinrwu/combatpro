@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarClock, ClipboardList, Pencil, UserCog, Users, X } from "lucide-react";
+import { CalendarClock, ClipboardList, Pencil, UserCog, Users } from "lucide-react";
 
 import { db } from "@/lib/db/client";
 import { fmtDateShortWithDay as fmtEventDate } from "@/lib/format-utils";
@@ -11,9 +11,6 @@ import { DetailRow } from "@/components/detail-row";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { COACH_ROLE_LABELS, type Bout, type Coach, type EventRow, type Fighter, type Gym } from "@/lib/db/types";
-import { removeCoach } from "../../coaches/actions";
-import { AddCoachForm } from "../../coaches/_components/add-coach-form";
-import { ToastedForm } from "@/components/forms/toasted-form";
 import { GymLogo } from "@/components/gym-logo";
 
 type UpcomingRow = {
@@ -42,15 +39,21 @@ export default async function GymDetailPage({
       .select("id, full_name, nickname, primary_sport, pro_wins, pro_losses, pro_draws, am_wins, am_losses, am_draws, weight_class")
       .eq("gym_id", id)
       .order("full_name"),
-    supabase.from("coaches").select("*").eq("gym_id", id).order("full_name"),
+    supabase
+      .from("coaches")
+      .select("*, person:persons(fighters(id))")
+      .eq("gym_id", id)
+      .order("full_name"),
   ]);
 
   if (!gym) notFound();
 
-  // Head coaches first, then junior coaches.
-  const coaches = ((coachRows ?? []) as Coach[]).sort(
-    (a, b) => Number(a.role !== "head_coach") - Number(b.role !== "head_coach"),
-  );
+  // Head coaches first, then junior coaches, then owners who don't coach.
+  const rank = (c: Coach) => (c.role === "head_coach" ? 0 : c.role === "jr_coach" ? 1 : 2);
+  const coaches = (
+    (coachRows ?? []) as unknown as (Coach & { person: { fighters: { id: string }[] } | null })[]
+  ).sort((a, b) => rank(a) - rank(b));
+  const owners = coaches.filter((c) => c.is_owner).map((c) => c.full_name);
   const headCoaches = coaches.filter((c) => c.role === "head_coach").map((c) => c.full_name);
 
   const rosterList = (roster ?? []) as Pick<
@@ -113,8 +116,8 @@ export default async function GymDetailPage({
           <div>
           <h1 className="font-heading text-3xl font-semibold tracking-tight">{gym.name}</h1>
           <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-            {gym.owners && <span>Owned by {gym.owners}</span>}
-            {gym.owners && <span>·</span>}
+            {owners.length > 0 && <span>Owned by {owners.join(", ")}</span>}
+            {owners.length > 0 && <span>·</span>}
             {headCoaches.length > 0 && (
               <span>
                 Head coach{headCoaches.length === 1 ? "" : "es"} {headCoaches.join(", ")}
@@ -188,7 +191,7 @@ export default async function GymDetailPage({
               }
             />
             <DetailRow label="Phone" value={gym.contact_phone} />
-            <DetailRow label="Owner(s)" value={gym.owners} />
+            <DetailRow label="Owner(s)" value={owners.join(", ") || null} />
             <DetailRow
               label="Notes"
               value={
@@ -205,51 +208,51 @@ export default async function GymDetailPage({
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <UserCog className="h-4 w-4" />
-            Coaches ({coaches.length})
+            Coaches &amp; owners ({coaches.length})
           </CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-6 md:grid-cols-3">
-          <div className={session?.isStaff ? "md:col-span-2" : "md:col-span-3"}>
-            {coaches.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No coaches listed for this gym yet.</p>
-            ) : (
-              <ul className="divide-y divide-border rounded-lg border border-border/70">
-                {coaches.map((c) => (
-                  <li key={c.id} className="flex items-center gap-3 px-3 py-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
-                        {c.full_name}
+        <CardContent>
+          {coaches.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No coaches or owners listed yet.</p>
+          ) : (
+            <ul className="divide-y divide-border rounded-lg border border-border/70">
+              {coaches.map((c) => {
+                const fighterId = c.person?.fighters[0]?.id ?? null;
+                return (
+                  <li key={c.id} className="px-3 py-2">
+                    <div className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
+                      <span className="mr-0.5">{c.full_name}</span>
+                      {c.role && (
                         <Badge variant={c.role === "head_coach" ? "secondary" : "outline"}>
                           {COACH_ROLE_LABELS[c.role]}
                         </Badge>
-                      </div>
-                      {(c.contact_email || c.contact_phone) && (
-                        <div className="mt-0.5 text-xs text-muted-foreground">
-                          {[c.contact_email, c.contact_phone].filter(Boolean).join(" · ")}
-                        </div>
+                      )}
+                      {c.is_owner && <Badge variant="outline">Owner</Badge>}
+                      {fighterId && (
+                        <Link href={`/fighters/${fighterId}`}>
+                          <Badge variant="outline" className="hover:bg-muted">
+                            Fighter
+                          </Badge>
+                        </Link>
                       )}
                     </div>
-                    {session?.isStaff && (
-                      <ToastedForm action={removeCoach} successMessage="Coach removed">
-                        <input type="hidden" name="id" value={c.id} />
-                        <input type="hidden" name="gym_id" value={gym.id} />
-                        <Button
-                          type="submit"
-                          size="icon-sm"
-                          variant="ghost"
-                          aria-label={`Remove ${c.full_name}`}
-                          title="Remove coach"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </ToastedForm>
+                    {(c.contact_email || c.contact_phone) && (
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        {[c.contact_email, c.contact_phone].filter(Boolean).join(" · ")}
+                      </div>
                     )}
                   </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          {session?.isStaff && <AddCoachForm gymId={gym.id} />}
+                );
+              })}
+            </ul>
+          )}
+          {session?.isStaff && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              <Link href={`/gyms/${gym.id}/edit#people`} className="underline hover:text-foreground">
+                Add, edit or remove coaches and owners
+              </Link>
+            </p>
+          )}
         </CardContent>
       </Card>
 

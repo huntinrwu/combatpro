@@ -91,6 +91,8 @@ export default function MatchBoardInner({
   const [saved, setSaved] = useState<Board>(
     () => savedBoard ?? load(storageKey) ?? fresh(candidates, [], settings),
   );
+  // Suggestions are only shown to the public once the matchmaker has saved a board.
+  const [published, setPublished] = useState(savedBoard != null);
   // Fighter picked up by tapping, waiting for a place to go.
   const [picked, setPicked] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
@@ -108,6 +110,7 @@ export default function MatchBoardInner({
       // Private browsing or a full disk: the board still works for this visit.
     }
     if (!canEdit) return;
+    setPublished(true);
     // Saved on the event too, so other devices and the public lineup page see it.
     saveMatchBoard(eventId, next).catch(() => toast.error("Couldn't save the board."));
   }
@@ -203,10 +206,18 @@ export default function MatchBoardInner({
         .filter(Boolean)
         .join(" · ") || null;
     return (
-      <button
+      // A div, not a button: Firefox will not start a drag from a button.
+      <div
         key={id}
-        type="button"
+        role="button"
+        tabIndex={0}
         draggable
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            tap({ type: "fighter", id });
+          }
+        }}
         onDragStart={(e) => {
           e.dataTransfer.effectAllowed = "move";
           e.dataTransfer.setData("text/plain", id);
@@ -218,7 +229,7 @@ export default function MatchBoardInner({
         aria-pressed={picked === id}
         {...dropProps({ type: "fighter", id })}
         className={cn(
-          "w-full cursor-grab rounded-md border border-border bg-card px-2.5 py-1.5 text-left transition-colors hover:bg-muted/50 active:cursor-grabbing",
+          "w-full cursor-grab select-none rounded-md border border-border bg-card px-2.5 py-1.5 text-left outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/50 active:cursor-grabbing",
           corner === "red" && "border-l-2 border-l-red-500/70",
           corner === "blue" && "border-l-2 border-l-blue-500/70",
           picked === id && "ring-2 ring-brand",
@@ -240,7 +251,7 @@ export default function MatchBoardInner({
             .filter(Boolean)
             .join(" · ")}
         </div>
-      </button>
+      </div>
     );
   }
 
@@ -318,6 +329,17 @@ export default function MatchBoardInner({
             " Pairings here show on the public lineup page as tentative, unless the bout list is hidden."}
         </p>
       </div>
+
+      {canEdit && !published && board.pairs.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
+          <span className="text-muted-foreground">
+            These are suggestions only you can see. They are not on the public lineup page yet.
+          </span>
+          <Button type="button" size="sm" variant="outline" onClick={() => commit(board)}>
+            Use these pairings
+          </Button>
+        </div>
+      )}
 
       <ul className="space-y-2">
         {rows.map((p, i) => {

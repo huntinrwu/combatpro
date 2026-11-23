@@ -21,7 +21,13 @@ import { requireModuleAccess } from "@/lib/auth/session";
 
 type RosterRow = Pick<
   EventRosterEntry,
-  "id" | "fighter_id" | "target_weight_lbs" | "weigh_in_lbs" | "weigh_in_at" | "weigh_in_notes"
+  | "id"
+  | "fighter_id"
+  | "status"
+  | "target_weight_lbs"
+  | "weigh_in_lbs"
+  | "weigh_in_at"
+  | "weigh_in_notes"
 > & {
   fighter:
     | (Pick<Fighter, "full_name" | "gym" | "gym_id"> & { gym_ref: Pick<Gym, "name"> | null })
@@ -43,10 +49,9 @@ export default async function WeighInsPage({
     db()
       .from("event_fighters")
       .select(
-        "id, fighter_id, target_weight_lbs, weigh_in_lbs, weigh_in_at, weigh_in_notes, fighter:fighters(full_name, gym, gym_id, gym_ref:gyms(name))",
+        "id, fighter_id, status, target_weight_lbs, weigh_in_lbs, weigh_in_at, weigh_in_notes, fighter:fighters(full_name, gym, gym_id, gym_ref:gyms(name))",
       )
-      .eq("event_id", id)
-      .neq("status", "withdrawn"),
+      .eq("event_id", id),
   ]);
   if (!detail) notFound();
   const { event, bouts } = detail;
@@ -72,7 +77,8 @@ export default async function WeighInsPage({
   }
 
   const rows = ((rosterRes.data ?? []) as unknown as RosterRow[])
-    .filter((r) => r.fighter)
+    // Withdrawn fighters drop off the sheet unless they are still on a bout.
+    .filter((r) => r.fighter && (r.status !== "withdrawn" || boutOf.has(r.fighter_id)))
     .map((r) => {
       const f = r.fighter!;
       const bout = boutOf.get(r.fighter_id) ?? null;

@@ -1031,7 +1031,7 @@ export type Gym = {
   country: string | null;
   // Legacy free text; coaches now live in the coaches table.
   head_coach: string | null;
-  // Owner name(s), free text. An owner isn't necessarily a coach.
+  // Legacy free text; owners are now rows in the coaches table (is_owner).
   owners: string | null;
   contact_email: string | null;
   contact_phone: string | null;
@@ -1052,10 +1052,16 @@ export const COACH_ROLE_LABELS: Record<CoachRole, string> = {
   jr_coach: "Jr. coach",
 };
 
+// A coach and/or owner of a gym (table `coaches`).
 export type Coach = {
   id: string;
   full_name: string;
-  role: CoachRole;
+  // Null for an owner who doesn't coach.
+  role: CoachRole | null;
+  is_owner: boolean;
+  // The shared person record; the same one a fighter points at when this
+  // person also fights.
+  person_id: string | null;
   gym_id: string | null;
   contact_email: string | null;
   contact_phone: string | null;

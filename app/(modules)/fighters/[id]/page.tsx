@@ -18,7 +18,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NativeSelect } from "@/components/ui/native-select";
 import { PersonNoBadge } from "@/components/person-no-badge";
 import { Textarea } from "@/components/ui/textarea";
+import { COACH_ROLE_LABELS } from "@/lib/db/types";
 import type {
+  CoachRole,
   EventRosterEntry,
   Fighter,
   FighterClassPreference,
@@ -67,9 +69,23 @@ export default async function FighterDetailPage({
     getSessionUser(),
     supabase
       .from("fighters")
-      .select("*, person:persons(person_no)")
+      // The person's coach / owner roles ride along, so someone who both
+      // fights and coaches shows as one person.
+      .select("*, person:persons(person_no, coaches(id, role, is_owner, gym:gyms(id, name)))")
       .eq("id", id)
-      .maybeSingle<Fighter & { person: { person_no: number } | null }>(),
+      .maybeSingle<
+        Fighter & {
+          person: {
+            person_no: number;
+            coaches: {
+              id: string;
+              role: CoachRole | null;
+              is_owner: boolean;
+              gym: { id: string; name: string } | null;
+            }[];
+          } | null;
+        }
+      >(),
     supabase
       .from("fighter_medical_records")
       .select("*")
@@ -163,6 +179,24 @@ export default async function FighterDetailPage({
           <Badge variant="secondary" className="capitalize">
             {fighter.primary_sport}
           </Badge>
+          {(person?.coaches ?? []).map((c) => {
+            const label = [c.role ? COACH_ROLE_LABELS[c.role] : null, c.is_owner ? "Owner" : null]
+              .filter(Boolean)
+              .join(" & ");
+            const badge = (
+              <Badge variant="outline">
+                {label}
+                {c.gym ? ` · ${c.gym.name}` : ""}
+              </Badge>
+            );
+            return c.gym ? (
+              <Link key={c.id} href={`/gyms/${c.gym.id}`}>
+                {badge}
+              </Link>
+            ) : (
+              <span key={c.id}>{badge}</span>
+            );
+          })}
           <div className="ml-auto flex items-center gap-2">
             {session?.isStaff && (
               <Button
