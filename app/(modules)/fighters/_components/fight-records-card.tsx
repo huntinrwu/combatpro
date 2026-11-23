@@ -66,6 +66,9 @@ export function FightRecordsCard({
   const rec = record(records);
   const proRec = record(records.filter((r) => r.is_pro));
   const amRec = record(records.filter((r) => !r.is_pro));
+  const listMatches =
+    proRec.w === declared.pro.w && proRec.l === declared.pro.l && proRec.d === declared.pro.d &&
+    amRec.w === declared.am.w && amRec.l === declared.am.l && amRec.d === declared.am.d;
   const declaredTotal =
     declared.pro.w + declared.pro.l + declared.pro.d +
     declared.am.w + declared.am.l + declared.am.d;
@@ -77,17 +80,27 @@ export function FightRecordsCard({
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-lg border border-border/70 p-4">
           <div className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
-            CombatPro record
+            Record
           </div>
           <div className="mt-1 font-mono text-2xl font-semibold tabular-nums">
-            {rec.w}–{rec.l}–{rec.d}
-            {rec.nc > 0 && <span className="text-sm text-muted-foreground"> ({rec.nc} NC)</span>}
+            {declared.pro.w + declared.am.w}–{declared.pro.l + declared.am.l}–
+            {declared.pro.d + declared.am.d}
           </div>
           <div className="mt-1 text-xs text-muted-foreground">
-            Pro <span className="font-mono">{proRec.w}–{proRec.l}–{proRec.d}</span>
+            Pro <span className="font-mono">{declared.pro.w}–{declared.pro.l}–{declared.pro.d}</span>
             {" · "}
-            Am <span className="font-mono">{amRec.w}–{amRec.l}–{amRec.d}</span>
+            Am <span className="font-mono">{declared.am.w}–{declared.am.l}–{declared.am.d}</span>
           </div>
+          {/* The bout list is supporting detail; say so when it disagrees. */}
+          {records.length > 0 && !listMatches && (
+            <div className="mt-1 text-xs text-muted-foreground">
+              Bouts listed below add up to{" "}
+              <span className="font-mono">
+                {rec.w}–{rec.l}–{rec.d}
+              </span>
+              {rec.nc > 0 && ` (${rec.nc} NC)`}
+            </div>
+          )}
         </div>
         <div className="rounded-lg border border-border/70 p-4">
           <div className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
@@ -304,8 +317,8 @@ function DeclaredRecordForm({
     >
       <input type="hidden" name="fighter_id" value={fighterId} />
       <div className="mr-2 text-xs text-muted-foreground">
-        <div className="font-medium text-foreground">Headline record</div>
-        Shown at the top of the profile.
+        <div className="font-medium text-foreground">Record</div>
+        The fighter&apos;s official W-L-D.
       </div>
       {DECLARED_FIELDS.map(([group, key, name, label]) => (
         <label key={name} className="text-[10px] uppercase tracking-wide text-muted-foreground">
