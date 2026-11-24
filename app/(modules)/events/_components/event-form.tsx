@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Lock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -183,6 +184,20 @@ export function EventForm({
             venue, city and state above show there too. Leave anything blank to leave it off.
           </p>
           <div className="grid gap-4 md:grid-cols-2">
+            <FormField
+              label="Description (public)"
+              htmlFor="public_description"
+              hint="What the event is, in a few sentences. Shown first on the public page."
+              className="md:col-span-2"
+            >
+              <Textarea
+                id="public_description"
+                name="public_description"
+                rows={3}
+                maxLength={2000}
+                defaultValue={publicInfo.description ?? ""}
+              />
+            </FormField>
             <FormField label="Street address" htmlFor="public_address" className="md:col-span-2">
               <Input
                 id="public_address"
@@ -217,9 +232,9 @@ export function EventForm({
               />
             </FormField>
             <FormField
-              label="More details"
+              label="Notes (public)"
               htmlFor="public_about"
-              hint="Parking, what to bring, who to contact, anything else people should know."
+              hint="Shown to everyone on the public page: parking, what to bring, who to contact. Keep anything private in Private notes at the bottom of this form."
               className="md:col-span-2"
             >
               <Textarea
@@ -317,10 +332,17 @@ export function EventForm({
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Notes</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Lock className="h-4 w-4" />
+            Private notes
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <Textarea id="notes" name="notes" rows={3} defaultValue={defaults?.notes ?? ""} />
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Only for you and CombatPro staff. Never shown on the public page. For notes the
+            public should see, use &quot;Notes (public)&quot; in the Public page section.
+          </p>
         </CardContent>
       </Card>
 

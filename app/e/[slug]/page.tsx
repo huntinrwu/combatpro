@@ -326,6 +326,14 @@ export default async function PublicEventPage({
       </section>
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
+        {info.description && (
+          <section className="mb-10">
+            <h2 className="mb-3 font-heading text-lg font-semibold tracking-tight">
+              About this event
+            </h2>
+            <p className="max-w-3xl whitespace-pre-wrap text-sm leading-relaxed">{info.description}</p>
+          </section>
+        )}
         {hasDetails && (
           <section className="mb-10">
             <h2 className="mb-4 font-heading text-lg font-semibold tracking-tight">Event details</h2>
@@ -388,15 +396,18 @@ export default async function PublicEventPage({
                 )}
               </dl>
               {info.about && (
-                <p
-                  className={`whitespace-pre-wrap text-sm ${
+                <div
+                  className={
                     doors || start || info.address || info.admission || info.ticketUrl
                       ? "mt-5 border-t border-border/60 pt-4"
                       : ""
-                  }`}
+                  }
                 >
-                  {info.about}
-                </p>
+                  <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    Notes
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap text-sm">{info.about}</p>
+                </div>
               )}
             </div>
           </section>

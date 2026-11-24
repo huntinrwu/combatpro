@@ -10,7 +10,10 @@ export type PublicInfo = {
   // e.g. "Free admission, spectators welcome" or "$20 at the door".
   admission: string | null;
   ticketUrl: string | null;
-  // Free text: parking, what to bring, contact, anything else.
+  // What the event is, in the promoter's words. Shown first on the public page.
+  description: string | null;
+  // Public notes: parking, what to bring, contact, anything else. Not the
+  // promoter's private notes, which live in events.notes and are never public.
   about: string | null;
 };
 
@@ -42,6 +45,7 @@ export function parsePublicInfo(raw: unknown): PublicInfo {
     start: time(r.start),
     admission: text(r.admission, 200),
     ticketUrl: url(r.ticketUrl),
+    description: text(r.description, 2000),
     about: text(r.about, 3000),
   };
 }
@@ -54,6 +58,7 @@ export function publicInfoFromForm(formData: FormData): PublicInfo {
     start: formData.get("public_start"),
     admission: formData.get("public_admission"),
     ticketUrl: formData.get("public_ticket_url"),
+    description: formData.get("public_description"),
     about: formData.get("public_about"),
   });
 }

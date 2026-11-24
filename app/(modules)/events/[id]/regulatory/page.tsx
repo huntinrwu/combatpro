@@ -104,13 +104,14 @@ export default async function EventRegulatoryTabPage({
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Notes</CardTitle>
+          <CardTitle className="text-base">Private notes</CardTitle>
         </CardHeader>
         <CardContent>
+          <p className="mb-2 text-xs text-muted-foreground">Not shown on the public page.</p>
           {event.notes ? (
             <p className="whitespace-pre-wrap text-sm">{event.notes}</p>
           ) : (
-            <p className="text-sm text-muted-foreground">No notes for this event.</p>
+            <p className="text-sm text-muted-foreground">No private notes for this event.</p>
           )}
         </CardContent>
       </Card>
