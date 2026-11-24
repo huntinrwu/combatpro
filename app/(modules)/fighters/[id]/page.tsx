@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NativeSelect } from "@/components/ui/native-select";
 import { PersonNoBadge } from "@/components/person-no-badge";
+import { PersonRoleNav } from "@/components/person-role-nav";
 import { Textarea } from "@/components/ui/textarea";
 import { COACH_ROLE_LABELS } from "@/lib/db/types";
 import type {
@@ -170,6 +171,11 @@ export default async function FighterDetailPage({
 
   return (
     <>
+      <PersonRoleNav
+        personId={fighter.person_id}
+        current={`fighter:${fighter.id}`}
+        showPersonRecord={session?.isStaff}
+      />
       <header className="mb-5">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-heading text-3xl font-semibold tracking-tight">

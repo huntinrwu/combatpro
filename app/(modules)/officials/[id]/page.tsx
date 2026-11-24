@@ -19,6 +19,7 @@ import { FormField } from "@/components/form-field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { PersonNoBadge } from "@/components/person-no-badge";
+import { PersonRoleNav } from "@/components/person-role-nav";
 import { ToastedForm } from "@/components/forms/toasted-form";
 import type {
   EventOfficial,
@@ -103,6 +104,7 @@ export default async function OfficialDetailPage({
 
   return (
     <>
+      <PersonRoleNav personId={official.person_id} current={`official:${official.id}`} />
       <header className="mb-8 flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-3">

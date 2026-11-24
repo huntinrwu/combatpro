@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { db, dbErr } from "@/lib/db/client";
-import { personIdForFighter } from "@/lib/db/person-link";
+import { personIdFor } from "@/lib/db/person-link";
 import { idOrNull, orNull as str } from "@/lib/form-utils";
 import { requireStaff } from "@/lib/auth/session";
 import { COACH_ROLES, type CoachRole } from "@/lib/db/types";
@@ -12,6 +12,7 @@ function refresh(gymId: string | null) {
   revalidatePath("/coaches");
   revalidatePath("/gyms");
   revalidatePath("/fighters", "layout");
+  revalidatePath("/officials", "layout");
   if (gymId) {
     revalidatePath(`/gyms/${gymId}`);
     revalidatePath(`/gyms/${gymId}/edit`);
@@ -27,12 +28,19 @@ function requireSomeRole(role: CoachRole | null, isOwner: boolean) {
   if (!role && !isOwner) throw new Error("Pick a coaching role, tick Owner, or both.");
 }
 
-// The "also a fighter" picker: ties this coach/owner to the same person as
-// that fighter. Returns undefined when the form has no picker (leave as is).
+// The "same person as" picker: ties this coach/owner to the same person as
+// a fighter or an official ("fighter:<id>" / "official:<id>"), so their pages
+// link to each other. Returns undefined when the form has no picker, or when
+// it was left on "keep" (leave the link as it is).
 async function linkedPerson(formData: FormData): Promise<string | null | undefined> {
-  if (!formData.has("fighter_id")) return undefined;
-  const fighterId = idOrNull(formData.get("fighter_id"));
-  return fighterId ? personIdForFighter(fighterId) : null;
+  const raw = formData.get("same_as");
+  if (typeof raw !== "string" || raw === "keep") return undefined;
+  if (raw === "none") return null;
+  const [kind, id] = raw.split(":");
+  if (!/^[0-9a-f-]{36}$/i.test(id ?? "")) throw new Error("Pick a profile to link to.");
+  if (kind === "fighter") return personIdFor("fighters", id);
+  if (kind === "official") return personIdFor("officials", id);
+  throw new Error("Pick a profile to link to.");
 }
 
 // Staff-only: add a coach and/or owner, optionally attached to a gym.

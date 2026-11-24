@@ -29,6 +29,13 @@ export async function mergePersonsByNumber(fd: FormData) {
   if (!sourceRow) throw new Error(`Source CP-${src} not found.`);
   if (!targetRow) throw new Error(`Target CP-${tgt} not found.`);
 
+  // The database merge predates coaches, so move those rows first.
+  const { error: coachErr } = await admin
+    .from("coaches")
+    .update({ person_id: targetRow.id })
+    .eq("person_id", sourceRow.id);
+  if (coachErr) dbErr(coachErr);
+
   const { error } = await admin.rpc("merge_persons", {
     p_source: sourceRow.id,
     p_target: targetRow.id,

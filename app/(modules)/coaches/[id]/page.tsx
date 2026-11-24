@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DetailRow } from "@/components/detail-row";
 import { GymLogo } from "@/components/gym-logo";
 import { PersonNoBadge } from "@/components/person-no-badge";
+import { PersonRoleNav } from "@/components/person-role-nav";
 import { COACH_ROLE_LABELS, type Coach, type Fighter, type Gym } from "@/lib/db/types";
 
 type CoachProfile = Coach & {
@@ -67,6 +68,11 @@ export default async function CoachProfilePage({
 
   return (
     <>
+      <PersonRoleNav
+        personId={coach.person_id}
+        current={`coach:${coach.id}`}
+        showPersonRecord={session?.isStaff}
+      />
       <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">

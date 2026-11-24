@@ -6,9 +6,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ToastedForm } from "@/components/forms/toasted-form";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
-import { COACH_ROLES, type Coach, type Fighter } from "@/lib/db/types";
+import { COACH_ROLES, type Coach } from "@/lib/db/types";
 
-type FighterOption = Pick<Fighter, "id" | "full_name" | "person_id">;
+// A fighter or official this person might also be.
+export type ProfileOption = {
+  kind: "fighter" | "official";
+  id: string;
+  full_name: string;
+  person_id: string | null;
+};
 
 // The fields shared by an existing person's row and the "add" row.
 function PersonFields({
@@ -18,12 +24,14 @@ function PersonFields({
 }: {
   person?: Coach;
   idPrefix: string;
-  fighters: FighterOption[];
+  fighters: ProfileOption[];
 }) {
-  // The fighter profile that shares this person's record, if any.
-  const linked = person?.person_id
-    ? (fighters.find((f) => f.person_id === person.person_id)?.id ?? "__none__")
-    : "__none__";
+  // The profile that shares this person's record, if any. A person linked to
+  // someone not in the list keeps that link ("keep").
+  const match = person?.person_id
+    ? fighters.find((f) => f.person_id === person.person_id)
+    : undefined;
+  const linked = match ? `${match.kind}:${match.id}` : person?.person_id ? "keep" : "none";
   return (
     <>
       <Input
@@ -76,16 +84,17 @@ function PersonFields({
         className="h-8 w-36 text-sm"
       />
       <NativeSelect
-        name="fighter_id"
+        name="same_as"
         defaultValue={linked}
-        aria-label="Also a fighter"
-        title="Pick their fighter profile if this person also fights"
-        className="h-8 w-44 text-sm"
+        aria-label="Same person as"
+        title="If this person also fights or officiates, pick that profile so their pages link to each other"
+        className="h-8 w-48 text-sm"
       >
-        <option value="__none__">Not a fighter</option>
+        <option value="none">No other profile</option>
+        {linked === "keep" && <option value="keep">Linked to a person record</option>}
         {fighters.map((f) => (
-          <option key={f.id} value={f.id}>
-            Fighter: {f.full_name}
+          <option key={`${f.kind}:${f.id}`} value={`${f.kind}:${f.id}`}>
+            {f.kind === "fighter" ? "Fighter" : "Official"}: {f.full_name}
           </option>
         ))}
       </NativeSelect>
@@ -103,8 +112,8 @@ export function GymPeopleEditor({
 }: {
   gymId: string;
   people: Coach[];
-  // Every fighter in the registry, for the "also a fighter" picker.
-  fighters: FighterOption[];
+  // Every fighter and official, for the "same person as" picker.
+  fighters: ProfileOption[];
 }) {
   return (
     <Card id="people">
@@ -167,7 +176,7 @@ export function GymPeopleEditor({
         </div>
         <p className="text-xs text-muted-foreground">
           Each row saves with its own Save button, separately from the gym details above. If
-          someone also fights, pick their fighter profile so both roles show as one person.
+          someone also fights or officiates, pick that profile so their pages link to each other.
         </p>
       </CardContent>
     </Card>
