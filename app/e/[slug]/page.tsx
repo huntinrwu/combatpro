@@ -16,6 +16,7 @@ import {
 import { RealtimeRefresher } from "./_components/realtime-refresher";
 import { db } from "@/lib/db/client";
 import { fmtDateLong } from "@/lib/format-utils";
+import { fmtClock, parsePublicInfo } from "@/lib/public-info";
 import { Badge } from "@/components/ui/badge";
 import {
   SPONSOR_TIERS,
@@ -114,7 +115,7 @@ export default async function PublicEventPage({
 
   // Fighter and sponsor names are embedded so the whole page is one round trip
   // after the event lookup.
-  const [{ data: rawBouts }, sbRes, { data: sponsorSlots }, { data: rawPosters }, regRes] = await Promise.all([
+  const [{ data: rawBouts }, sbRes, { data: sponsorSlots }, { data: rawPosters }, regRes, infoRes] = await Promise.all([
     supabase
       .from("bouts")
       .select(
@@ -147,6 +148,10 @@ export default async function PublicEventPage({
       .select("registration_open, public_roster, public_bouts")
       .eq("id", event.id)
       .maybeSingle<{ registration_open: boolean; public_roster: boolean; public_bouts: boolean }>(),
+    // What the promoter wrote for this page. Its own query for the same reason.
+    supabase.from("events").select("public_info").eq("id", event.id).maybeSingle<{
+      public_info: unknown;
+    }>(),
   ]);
   const registrationOpen =
     event.status === "scheduled" && regRes.data?.registration_open === true;
@@ -154,6 +159,19 @@ export default async function PublicEventPage({
   // stay on the private side.
   const showBouts = regRes.data?.public_bouts === true;
   const showLineup = showBouts || regRes.data?.public_roster === true;
+  const info = parsePublicInfo(infoRes.data?.public_info);
+  const doors = fmtClock(info.doors);
+  const start = fmtClock(info.start);
+  const place = [info.address, event.city, event.state].filter(Boolean).join(", ");
+  // A search link, so it opens whichever maps app the visitor uses.
+  const mapUrl = info.address
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+        [event.venue, info.address, event.city, event.state].filter(Boolean).join(", "),
+      )}`
+    : null;
+  const hasDetails = Boolean(
+    doors || start || info.address || info.admission || info.ticketUrl || info.about,
+  );
   const posters = ((rawPosters ?? []) as { id: string; filename: string }[]).map((p) => ({
     ...p,
     src: `/e/${slug}/poster/${p.id}`,
@@ -308,6 +326,81 @@ export default async function PublicEventPage({
       </section>
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
+        {hasDetails && (
+          <section className="mb-10">
+            <h2 className="mb-4 font-heading text-lg font-semibold tracking-tight">Event details</h2>
+            <div className="rounded-lg border border-border/60 bg-muted/20 p-5">
+              <dl className="grid gap-5 text-sm sm:grid-cols-3">
+                {(doors || start) && (
+                  <div>
+                    <dt className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                      When
+                    </dt>
+                    <dd className="mt-1 space-y-0.5">
+                      <div>{fmtDateLong(event.event_date)}</div>
+                      {doors && <div>Doors open {doors}</div>}
+                      {start && <div>Fights start {start}</div>}
+                    </dd>
+                  </div>
+                )}
+                {info.address && (
+                  <div>
+                    <dt className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                      Where
+                    </dt>
+                    <dd className="mt-1 space-y-0.5">
+                      {event.venue && <div>{event.venue}</div>}
+                      <div>{place}</div>
+                      {mapUrl && (
+                        <a
+                          href={mapUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 py-1 text-xs text-muted-foreground underline hover:text-foreground"
+                        >
+                          <MapPin className="h-3 w-3" />
+                          Open in Maps
+                        </a>
+                      )}
+                    </dd>
+                  </div>
+                )}
+                {(info.admission || info.ticketUrl) && (
+                  <div>
+                    <dt className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                      Admission
+                    </dt>
+                    <dd className="mt-1 space-y-2">
+                      {info.admission && <div>{info.admission}</div>}
+                      {info.ticketUrl && (
+                        <a
+                          href={info.ticketUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-background px-4 text-sm font-medium hover:bg-muted"
+                        >
+                          Get tickets
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+              {info.about && (
+                <p
+                  className={`whitespace-pre-wrap text-sm ${
+                    doors || start || info.address || info.admission || info.ticketUrl
+                      ? "mt-5 border-t border-border/60 pt-4"
+                      : ""
+                  }`}
+                >
+                  {info.about}
+                </p>
+              )}
+            </div>
+          </section>
+        )}
         {showBouts && (
         <section className="mb-10">
           <div className="mb-4 flex items-baseline justify-between gap-3">

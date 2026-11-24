@@ -157,6 +157,8 @@ export type EventRow = {
   registration_open: boolean;
   // False for events (smokers etc.) that don't require fighter medicals.
   medicals_required: boolean;
+  // What the promoter wrote for the public page; read through parsePublicInfo().
+  public_info: unknown;
   // Whether the public can see the registered fighters / the bout list.
   public_roster: boolean;
   public_bouts: boolean;

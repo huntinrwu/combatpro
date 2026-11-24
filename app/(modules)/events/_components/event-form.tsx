@@ -6,6 +6,7 @@ import { FormField } from "@/components/form-field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
+import { parsePublicInfo } from "@/lib/public-info";
 import {
   EVENT_STATUSES,
   EVENT_TYPES,
@@ -37,6 +38,7 @@ export function EventForm({
   promotions: Pick<Promotion, "id" | "name" | "abbreviation">[];
   hiddenFields?: Record<string, string>;
 }) {
+  const publicInfo = parsePublicInfo(defaults?.public_info);
   return (
     <form action={action} className="space-y-6">
       {hiddenFields &&
@@ -176,6 +178,59 @@ export function EventForm({
           <CardTitle className="text-base">Public page</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            What spectators and fighters see on the event&apos;s public page. The name, date,
+            venue, city and state above show there too. Leave anything blank to leave it off.
+          </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <FormField label="Street address" htmlFor="public_address" className="md:col-span-2">
+              <Input
+                id="public_address"
+                name="public_address"
+                maxLength={200}
+                placeholder="e.g. 123 Main St"
+                defaultValue={publicInfo.address ?? ""}
+              />
+            </FormField>
+            <FormField label="Doors open" htmlFor="public_doors">
+              <Input id="public_doors" name="public_doors" type="time" defaultValue={publicInfo.doors ?? ""} />
+            </FormField>
+            <FormField label="Fights start" htmlFor="public_start">
+              <Input id="public_start" name="public_start" type="time" defaultValue={publicInfo.start ?? ""} />
+            </FormField>
+            <FormField label="Admission" htmlFor="public_admission">
+              <Input
+                id="public_admission"
+                name="public_admission"
+                maxLength={200}
+                placeholder="e.g. Free admission, spectators welcome"
+                defaultValue={publicInfo.admission ?? ""}
+              />
+            </FormField>
+            <FormField label="Ticket link" htmlFor="public_ticket_url">
+              <Input
+                id="public_ticket_url"
+                name="public_ticket_url"
+                maxLength={500}
+                placeholder="https://"
+                defaultValue={publicInfo.ticketUrl ?? ""}
+              />
+            </FormField>
+            <FormField
+              label="More details"
+              htmlFor="public_about"
+              hint="Parking, what to bring, who to contact, anything else people should know."
+              className="md:col-span-2"
+            >
+              <Textarea
+                id="public_about"
+                name="public_about"
+                rows={4}
+                maxLength={3000}
+                defaultValue={publicInfo.about ?? ""}
+              />
+            </FormField>
+          </div>
           <label className="flex items-start gap-2 text-sm">
             <input
               type="checkbox"

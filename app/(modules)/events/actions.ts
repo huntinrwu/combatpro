@@ -18,6 +18,7 @@ import {
   type ScoringMode,
 } from "@/lib/db/types";
 import { weightClassFor } from "@/lib/weight-classes";
+import { publicInfoFromForm } from "@/lib/public-info";
 
 // Shared create/update field parsing. Throws on missing required fields.
 function eventFieldsFrom(formData: FormData) {
@@ -45,6 +46,7 @@ function eventFieldsFrom(formData: FormData) {
     medicals_required: formData.get("medicals_required") === "on",
     public_roster: formData.get("public_roster") === "on",
     public_bouts: formData.get("public_bouts") === "on",
+    public_info: publicInfoFromForm(formData),
     status: (formData.get("status")?.toString() as EventStatus) || "draft",
     notes: orNull(formData.get("notes")),
   };
