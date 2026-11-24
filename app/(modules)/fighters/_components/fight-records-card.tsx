@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { fmtDateShort as fmtDate } from "@/lib/format-utils";
 import {
-  FIGHT_CONFIDENCE,
   FIGHT_CONFIDENCE_META,
   type FightConfidence,
   type FightOutcome,
@@ -77,49 +76,18 @@ export function FightRecordsCard({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border border-border/70 p-4">
-          <div className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
-            Record
-          </div>
-          <div className="mt-1 font-mono text-2xl font-semibold tabular-nums">
-            {declared.pro.w + declared.am.w}–{declared.pro.l + declared.am.l}–
-            {declared.pro.d + declared.am.d}
-          </div>
-          <div className="mt-1 text-xs text-muted-foreground">
-            Pro <span className="font-mono">{declared.pro.w}–{declared.pro.l}–{declared.pro.d}</span>
-            {" · "}
-            Am <span className="font-mono">{declared.am.w}–{declared.am.l}–{declared.am.d}</span>
-          </div>
-          {/* The bout list is supporting detail; say so when it disagrees. */}
-          {records.length > 0 && !listMatches && (
-            <div className="mt-1 text-xs text-muted-foreground">
-              Bouts listed below add up to{" "}
-              <span className="font-mono">
-                {rec.w}–{rec.l}–{rec.d}
-              </span>
-              {rec.nc > 0 && ` (${rec.nc} NC)`}
-            </div>
-          )}
-        </div>
-        <div className="rounded-lg border border-border/70 p-4">
-          <div className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
-            {records.length} recorded bout{records.length === 1 ? "" : "s"}
-          </div>
-          <ul className="mt-1 space-y-0.5 text-sm">
-            {FIGHT_CONFIDENCE.map((c) => {
-              const meta = FIGHT_CONFIDENCE_META[c];
-              return (
-                <li key={c} className="flex items-center gap-2">
-                  <span aria-hidden>{meta.icon}</span>
-                  <span className="font-mono w-6 text-right">{tally[c]}</span>
-                  <span className="text-muted-foreground">{meta.label.toLowerCase()}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      </div>
+      {/* The record itself is in the page header; here only say when the list disagrees. */}
+      {records.length > 0 && !listMatches && (
+        <p className="text-xs text-muted-foreground">
+          The bouts listed below add up to{" "}
+          <span className="font-mono">
+            {rec.w}–{rec.l}–{rec.d}
+          </span>
+          {rec.nc > 0 && ` (${rec.nc} NC)`}, which is different from the record above (
+          {tally.verified} verified, {tally.reported + tally.corroborated} reported
+          {tally.disputed > 0 && `, ${tally.disputed} disputed`}).
+        </p>
+      )}
 
       <div className="flex items-center justify-between gap-3">
         <div className="text-xs text-muted-foreground">

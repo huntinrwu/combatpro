@@ -109,7 +109,9 @@ export default async function CoachesPage({
                   <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
-                        <span className="mr-0.5">{c.full_name}</span>
+                        <Link href={`/coaches/${c.id}`} className="mr-0.5 hover:underline">
+                          {c.full_name}
+                        </Link>
                         {c.role && (
                           <Badge variant={c.role === "head_coach" ? "secondary" : "outline"}>
                             {COACH_ROLE_LABELS[c.role]}

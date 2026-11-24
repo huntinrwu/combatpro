@@ -30,7 +30,7 @@ import type {
   Gym,
   Promotion,
 } from "@/lib/db/types";
-import { fmtDateShort } from "@/lib/format-utils";
+import { ageFromDob, fmtDateShort } from "@/lib/format-utils";
 import { cmToFeetIn, cmToIn } from "@/lib/units";
 
 // Shape of the bouts → event → promotion embed below (both to-one).
@@ -170,7 +170,7 @@ export default async function FighterDetailPage({
 
   return (
     <>
-      <header className="mb-8">
+      <header className="mb-5">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-heading text-3xl font-semibold tracking-tight">
             {fighter.full_name}
@@ -189,12 +189,10 @@ export default async function FighterDetailPage({
                 {c.gym ? ` · ${c.gym.name}` : ""}
               </Badge>
             );
-            return c.gym ? (
-              <Link key={c.id} href={`/gyms/${c.gym.id}`}>
+            return (
+              <Link key={c.id} href={`/coaches/${c.id}`}>
                 {badge}
               </Link>
-            ) : (
-              <span key={c.id}>{badge}</span>
             );
           })}
           <div className="ml-auto flex items-center gap-2">
@@ -253,10 +251,48 @@ export default async function FighterDetailPage({
         </div>
       </header>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
+      {/* The few facts people come here for; everything else is folded away below. */}
+      <dl className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        {(
+          [
+            ["Age", ageFromDob(fighter.date_of_birth)],
+            [
+              "Gym",
+              assignedGym ? (
+                <Link href={`/gyms/${assignedGym.id}`} className="hover:underline">
+                  {assignedGym.name}
+                </Link>
+              ) : (
+                fighter.gym
+              ),
+            ],
+            ["Weight class", fighter.weight_class],
+            [
+              "Walking weight",
+              fighter.walking_weight_lbs != null ? `${Number(fighter.walking_weight_lbs)} lbs` : null,
+            ],
+            [
+              "Height",
+              fighter.height_cm && heightParts ? `${heightParts.feet}'${heightParts.inches}"` : null,
+            ],
+            ["Stance", fighter.stance ? <span className="capitalize">{fighter.stance}</span> : null],
+          ] as const
+        ).map(([label, value]) => (
+          <div key={label} className="rounded-lg border border-border/70 px-3 py-2">
+            <dt className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
+              {label}
+            </dt>
+            <dd className="mt-0.5 truncate text-sm font-medium">
+              {value ?? <span className="font-normal text-muted-foreground">—</span>}
+            </dd>
+          </div>
+        ))}
+      </dl>
+
+      <div className="space-y-3">
+        <Card defaultOpen={false}>
           <CardHeader>
-            <CardTitle className="text-base">Profile</CardTitle>
+            <CardTitle className="text-base">Details &amp; contact</CardTitle>
           </CardHeader>
           <CardContent>
             <DetailRow label="DOB" value={fighter.date_of_birth} />
@@ -331,14 +367,6 @@ export default async function FighterDetailPage({
                   : null
               }
             />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Contact &amp; notes</CardTitle>
-          </CardHeader>
-          <CardContent>
             <DetailRow
               label="Email"
               value={
@@ -363,14 +391,14 @@ export default async function FighterDetailPage({
             />
           </CardContent>
         </Card>
-      </div>
+
 
       {eventClasses.length > 0 && (
-        <Card className="mt-6">
+        <Card defaultOpen={false}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Scale className="h-4 w-4" />
-              Weight class by event
+              Events ({eventClasses.length})
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -415,11 +443,14 @@ export default async function FighterDetailPage({
         </Card>
       )}
 
-      <Card className="mt-6">
+      <Card defaultOpen={false}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Trophy className="h-4 w-4" />
             Fight record
+            <span className="text-xs font-normal text-muted-foreground">
+              {(fightRecords ?? []).length} bout{(fightRecords ?? []).length === 1 ? "" : "s"} listed
+            </span>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -435,7 +466,7 @@ export default async function FighterDetailPage({
         </CardContent>
       </Card>
 
-      <Card className="mt-6" defaultOpen={false}>
+      <Card defaultOpen={false}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Landmark className="h-4 w-4" />
@@ -484,8 +515,7 @@ export default async function FighterDetailPage({
         </CardContent>
       </Card>
 
-      <div className="mt-6 grid gap-6 md:grid-cols-2">
-        <Card>
+        <Card defaultOpen={false}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Scale className="h-4 w-4" />
@@ -519,9 +549,8 @@ export default async function FighterDetailPage({
             />
           </CardContent>
         </Card>
-      </div>
 
-      <Card className="mt-6" defaultOpen={false}>
+      <Card defaultOpen={false}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <IdCard className="h-4 w-4" />
@@ -552,7 +581,7 @@ export default async function FighterDetailPage({
         </CardContent>
       </Card>
 
-      <Card className="mt-6">
+      <Card defaultOpen={false}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <HeartPulse className="h-4 w-4" />
@@ -566,6 +595,7 @@ export default async function FighterDetailPage({
           />
         </CardContent>
       </Card>
+      </div>
     </>
   );
 }

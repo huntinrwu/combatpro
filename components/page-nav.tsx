@@ -11,6 +11,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   "access-requests": "Access requests",
   bouts: "Bouts",
   cashflow: "Cash flow",
+  coaches: "Coaches",
   commissions: "Commissions",
   edit: "Edit",
   events: "Events",
@@ -33,12 +34,15 @@ const SEGMENT_LABELS: Record<string, string> = {
   submit: "Submit",
   vendors: "Vendors",
   "weigh-ins": "Weigh-ins",
+  matchmaking: "Matchmaking",
+  files: "Files",
   "weight-classes": "Weight classes",
 };
 
 // When a segment is a dynamic ID (UUID/slug), label it using its parent.
 const CHILD_LABEL: Record<string, string> = {
   bouts: "Bout",
+  coaches: "Coach",
   commissions: "Commission",
   events: "Event",
   fighters: "Fighter",
