@@ -13,10 +13,12 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
+import { AddToCalendar } from "./_components/add-to-calendar";
 import { RealtimeRefresher } from "./_components/realtime-refresher";
 import { db } from "@/lib/db/client";
 import { fmtDateLong } from "@/lib/format-utils";
 import { fmtClock, parsePublicInfo } from "@/lib/public-info";
+import { googleCalendarUrl } from "@/lib/event-calendar";
 import { Badge } from "@/components/ui/badge";
 import { RichText } from "@/components/rich-text";
 import {
@@ -222,6 +224,17 @@ export default async function PublicEventPage({
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host");
   const lineupPath = `/e/${slug}/lineup`;
+  // A ready-made Google Calendar entry; the calendar file is its own route.
+  const googleUrl = googleCalendarUrl({
+    id: event.id,
+    name: event.name,
+    date: event.event_date,
+    venue: event.venue,
+    city: event.city,
+    state: event.state,
+    info,
+    url: host ? `${h.get("x-forwarded-proto") ?? "https"}://${host}/e/${slug}` : `/e/${slug}`,
+  });
   const lineupQr = host
     ? await QRCode.toString(
         `${h.get("x-forwarded-proto") ?? "https"}://${host}${lineupPath}`,
@@ -374,6 +387,9 @@ export default async function PublicEventPage({
                         <div>{fmtDateLong(event.event_date)}</div>
                         {doors && <div>Doors open {doors}</div>}
                         {start && <div>Fights start {start}</div>}
+                        {event.status === "scheduled" && (
+                          <AddToCalendar googleUrl={googleUrl} icsUrl={`/e/${slug}/calendar`} />
+                        )}
                       </dd>
                     </div>
                     {(info.address || event.venue) && (
