@@ -5,6 +5,7 @@ import { cache } from "react";
 import { ArrowLeft, TriangleAlert } from "lucide-react";
 
 import { RealtimeRefresher } from "../_components/realtime-refresher";
+import { ShareButton } from "../_components/share-button";
 import { db } from "@/lib/db/client";
 import { fmtDateLong } from "@/lib/format-utils";
 import { parseBoard } from "@/lib/matchmaking";
@@ -183,6 +184,16 @@ export default async function PublicLineupPage({
           {[event.venue, event.city, event.state].filter(Boolean).length > 0 &&
             ` · ${[event.venue, event.city, event.state].filter(Boolean).join(", ")}`}
         </p>
+        {(showRoster || showBouts) && (
+          <ShareButton
+            path={`/e/${slug}/lineup`}
+            title={`${event.name} lineup`}
+            text={[fmtDateLong(event.event_date), event.venue, event.city, event.state]
+              .filter(Boolean)
+              .join(", ")}
+            className="mt-4"
+          />
+        )}
 
         {!showRoster && !showBouts && (
           <div className="mt-6 rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">

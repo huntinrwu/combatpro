@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { AddToCalendar } from "./_components/add-to-calendar";
+import { ShareButton } from "./_components/share-button";
 import { RealtimeRefresher } from "./_components/realtime-refresher";
 import { db } from "@/lib/db/client";
 import { fmtDateLong } from "@/lib/format-utils";
@@ -77,12 +78,46 @@ export async function generateMetadata({
   const where = [event.venue, event.city, event.state]
     .filter(Boolean)
     .join(", ");
+  const description = `${new Date(`${event.event_date}T00:00:00`).toLocaleDateString(
+    "en-US",
+    { month: "long", day: "numeric", year: "numeric" },
+  )}${where ? ` · ${where}` : ""}`;
+
+  // What shows when the link is shared: social apps and messaging apps build
+  // their preview card from these, with the event poster as the picture.
+  const [h, { data: poster }] = await Promise.all([
+    headers(),
+    db()
+      .from("event_files")
+      .select("id")
+      .eq("event_id", event.id)
+      .eq("category", "poster")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<{ id: string }>(),
+  ]);
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const origin = host ? `${h.get("x-forwarded-proto") ?? "https"}://${host}` : null;
+  const pageUrl = origin ? `${origin}/e/${slug}` : undefined;
+  const image = origin && poster ? `${origin}/e/${slug}/poster/${poster.id}` : undefined;
+
   return {
     title: `${event.name} — CombatPro`,
-    description: `${new Date(`${event.event_date}T00:00:00`).toLocaleDateString(
-      "en-US",
-      { month: "long", day: "numeric", year: "numeric" },
-    )}${where ? ` · ${where}` : ""}`,
+    description,
+    openGraph: {
+      type: "website",
+      title: event.name,
+      description,
+      url: pageUrl,
+      siteName: "CombatPro",
+      images: image ? [{ url: image, alt: `${event.name} poster` }] : undefined,
+    },
+    twitter: {
+      card: image ? "summary_large_image" : "summary",
+      title: event.name,
+      description,
+      images: image ? [image] : undefined,
+    },
   };
 }
 
@@ -259,7 +294,7 @@ export default async function PublicEventPage({
         </div>
       </header>
 
-      <section className="relative overflow-hidden border-b border-border/60 bg-neutral-950 text-white">
+      <section className="relative border-b border-border/60 bg-neutral-950 text-white">
         <div
           className="pointer-events-none absolute inset-0 opacity-40"
           style={{
@@ -309,14 +344,24 @@ export default async function PublicEventPage({
               </span>
             )}
           </div>
-          {registrationOpen && (
-            <Link
-              href={`/e/${slug}/register`}
-              className="mt-6 inline-flex h-10 items-center rounded-lg bg-white px-5 text-sm font-semibold text-neutral-950 transition-colors hover:bg-white/90"
-            >
-              Register for event
-            </Link>
-          )}
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            {registrationOpen && (
+              <Link
+                href={`/e/${slug}/register`}
+                className="inline-flex h-10 items-center rounded-lg bg-white px-5 text-sm font-semibold text-neutral-950 transition-colors hover:bg-white/90"
+              >
+                Register for event
+              </Link>
+            )}
+            <ShareButton
+              path={`/e/${slug}`}
+              title={event.name}
+              text={[fmtDateLong(event.event_date), event.venue, event.city, event.state]
+                .filter(Boolean)
+                .join(", ")}
+              variant="dark"
+            />
+          </div>
           </div>
           {posters.length > 0 && (
             <div className="w-full shrink-0 md:w-72">
