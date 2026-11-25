@@ -18,6 +18,7 @@ import { db } from "@/lib/db/client";
 import { fmtDateLong } from "@/lib/format-utils";
 import { fmtClock, parsePublicInfo } from "@/lib/public-info";
 import { Badge } from "@/components/ui/badge";
+import { RichText } from "@/components/rich-text";
 import {
   SPONSOR_TIERS,
   sponsorTierLabel,
@@ -162,7 +163,17 @@ export default async function PublicEventPage({
   const info = parsePublicInfo(infoRes.data?.public_info);
   const doors = fmtClock(info.doors);
   const start = fmtClock(info.start);
-  const place = [info.address, event.city, event.state].filter(Boolean).join(", ");
+  // A full address (it has a ZIP code, or already names the city or state) is
+  // shown as typed; a bare street address gets the event's city and state.
+  const addressIsFull =
+    !!info.address &&
+    (/\b\d{5}\b/.test(info.address) ||
+      [event.city, event.state].some(
+        (part) => part && info.address!.toLowerCase().includes(part.toLowerCase()),
+      ));
+  const place = addressIsFull
+    ? info.address
+    : [info.address, event.city, event.state].filter(Boolean).join(", ");
   // A search link, so it opens whichever maps app the visitor uses.
   const mapUrl = info.address
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
@@ -243,7 +254,7 @@ export default async function PublicEventPage({
               "radial-gradient(ellipse at 20% 30%, rgba(220,38,38,0.35), transparent 50%), radial-gradient(ellipse at 80% 70%, rgba(30,64,175,0.4), transparent 55%)",
           }}
         />
-        <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-14 md:flex-row md:items-center">
+        <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-8 md:flex-row md:items-center md:py-12">
           <div className="min-w-0 flex-1">
           {topBillingSponsors.length > 0 && (
             <p className="mb-3 text-xs uppercase tracking-[0.35em] text-white/70">
@@ -325,92 +336,102 @@ export default async function PublicEventPage({
         </div>
       </section>
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
-        {info.description && (
-          <section className="mb-10">
-            <h2 className="mb-3 font-heading text-lg font-semibold tracking-tight">
-              About this event
-            </h2>
-            <p className="max-w-3xl whitespace-pre-wrap text-sm leading-relaxed">{info.description}</p>
-          </section>
-        )}
-        {hasDetails && (
-          <section className="mb-10">
-            <h2 className="mb-4 font-heading text-lg font-semibold tracking-tight">Event details</h2>
-            <div className="rounded-lg border border-border/60 bg-muted/20 p-5">
-              <dl className="grid gap-5 text-sm sm:grid-cols-3">
-                {(doors || start) && (
-                  <div>
-                    <dt className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                      When
-                    </dt>
-                    <dd className="mt-1 space-y-0.5">
-                      <div>{fmtDateLong(event.event_date)}</div>
-                      {doors && <div>Doors open {doors}</div>}
-                      {start && <div>Fights start {start}</div>}
-                    </dd>
-                  </div>
-                )}
-                {info.address && (
-                  <div>
-                    <dt className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                      Where
-                    </dt>
-                    <dd className="mt-1 space-y-0.5">
-                      {event.venue && <div>{event.venue}</div>}
-                      <div>{place}</div>
-                      {mapUrl && (
-                        <a
-                          href={mapUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 py-1 text-xs text-muted-foreground underline hover:text-foreground"
-                        >
-                          <MapPin className="h-3 w-3" />
-                          Open in Maps
-                        </a>
-                      )}
-                    </dd>
-                  </div>
-                )}
-                {(info.admission || info.ticketUrl) && (
-                  <div>
-                    <dt className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                      Admission
-                    </dt>
-                    <dd className="mt-1 space-y-2">
-                      {info.admission && <div>{info.admission}</div>}
-                      {info.ticketUrl && (
-                        <a
-                          href={info.ticketUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-background px-4 text-sm font-medium hover:bg-muted"
-                        >
-                          Get tickets
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      )}
-                    </dd>
-                  </div>
-                )}
-              </dl>
-              {info.about && (
-                <div
-                  className={
-                    doors || start || info.address || info.admission || info.ticketUrl
-                      ? "mt-5 border-t border-border/60 pt-4"
-                      : ""
-                  }
-                >
-                  <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                    Notes
-                  </div>
-                  <p className="mt-1 whitespace-pre-wrap text-sm">{info.about}</p>
+      <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-8 md:py-10 [&>*:last-child]:mb-0">
+        {(info.description || hasDetails) && (
+          // Laptop: the write-up on the left, the practical details beside it.
+          // Phone: details first, since they are short and what people look for.
+          <div
+            className={`mb-10 grid gap-8 ${
+              info.description && hasDetails ? "lg:grid-cols-3" : ""
+            }`}
+          >
+            {info.description && (
+              <section className={hasDetails ? "order-2 lg:order-1 lg:col-span-2" : ""}>
+                <h2 className="mb-3 font-heading text-lg font-semibold tracking-tight">
+                  About this event
+                </h2>
+                <RichText text={info.description} skipHeading="About this event" />
+              </section>
+            )}
+
+            {hasDetails && (
+              <section className={info.description ? "order-1 lg:order-2" : ""}>
+                <h2 className="mb-3 font-heading text-lg font-semibold tracking-tight">
+                  Event details
+                </h2>
+                <div className="rounded-lg border border-border/60 bg-muted/20 p-5">
+                  <dl
+                    className={`grid gap-5 text-sm ${
+                      // Beside the write-up the details stack; alone they sit in a row.
+                      info.description ? "" : "sm:grid-cols-[repeat(auto-fit,minmax(13rem,1fr))]"
+                    }`}
+                  >
+                    <div>
+                      <dt className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                        When
+                      </dt>
+                      <dd className="mt-1 space-y-0.5">
+                        <div>{fmtDateLong(event.event_date)}</div>
+                        {doors && <div>Doors open {doors}</div>}
+                        {start && <div>Fights start {start}</div>}
+                      </dd>
+                    </div>
+                    {(info.address || event.venue) && (
+                      <div>
+                        <dt className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                          Where
+                        </dt>
+                        <dd className="mt-1 space-y-0.5">
+                          {event.venue && <div>{event.venue}</div>}
+                          {place && <div>{place}</div>}
+                          {mapUrl && (
+                            <a
+                              href={mapUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 py-1 text-xs text-muted-foreground underline hover:text-foreground"
+                            >
+                              <MapPin className="h-3 w-3" />
+                              Open in Maps
+                            </a>
+                          )}
+                        </dd>
+                      </div>
+                    )}
+                    {(info.admission || info.ticketUrl) && (
+                      <div>
+                        <dt className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                          Admission
+                        </dt>
+                        <dd className="mt-1 space-y-2">
+                          {info.admission && <div>{info.admission}</div>}
+                          {info.ticketUrl && (
+                            <a
+                              href={info.ticketUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-background px-4 text-sm font-medium hover:bg-muted"
+                            >
+                              Get tickets
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          )}
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+                  {info.about && (
+                    <div className="mt-5 border-t border-border/60 pt-4">
+                      <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                        Notes
+                      </div>
+                      <RichText text={info.about} className="mt-1" />
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </section>
+              </section>
+            )}
+          </div>
         )}
         {showBouts && (
         <section className="mb-10">
