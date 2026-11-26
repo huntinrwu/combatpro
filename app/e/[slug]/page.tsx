@@ -15,6 +15,7 @@ import {
 
 import { AddToCalendar } from "./_components/add-to-calendar";
 import { ShareButton } from "./_components/share-button";
+import { PosterLightbox } from "./_components/poster-lightbox";
 import { RealtimeRefresher } from "./_components/realtime-refresher";
 import { db } from "@/lib/db/client";
 import { fmtDateLong } from "@/lib/format-utils";
@@ -365,27 +366,23 @@ export default async function PublicEventPage({
           </div>
           {posters.length > 0 && (
             <div className="w-full shrink-0 md:w-72">
-              <a href={posters[0].src} target="_blank" rel="noopener">
-                {/* Served by our own cached route; the storage bucket is private. */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={posters[0].src}
-                  alt={`${event.name} poster`}
-                  className="w-full rounded-lg border border-white/15 shadow-2xl"
-                />
-              </a>
+              <PosterLightbox
+                src={posters[0].src}
+                alt={`${event.name} poster`}
+                className="w-full"
+                imgClassName="w-full rounded-lg border border-white/15 shadow-2xl"
+              />
               {posters.length > 1 && (
                 <div className="mt-3 flex gap-2">
                   {posters.slice(1, 5).map((p) => (
-                    <a key={p.id} href={p.src} target="_blank" rel="noopener" className="w-1/4">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={p.src}
-                        alt={`${event.name} poster`}
-                        loading="lazy"
-                        className="aspect-[3/4] w-full rounded border border-white/15 object-cover"
-                      />
-                    </a>
+                    <PosterLightbox
+                      key={p.id}
+                      src={p.src}
+                      alt={`${event.name} poster`}
+                      className="w-1/4"
+                      imgClassName="aspect-[3/4] w-full rounded border border-white/15 object-cover"
+                      lazy
+                    />
                   ))}
                 </div>
               )}
