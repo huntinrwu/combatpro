@@ -8,9 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
+// `path` is what follows /e/<slug> in the page's address.
 const PAGES = [
-  { key: "lineup", label: "Lineup", blurb: "Registered fighters and tentative matchups." },
-  { key: "register", label: "Sign-up", blurb: "The fighter registration form." },
+  { key: "event", path: "", label: "Event page", blurb: "The main public page for this event." },
+  { key: "lineup", path: "/lineup", label: "Lineup", blurb: "Registered fighters and tentative matchups." },
+  { key: "register", path: "/register", label: "Sign-up", blurb: "The fighter registration form." },
 ] as const;
 
 // Must match QR_SIZES in lib/public-qr.ts.
@@ -38,9 +40,9 @@ export function ShareLineupCard({
   publicRoster: boolean;
   publicBouts: boolean;
 }) {
-  const [page, setPage] = useState<(typeof PAGES)[number]>(PAGES[0]);
+  const [page, setPage] = useState<(typeof PAGES)[number]>(PAGES[1]);
   const [size, setSize] = useState<(typeof SIZES)[number]>(SIZES[2]);
-  const pagePath = `/e/${slug}/${page.key}`;
+  const pagePath = `/e/${slug}${page.path}`;
   const qrPath = `${pagePath}/qr?size=${size.key}`;
 
   async function copyLink() {
@@ -110,7 +112,7 @@ export function ShareLineupCard({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={`${pagePath}/qr?size=s`}
-            alt={`QR code for the ${page.label.toLowerCase()} page`}
+            alt={`QR code for the ${page.label.toLowerCase().replace(/ page$/, "")} page`}
             className="h-28 w-28 shrink-0 rounded-md border border-border bg-white"
           />
           <p className="text-xs text-muted-foreground">

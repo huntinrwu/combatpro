@@ -7,7 +7,7 @@ export const QR_SIZES = { s: 256, m: 512, l: 1024, xl: 2048 } as const;
 export type QrSize = keyof typeof QR_SIZES;
 
 // PNG of a QR code that opens one of an event's public pages (`page` is the
-// path after /e/<slug>/). Public, like the pages it points at, so promoters
+// path after /e/<slug>/, or "" for the event page itself). Public, like the pages it points at, so promoters
 // can paste or link the image anywhere. `?size=s|m|l|xl` picks the size.
 export async function publicQrResponse(request: Request, slug: string, page: string) {
   const { data: event } = await db()
@@ -24,7 +24,7 @@ export async function publicQrResponse(request: Request, slug: string, page: str
   const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
   const proto = request.headers.get("x-forwarded-proto") ?? "https";
   const origin = host ? `${proto}://${host}` : new URL(request.url).origin;
-  const png = await QRCode.toBuffer(`${origin}/e/${slug}/${page}`, {
+  const png = await QRCode.toBuffer(`${origin}/e/${slug}${page ? `/${page}` : ""}`, {
     type: "png",
     width: QR_SIZES[size],
     // Four modules of white on every side, the margin scanners expect.
@@ -34,7 +34,7 @@ export async function publicQrResponse(request: Request, slug: string, page: str
   return new Response(new Uint8Array(png), {
     headers: {
       "Content-Type": "image/png",
-      "Content-Disposition": `inline; filename="${page}-qr-${slug}-${size}.png"`,
+      "Content-Disposition": `inline; filename="${page || "event"}-qr-${slug}-${size}.png"`,
       "Cache-Control": "public, max-age=3600",
     },
   });
